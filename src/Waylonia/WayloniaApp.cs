@@ -86,7 +86,7 @@ internal sealed class WayloniaApp : Application
             quit.Click += (_, _) => _ = ShutdownAsync(0);
             _tray = new TrayIcon
             {
-                Icon = new WindowIcon(typeof(WayloniaApp).Assembly.GetManifestResourceStream("Waylonia.Wayland_Logo.png")!),
+                Icon = new WindowIcon(typeof(WayloniaApp).Assembly.GetManifestResourceStream("Waylonia.Waylonia_Logo.png")!),
                 ToolTipText = "Waylonia — starting…",
                 Menu = new NativeMenu { Items = { quit } },
             };
