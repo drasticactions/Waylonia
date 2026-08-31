@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Waylonia/Waylonia.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Waylonia.Tests/Waylonia.Tests.csproj" />
+  </Folder>
+</Solution>

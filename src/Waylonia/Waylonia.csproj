@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Waylonia</RootNamespace>
+    <AssemblyName>waylonia</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);IL2104</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Platform/Linux/**" Condition="!$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Compile Remove="Platform/Mac/**" Condition="!$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Compile Remove="Platform/Windows/**" Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+    <Compile Remove="Platform/Generic/HostPlatform.cs" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Compile Remove="Platform/Generic/WayloniaXWayland.cs" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Compile Remove="Platform/Generic/HostScreenScales.cs" Condition="$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Compile Remove="Platform/Generic/GlobalHotkeys.cs" Condition="$([MSBuild]::IsOSPlatform('Windows')) or $([MSBuild]::IsOSPlatform('OSX')) or $([MSBuild]::IsOSPlatform('Linux'))" />
+    <Compile Remove="Platform/Generic/HostCursor.cs" Condition="$([MSBuild]::IsOSPlatform('Windows')) or $([MSBuild]::IsOSPlatform('OSX')) or $([MSBuild]::IsOSPlatform('Linux'))" />
+    <Compile Remove="Platform/Generic/HostCapture.cs" Condition="$([MSBuild]::IsOSPlatform('Windows')) or $([MSBuild]::IsOSPlatform('OSX')) or $([MSBuild]::IsOSPlatform('Linux'))" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Waylonia.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets/Wayland_Logo.png" LogicalName="Waylonia.Wayland_Logo.png" />
+    <None Include="waylonia.desktop" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Basin.Avalonia" />
+    <PackageReference Include="Basin.Render.Skia" />
+    <PackageReference Include="Basin.Transport.Waypipe" />
+    <PackageReference Include="Basin.Video.FFmpeg" />
+    <PackageReference Include="Basin.XWayland" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="JAJ.Packages.MiniAudioEx" />
+    <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="Tomlyn" />
+    <PackageReference Include="Avalonia.Wayland" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <PackageReference Include="Tmds.DBus.Protocol" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </ItemGroup>
+
+</Project>
