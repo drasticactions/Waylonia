@@ -1,0 +1,43 @@
+<Project>
+
+  <PropertyGroup Condition="'$(BasinRepo)' != ''">
+    <_BasinRepoInput>$(BasinRepo)</_BasinRepoInput>
+    <_BasinRepoInput Condition="'$(_BasinRepoInput)' == '1' or '$(_BasinRepoInput)' == 'true'">$(RepoRoot)../basin</_BasinRepoInput>
+    <_BasinRepoInput Condition="$(_BasinRepoInput.StartsWith('~/'))">$(HOME)$(_BasinRepoInput.Substring(1))</_BasinRepoInput>
+    <BasinRepoPath>$([MSBuild]::EnsureTrailingSlash($([System.IO.Path]::GetFullPath('$(_BasinRepoInput)'))))</BasinRepoPath>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(BasinRepoPath)' != ''">
+    <_BasinRepoProject Include="$(BasinRepoPath)src/*/*.csproj" />
+    <_BasinRepoId Include="@(_BasinRepoProject->'%(Filename)')" />
+
+    <_BasinNotLocal Include="@(PackageReference)" Exclude="@(_BasinRepoId)" />
+    <_BasinLocalPackage Include="@(PackageReference)" />
+    <_BasinLocalPackage Remove="@(_BasinNotLocal)" />
+
+    <PackageReference Remove="@(_BasinLocalPackage)" />
+    <ProjectReference Include="@(_BasinLocalPackage->'$(BasinRepoPath)src/%(Identity)/%(Identity).csproj')" />
+  </ItemGroup>
+
+  <Target Name="VerifyBasinRepo" BeforeTargets="CollectPackageReferences;Restore;CoreCompile"
+          Condition="'$(BasinRepo)' != ''">
+    <Error Condition="!Exists('$(BasinRepoPath)')"
+           Text="BasinRepo points at '$(BasinRepoPath)', which does not exist. Set BasinRepo to a Basin checkout, or to 1 for the sibling one at $(RepoRoot)../basin." />
+    <Error Condition="Exists('$(BasinRepoPath)') and !Exists('$(BasinRepoPath)basin.slnx')"
+           Text="'$(BasinRepoPath)' has no basin.slnx, so it is not a Basin checkout." />
+
+    <ItemGroup>
+      <_BasinStillPackaged Include="@(PackageReference)"
+                           Condition="$([System.String]::Copy('%(Identity)').StartsWith('Basin.'))" />
+    </ItemGroup>
+    <Error Condition="'@(_BasinStillPackaged)' != ''"
+           Text="'$(BasinRepoPath)' has no project for @(_BasinStillPackaged, ', '), so $(MSBuildProjectName) would mix cached Basin assemblies into a source build. Update the checkout, or unset BasinRepo." />
+  </Target>
+
+  <Target Name="ReportBasinRepo" BeforeTargets="CoreCompile"
+          Condition="'$(BasinRepoPath)' != '' and '@(_BasinLocalPackage)' != ''">
+    <Message Importance="high"
+             Text="$(MSBuildProjectName) builds Basin from $(BasinRepoPath): @(_BasinLocalPackage, ', ')" />
+  </Target>
+
+</Project>
