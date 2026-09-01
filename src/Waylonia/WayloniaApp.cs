@@ -192,7 +192,7 @@ internal sealed class WayloniaApp : Application
             void Publish()
             {
                 var snapshot = HostScreens.Capture(screens);
-                var key = HostScreens.KeyFor(screens, screens.ScreenFromWindow(window));
+                var key = HostScreens.KeyFor(screens, screens.ScreenFromWindow(window) ?? screens.Primary);
                 var scale = window.RenderScaling;
                 var noteScale = scale > 0 && (scaleSettled || scale != 1.0);
                 _view?.Post(() =>
@@ -213,14 +213,32 @@ internal sealed class WayloniaApp : Application
                 });
             }
 
+            var probeDone = false;
+            void HideProbe()
+            {
+                if (!probeDone)
+                {
+                    probeDone = true;
+                    window.Hide();
+                }
+            }
+
             screens.Changed += (_, _) => Publish();
             window.ScalingChanged += (_, _) =>
             {
                 scaleSettled = true;
                 Publish();
+                HideProbe();
             };
             Publish();
-            window.Hide();
+            if (window.RenderScaling != 1.0)
+            {
+                HideProbe();
+            }
+            else
+            {
+                DispatcherTimer.RunOnce(HideProbe, TimeSpan.FromMilliseconds(1500));
+            }
         }
 
         BasinReport.Line(ReportLines.Socket(host.Socket));
