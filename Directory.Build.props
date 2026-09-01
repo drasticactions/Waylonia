@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <NoWarn>$(NoWarn);CS1591;CS8002</NoWarn>
     <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
     <IsAotCompatible>true</IsAotCompatible>
     <SignAssembly>true</SignAssembly>
