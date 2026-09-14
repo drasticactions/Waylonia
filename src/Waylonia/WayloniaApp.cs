@@ -304,11 +304,14 @@ internal sealed class WayloniaApp : Application
 
     private void LaunchHotkey(BasinCompositorHost host, Hotkey hotkey)
     {
-        if (_shuttingDown)
+        if (!_shuttingDown)
         {
-            return;
+            _ = LaunchHotkeyAsync(host, hotkey);
         }
+    }
 
+    private async Task LaunchHotkeyAsync(BasinCompositorHost host, Hotkey hotkey)
+    {
         var remote = _run!.SshHost;
         Process? client;
         try
@@ -321,14 +324,18 @@ internal sealed class WayloniaApp : Application
             {
                 if (_ssh is null or { HasExited: true })
                 {
-                    if (!StartForward(host, remote))
+                    Log.Info($"the connection to {remote} is gone; opening it again");
+                    UpdateStatus($"reconnecting to {remote}");
+                    if (!await ConnectAsync(host, remote))
                     {
                         return;
                     }
 
-                    Log.Info($"the connection to {remote} was gone; opened it again");
-                    UpdateStatus($"reconnecting to {remote}");
                     _ = WatchForwardAsync(remote);
+                }
+                else if (!await WaitForLoginAsync())
+                {
+                    return;
                 }
 
                 client = StartRemoteClient(remote, hotkey.Command);
@@ -412,7 +419,7 @@ internal sealed class WayloniaApp : Application
             return;
         }
 
-        if (!StartForward(host, sshHost))
+        if (!await ConnectAsync(host, sshHost))
         {
             return;
         }
@@ -448,8 +455,6 @@ internal sealed class WayloniaApp : Application
             RedirectStandardError = true,
             RedirectStandardOutput = true,
         };
-        info.ArgumentList.Add("-o");
-        info.ArgumentList.Add("BatchMode=yes");
         if (_sshControlPath is { } control)
         {
             info.ArgumentList.Add("-o");
@@ -515,6 +520,7 @@ internal sealed class WayloniaApp : Application
     private System.Net.Sockets.Socket? _channelListener;
     private Process? _ssh;
     private Relay? _sshRelay;
+    private TaskCompletionSource? _sshLoggedIn;
     private string? _sshRemoteSocket;
     private string? _sshDisplayName;
     private string? _sshXDisplayFile;
@@ -726,10 +732,15 @@ internal sealed class WayloniaApp : Application
         private const int Kept = 20;
         private readonly Queue<string> _lines = new(Kept);
 
-        public void Watch(StreamReader reader) => _ = Task.Run(async () =>
+        public void Watch(StreamReader reader, Func<string, bool>? claim = null) => _ = Task.Run(async () =>
         {
             while (await reader.ReadLineAsync() is { } line)
             {
+                if (claim is not null && claim(line))
+                {
+                    continue;
+                }
+
                 lock (_lines)
                 {
                     if (_lines.Count == Kept)
@@ -759,7 +770,7 @@ internal sealed class WayloniaApp : Application
 
     private async Task LaunchSshAsync(BasinCompositorHost host, string sshHost, string? command)
     {
-        if (!StartForward(host, sshHost))
+        if (!await ConnectAsync(host, sshHost))
         {
             return;
         }
@@ -784,8 +795,8 @@ internal sealed class WayloniaApp : Application
                 await Task.Delay(200);
             }
         });
-        var attached = await Task.WhenAny(attachedTask, Task.Delay(TimeSpan.FromSeconds(30))) == attachedTask
-            && _channels.Count > 0;
+        await Task.WhenAny(attachedTask, _ssh!.WaitForExitAsync(), Task.Delay(TimeSpan.FromSeconds(30)));
+        var attached = _channels.Count > 0;
         if (!attached || _ssh!.HasExited)
         {
             if (_ssh!.HasExited)
@@ -843,6 +854,7 @@ internal sealed class WayloniaApp : Application
             : string.Empty;
         var removeGtkConfig = _sshConfigDir is { } staged ? $"rm -rf {staged}; " : string.Empty;
         var remote =
+            $"echo '{LoggedIn}'; " +
             RemoteRuntimeDir +
             $"d=\"$XDG_RUNTIME_DIR/{_sshDisplayName}\"; rm -f \"$d\" {_sshXDisplayFile}; " +
             xwayland +
@@ -892,8 +904,6 @@ internal sealed class WayloniaApp : Application
             RedirectStandardInput = true,
         };
         info.ArgumentList.Add("-o");
-        info.ArgumentList.Add("BatchMode=yes");
-        info.ArgumentList.Add("-o");
         info.ArgumentList.Add("StreamLocalBindUnlink=yes");
         info.ArgumentList.Add("-o");
         info.ArgumentList.Add("ExitOnForwardFailure=yes");
@@ -939,15 +949,47 @@ internal sealed class WayloniaApp : Application
             return false;
         }
 
+        var loggedIn = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _sshLoggedIn = loggedIn;
         _sshRelay = new Relay("ssh");
-        _sshRelay.Watch(_ssh.StandardOutput);
+        _sshRelay.Watch(_ssh.StandardOutput, line => line == LoggedIn && loggedIn.TrySetResult());
         _sshRelay.Watch(_ssh.StandardError);
-        if (_run.Audio && _audio is null && _sshSinkName is { } audioSink)
+        return true;
+    }
+
+    private const string LoggedIn = "waylonia: logged in";
+
+    private async Task<bool> ConnectAsync(BasinCompositorHost host, string sshHost)
+    {
+        if (!StartForward(host, sshHost))
+        {
+            return false;
+        }
+
+        UpdateStatus($"logging in to {sshHost}");
+        if (!await WaitForLoginAsync())
+        {
+            await WatchForwardAsync(sshHost);
+            return false;
+        }
+
+        if (_run!.Audio && _audio is null && _sshSinkName is { } audioSink)
         {
             _audio = Audio.WayloniaAudio.TryStart(sshHost, _sshControlPath, audioSink, _run.AudioFormat);
         }
 
         return true;
+    }
+
+    private async Task<bool> WaitForLoginAsync()
+    {
+        if (_ssh is not { } ssh || _sshLoggedIn is not { } loggedIn)
+        {
+            return false;
+        }
+
+        await Task.WhenAny(loggedIn.Task, ssh.WaitForExitAsync());
+        return loggedIn.Task.IsCompleted && !ssh.HasExited && !_shuttingDown;
     }
 
     private async Task WatchForwardAsync(string sshHost)
