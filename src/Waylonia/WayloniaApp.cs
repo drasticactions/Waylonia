@@ -9,6 +9,7 @@ using Basin;
 using Basin.Avalonia;
 using Waylonia.Cli;
 using Basin.Diagnostics;
+using Basin.Freedesktop;
 using Basin.Scene;
 using static Waylonia.WayloniaLog;
 
@@ -29,6 +30,7 @@ internal sealed class WayloniaApp : Application
     private Process? _client;
     private Window? _window;
     private TrayIcon? _tray;
+    private TrayMenu? _trayMenu;
     private IDisposable? _globalHotkeys;
     private DesktopShellPolicy? _desktop;
     private CaptureToggle? _capture;
@@ -82,14 +84,19 @@ internal sealed class WayloniaApp : Application
 
         if (_run!.Tray)
         {
-            var quit = new NativeMenuItem("Quit Waylonia");
-            quit.Click += (_, _) => _ = ShutdownAsync(0);
+            _trayMenu = new TrayMenu(
+                ApplicationsWanted,
+                () => LoadApplications(),
+                (label, command) => LaunchCommand(command, label),
+                () => _ = ShutdownAsync(0));
+            _trayMenu.ShowQuitOnly();
             _tray = new TrayIcon
             {
                 Icon = new WindowIcon(typeof(WayloniaApp).Assembly.GetManifestResourceStream("Waylonia.Waylonia_Logo.png")!),
                 ToolTipText = "Waylonia — starting…",
-                Menu = new NativeMenu { Items = { quit } },
+                Menu = _trayMenu.Menu,
             };
+            _trayMenu.Rebuilt += menu => _tray.Menu = menu;
             TrayIcon.SetIcons(this, [_tray]);
         }
 
@@ -267,6 +274,10 @@ internal sealed class WayloniaApp : Application
         }
 
         UpdateStatus($"waiting for clients on {host.Socket}");
+        if (_run!.SshHost is null)
+        {
+            LoadApplications();
+        }
 
         if (_run!.Desktop is { } recipe)
         {
@@ -302,15 +313,17 @@ internal sealed class WayloniaApp : Application
         }
     }
 
-    private void LaunchHotkey(BasinCompositorHost host, Hotkey hotkey)
+    private void LaunchHotkey(Hotkey hotkey) => LaunchCommand(hotkey.Command, $"hotkey '{hotkey.Chord}'");
+
+    private void LaunchCommand(string command, string label)
     {
-        if (!_shuttingDown)
+        if (!_shuttingDown && _host is { } host)
         {
-            _ = LaunchHotkeyAsync(host, hotkey);
+            _ = LaunchCommandAsync(host, command, label);
         }
     }
 
-    private async Task LaunchHotkeyAsync(BasinCompositorHost host, Hotkey hotkey)
+    private async Task LaunchCommandAsync(BasinCompositorHost host, string command, string label)
     {
         var remote = _run!.SshHost;
         Process? client;
@@ -318,32 +331,21 @@ internal sealed class WayloniaApp : Application
         {
             if (remote is null)
             {
-                client = BasinDiagnostics.StartClient(hotkey.Command, host.Socket);
+                client = BasinDiagnostics.StartClient(command, host.Socket);
             }
             else
             {
-                if (_ssh is null or { HasExited: true })
-                {
-                    Log.Info($"the connection to {remote} is gone; opening it again");
-                    UpdateStatus($"reconnecting to {remote}");
-                    if (!await ConnectAsync(host, remote))
-                    {
-                        return;
-                    }
-
-                    _ = WatchForwardAsync(remote);
-                }
-                else if (!await WaitForLoginAsync())
+                if (!await EnsureConnectedAsync(host, remote))
                 {
                     return;
                 }
 
-                client = StartRemoteClient(remote, hotkey.Command);
+                client = StartRemoteClient(remote, command);
             }
         }
         catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
-            Log.Warn($"hotkey '{hotkey.Chord}': '{hotkey.Command}' failed to start: {error.Message}");
+            Log.Warn($"{label}: '{command}' failed to start: {error.Message}");
             return;
         }
 
@@ -354,8 +356,144 @@ internal sealed class WayloniaApp : Application
 
         _launched.Add(client);
         UpdateStatus(remote is null
-            ? $"started '{hotkey.Command}'"
-            : $"started '{hotkey.Command}' on {remote}");
+            ? $"started '{command}'"
+            : $"started '{command}' on {remote}");
+    }
+
+    private async Task<bool> EnsureConnectedAsync(BasinCompositorHost host, string remote)
+    {
+        if (_ssh is not (null or { HasExited: true }))
+        {
+            return await WaitForLoginAsync();
+        }
+
+        Log.Info($"the connection to {remote} is gone; opening it again");
+        UpdateStatus($"reconnecting to {remote}");
+        if (!await ConnectAsync(host, remote))
+        {
+            return false;
+        }
+
+        _ = WatchForwardAsync(remote);
+        LoadApplications();
+        return true;
+    }
+
+    private bool ApplicationsWanted =>
+        _run!.Tray && _run.TrayApps && _run.Desktop is null && _run.WaypipeListen is null;
+
+    private void LoadApplications()
+    {
+        if (_trayMenu is null || !ApplicationsWanted || _shuttingDown)
+        {
+            return;
+        }
+
+        _trayMenu.ShowNotice("Loading applications…");
+        _ = LoadApplicationsAsync(_trayMenu);
+    }
+
+    private async Task LoadApplicationsAsync(TrayMenu menu)
+    {
+        var locale = DesktopLocale.FromEnvironment();
+        var currentDesktop = ApplicationMenu.CurrentDesktop(_run!.CurrentDesktop);
+        var terminal = ApplicationMenu.Terminal(_run.Terminal);
+        IReadOnlyList<DesktopEntry> listable;
+        try
+        {
+            if (_run.SshHost is { } remote)
+            {
+                if (_ssh is null or { HasExited: true } || !await WaitForLoginAsync())
+                {
+                    Show(menu, $"Disconnected from {remote}");
+                    return;
+                }
+
+                if (await ReadRemoteApplicationsAsync(remote, locale) is not { } output)
+                {
+                    Show(menu, $"The applications on {remote} could not be read");
+                    return;
+                }
+
+                listable = RemoteApplications.Parse(output, locale).Listable(currentDesktop);
+            }
+            else
+            {
+                listable = await Task.Run(() => new DesktopEntries(locale).Listable(currentDesktop));
+            }
+        }
+        catch (Exception error) when (error is IOException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            Log.Warn($"the application list could not be read: {error.Message}");
+            Show(menu, "The applications could not be read");
+            return;
+        }
+
+        var items = ApplicationMenu.Build(listable, terminal);
+        if (terminal is null && listable.Any(static entry => entry.Terminal))
+        {
+            Log.Info($"terminal applications are left out of the tray menu; set terminal in the config to list them");
+        }
+
+        Log.Debug($"{listable.Count} application(s) in {items.Count} categor(ies) for the tray menu");
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!_shuttingDown)
+            {
+                menu.ShowApplications(items);
+            }
+        });
+    }
+
+    private static void Show(TrayMenu menu, string notice) => Dispatcher.UIThread.Post(() => menu.ShowNotice(notice));
+
+    private async Task<string?> ReadRemoteApplicationsAsync(string sshHost, DesktopLocale locale)
+    {
+        var info = new ProcessStartInfo("ssh")
+        {
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            StandardOutputEncoding = System.Text.Encoding.UTF8,
+        };
+        if (_sshControlPath is { } control)
+        {
+            info.ArgumentList.Add("-o");
+            info.ArgumentList.Add($"ControlPath={control}");
+            info.ArgumentList.Add("-o");
+            info.ArgumentList.Add("ControlMaster=no");
+        }
+
+        info.ArgumentList.Add(sshHost);
+        info.ArgumentList.Add(RemoteApplications.Script(locale));
+        using var listing = Process.Start(info);
+        if (listing is null)
+        {
+            return null;
+        }
+
+        var relay = new Relay("applications");
+        relay.Watch(listing.StandardError);
+        var output = listing.StandardOutput.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+        try
+        {
+            await listing.WaitForExitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            Log.Warn($"listing the applications on {sshHost} took over 90 s; giving up");
+            listing.Kill();
+            return null;
+        }
+
+        if (listing.ExitCode != 0)
+        {
+            Log.Warn($"listing the applications on {sshHost} exited with {listing.ExitCode}");
+            relay.Report();
+        }
+
+        return await output;
     }
 
     private void OnScreenWindowChanged(Basin.Avalonia.ToplevelWindow? window)
@@ -392,7 +530,7 @@ internal sealed class WayloniaApp : Application
         }
 
         _globalHotkeys = GlobalHotkeys.TryStart(
-            _run.Hotkeys, anchor, _view!, host, hotkey => LaunchHotkey(host, hotkey));
+            _run.Hotkeys, anchor, _view!, host, LaunchHotkey);
     }
 
     private async Task LaunchDesktopAsync(BasinCompositorHost host, DesktopRecipe recipe)
@@ -774,6 +912,8 @@ internal sealed class WayloniaApp : Application
         {
             return;
         }
+
+        LoadApplications();
 
         if (command is null)
         {

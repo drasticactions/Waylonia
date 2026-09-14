@@ -34,6 +34,7 @@
 
   <ItemGroup>
     <PackageReference Include="Basin.Avalonia" />
+    <PackageReference Include="Basin.Freedesktop" />
     <PackageReference Include="Basin.Render.Skia" />
     <PackageReference Include="Basin.Transport.Waypipe" />
     <PackageReference Include="Basin.Video.FFmpeg" />

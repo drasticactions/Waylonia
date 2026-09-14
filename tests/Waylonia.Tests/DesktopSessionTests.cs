@@ -57,7 +57,6 @@ public sealed class DesktopSessionTests
         Assert.DoesNotContain("WLR_NO_HARDWARE_CURSORS=1", environment);
     }
 
-
     [Fact]
     public void A_profile_assignment_comes_after_the_recipe_s_own()
     {

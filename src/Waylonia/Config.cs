@@ -24,6 +24,8 @@ internal sealed class Config
 
     public bool Tray { get; private set; } = true;
 
+    public bool TrayApps { get; private set; } = true;
+
     public bool Clipboard { get; private set; } = true;
 
     public bool Drag { get; private set; } = true;
@@ -33,6 +35,10 @@ internal sealed class Config
     public bool GtkDpi { get; private set; } = true;
 
     public string CaptureChord { get; private set; } = "double:RightControl";
+
+    public string? Terminal { get; private set; }
+
+    public string? CurrentDesktop { get; private set; }
 
     public IReadOnlyDictionary<string, DesktopProfile> Desktops { get; private set; } =
         new Dictionary<string, DesktopProfile>();
@@ -100,11 +106,14 @@ internal sealed class Config
         }
 
         config.Command = CommandText(table, "command");
+        config.Terminal = CommandText(table, "terminal");
+        config.CurrentDesktop = Text(table, "current-desktop");
 
         if (table.TryGetValue("host", out var host) && host is TomlTable hostTable)
         {
             config.XWayland = Toggle(hostTable, "xwayland", config.XWayland);
             config.Tray = Toggle(hostTable, "tray", config.Tray);
+            config.TrayApps = Toggle(hostTable, "tray-apps", config.TrayApps);
             config.Clipboard = Toggle(hostTable, "clipboard", config.Clipboard);
             config.Drag = Toggle(hostTable, "drag", config.Drag);
             config.FollowCursor = Toggle(hostTable, "follow-cursor", config.FollowCursor);
@@ -138,7 +147,9 @@ internal sealed class Config
                 parsed[name] = new HostProfile(
                     sshDestination,
                     CommandText(profileTable, "command"),
-                    Compression(profileTable, "compress", log));
+                    Compression(profileTable, "compress", log),
+                    CommandText(profileTable, "terminal"),
+                    Text(profileTable, "current-desktop"));
             }
 
             config.Hosts = parsed;
@@ -215,10 +226,23 @@ internal sealed class Config
             # Ignored when --ssh or --waypipe-listen selects a remote session.
             #command = "foot"
 
+            # The terminal the tray menu wraps around an application that says
+            # Terminal=true, such as htop. Used as written, so it must end in
+            # whatever takes a command: "-e" for the terminals that follow xterm,
+            # nothing for xdg-terminal-exec. Unset leaves those entries out.
+            #terminal = "foot -e"
+
+            # What XDG_CURRENT_DESKTOP would say, for entries that list
+            # OnlyShowIn or NotShowIn. Unset lists no OnlyShowIn entry.
+            #current-desktop = "GNOME"
+
             # Host desktop integration; every toggle defaults to on.
             #[host]
             #xwayland = true
             #tray = true
+            # List the session's applications in the tray menu, by category,
+            # and launch one from there. Needs tray.
+            #tray-apps = true
             #clipboard = true
             #drag = true
             # Open each new client window on the screen the pointer is on, rather
@@ -234,6 +258,8 @@ internal sealed class Config
             #ssh = "user@devbox"
             #command = "tmux new -A -s main"
             #compress = "none"
+            #terminal = "xdg-terminal-exec"
+            #current-desktop = "KDE"
 
             # Take the host's own keyboard and pointer for a nested desktop.
             # A double tap of one modifier within 400 ms toggles it.

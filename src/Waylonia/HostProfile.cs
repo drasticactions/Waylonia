@@ -1,6 +1,8 @@
-using Tomlyn;
-using Tomlyn.Model;
-
 namespace Waylonia;
 
-internal sealed record HostProfile(string Ssh, string? Command, string? Compress);
+internal sealed record HostProfile(
+    string Ssh,
+    string? Command,
+    string? Compress,
+    string? Terminal = null,
+    string? CurrentDesktop = null);

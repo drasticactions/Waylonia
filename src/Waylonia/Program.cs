@@ -266,7 +266,10 @@ internal static class Program
                 recipe,
                 desktopEnv,
                 desktopSize,
-                config.CaptureChord));
+                config.CaptureChord,
+                config.TrayApps,
+                profile?.Terminal ?? config.Terminal,
+                profile?.CurrentDesktop ?? config.CurrentDesktop));
             cli.ReportFrames(WayloniaApp.Rendered);
             return status;
         });

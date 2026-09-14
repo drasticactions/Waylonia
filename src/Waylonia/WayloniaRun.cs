@@ -37,4 +37,7 @@ internal sealed record WayloniaRun(
     DesktopRecipe? Desktop = null,
     IReadOnlyList<string>? DesktopEnv = null,
     (int Width, int Height)? DesktopSize = null,
-    string CaptureChord = "double:RightControl");
+    string CaptureChord = "double:RightControl",
+    bool TrayApps = true,
+    string? Terminal = null,
+    string? CurrentDesktop = null);

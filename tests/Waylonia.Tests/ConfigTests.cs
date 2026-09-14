@@ -76,6 +76,36 @@ public sealed class ConfigTests : IDisposable
     }
 
     [Fact]
+    public void The_tray_applications_settings_read_at_the_top_level_and_per_host()
+    {
+        var config = Load(Write("""
+            terminal = ["foot", "-e"]
+            current-desktop = "GNOME"
+
+            [host]
+            tray-apps = false
+
+            [hosts.lab]
+            ssh = "user@lab"
+            terminal = "xdg-terminal-exec"
+            current-desktop = "KDE:GNOME"
+
+            [hosts.plain]
+            ssh = "user@plain"
+            """));
+
+        Assert.False(config.TrayApps);
+        Assert.Equal("foot -e", config.Terminal);
+        Assert.Equal("GNOME", config.CurrentDesktop);
+        Assert.Equal("xdg-terminal-exec", config.Hosts["lab"].Terminal);
+        Assert.Equal("KDE:GNOME", config.Hosts["lab"].CurrentDesktop);
+        Assert.Null(config.Hosts["plain"].Terminal);
+        Assert.Null(config.Hosts["plain"].CurrentDesktop);
+        Assert.True(Load(Write("compress = \"none\"")).TrayApps);
+        Assert.Null(Load(Write("compress = \"none\"")).Terminal);
+    }
+
+    [Fact]
     public void The_host_toggles_default_on_and_turn_off_individually()
     {
         var defaults = Load(Write("socket = \"wayland-1\""));
