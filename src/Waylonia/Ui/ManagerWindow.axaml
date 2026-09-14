@@ -44,10 +44,15 @@
       </ListBox>
       <ScrollViewer Grid.Column="1">
         <StackPanel Spacing="6" Margin="12">
-          <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
-          <TextBlock Classes="problem" Margin="0" Text="{Binding Problem}"
+          <GroupBox Header="Status">
+            <StackPanel Spacing="6">
+              <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
+              <TextBlock Classes="problem" Margin="0" Text="{Binding Problem}"
                      IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-          <StackPanel Classes="field" DataContext="{Binding Form}" x:DataType="ui:SessionFormViewModel" Spacing="6">
+            </StackPanel>
+          </GroupBox>
+          <GroupBox Header="Setup">
+            <StackPanel Classes="field" DataContext="{Binding Form}" x:DataType="ui:SessionFormViewModel" Spacing="6">
             <StackPanel Classes="field">
               <DockPanel>
                 <TextBlock Classes="caption" Text="Name" />
@@ -134,6 +139,7 @@
                          IsVisible="{Binding HotkeysProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
             </StackPanel>
           </StackPanel>
+          </GroupBox>
         </StackPanel>
       </ScrollViewer>
     </Grid>

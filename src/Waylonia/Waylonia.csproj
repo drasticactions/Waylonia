@@ -39,6 +39,7 @@
     <PackageReference Include="Basin.Render.Skia" />
     <PackageReference Include="Basin.Transport.Waypipe" />
     <PackageReference Include="Basin.Video.FFmpeg" />
+    <PackageReference Include="BluerCurve" />
     <PackageReference Include="Basin.XWayland" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />

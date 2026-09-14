@@ -55,7 +55,7 @@ internal sealed class WayloniaApp : Application, ISessionHost
 
     public static long Rendered => Interlocked.Read(ref _rendered);
 
-    public override void Initialize() => Styles.Add(new global::Avalonia.Themes.Fluent.FluentTheme());
+    public override void Initialize() => Styles.Add(new global::BluerCurve.BluerCurveTheme());
 
     public static int Run(WayloniaRun run)
     {
