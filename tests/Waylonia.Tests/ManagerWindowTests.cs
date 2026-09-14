@@ -63,7 +63,7 @@ public sealed class ManagerWindowTests : IDisposable
             [hotkeys]
             "ctrl+alt+t" = "foot"
 
-            """, text);
+            """.ReplaceLineEndings("\n"), text);
         Assert.Equal("dev", model.Selected);
         Assert.Contains(model.Rows, row => row.Name == "dev");
         Assert.Equal("dev", window.FindControl<TextBox>("NameBox")!.Text);

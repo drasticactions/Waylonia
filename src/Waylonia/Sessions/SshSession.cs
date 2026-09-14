@@ -726,7 +726,7 @@ internal sealed class SshSession : IDisposable
             var complaint = remove.StandardError.ReadToEndAsync();
             if (remove.WaitForExit(2000) && remove.ExitCode != 0)
             {
-                Log.Debug($"{_remoteSocket} may still exist on {Ssh}: {complaint.Result.Trim()}");
+                Log.Debug($"{_remoteSocket} may still exist on {Ssh}: {SshVis.Unescape(complaint.Result.Trim())}");
             }
         }
         catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)

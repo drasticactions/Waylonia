@@ -11,8 +11,9 @@ internal sealed class Relay(string name)
 
     public void Watch(StreamReader reader, Func<string, bool>? claim = null) => _ = Task.Run(async () =>
     {
-        while (await reader.ReadLineAsync() is { } line)
+        while (await reader.ReadLineAsync() is { } raw)
         {
+            var line = SshVis.Unescape(raw);
             if (claim is not null && claim(line))
             {
                 continue;
