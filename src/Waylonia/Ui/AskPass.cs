@@ -8,6 +8,8 @@ internal static class AskPass
 {
     public const string Flag = "--askpass";
 
+    public const string Variable = "WAYLONIA_ASKPASS";
+
     public static AskPassKind Classify(string prompt)
     {
         ArgumentNullException.ThrowIfNull(prompt);
@@ -29,12 +31,21 @@ internal static class AskPass
         }
 
         environment["SSH_ASKPASS"] = self;
+        environment[Variable] = "1";
         environment["SSH_ASKPASS_REQUIRE"] = Require(Console.IsInputRedirected);
-        if (OperatingSystem.IsLinux()
-            && (!environment.TryGetValue("DISPLAY", out var display) || string.IsNullOrEmpty(display)))
+        if (!environment.TryGetValue("DISPLAY", out var display) || string.IsNullOrEmpty(display))
         {
             environment["DISPLAY"] = "waylonia:0";
         }
+    }
+
+    public static bool IsAskPassRun(string[] args, string? variable) =>
+        (args.Length >= 1 && args[0] == Flag) || variable == "1";
+
+    public static string PromptOf(string[] args)
+    {
+        var words = args.Length >= 1 && args[0] == Flag ? args[1..] : args;
+        return words.Length > 0 ? string.Join(' ', words) : "Password:";
     }
 
     public static int Run(string prompt)
@@ -59,7 +70,7 @@ internal static class AskPass
 
         public static string? Answer { get; private set; }
 
-        public override void Initialize() => Styles.Add(new global::Avalonia.Themes.Fluent.FluentTheme());
+        public override void Initialize() => Styles.Add(new global::BluerCurve.BluerCurveTheme());
 
         public override void OnFrameworkInitializationCompleted()
         {

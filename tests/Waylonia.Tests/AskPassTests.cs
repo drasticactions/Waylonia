@@ -38,7 +38,29 @@ public sealed class AskPassTests
         AskPass.Configure(environment);
 
         Assert.Equal(Environment.ProcessPath, environment["SSH_ASKPASS"]);
+        Assert.Equal("1", environment[AskPass.Variable]);
         Assert.Contains(environment["SSH_ASKPASS_REQUIRE"], new[] { "force", "prefer" });
-        Assert.Equal(OperatingSystem.IsLinux(), environment.ContainsKey("DISPLAY"));
+        Assert.Equal("waylonia:0", environment["DISPLAY"]);
+    }
+
+    [Fact]
+    public void A_display_the_host_already_has_is_kept()
+    {
+        var environment = new Dictionary<string, string?> { ["DISPLAY"] = ":1" };
+
+        AskPass.Configure(environment);
+
+        Assert.Equal(":1", environment["DISPLAY"]);
+    }
+
+    [Fact]
+    public void Ssh_starts_the_askpass_run_with_only_the_prompt_as_arguments()
+    {
+        Assert.True(AskPass.IsAskPassRun(["Enter passphrase for key '/home/da/.ssh/id_rsa':"], "1"));
+        Assert.True(AskPass.IsAskPassRun(["--askpass", "Password:"], null));
+        Assert.False(AskPass.IsAskPassRun(["--ssh", "Test"], null));
+        Assert.Equal("Enter passphrase for key:", AskPass.PromptOf(["Enter", "passphrase", "for", "key:"]));
+        Assert.Equal("Password:", AskPass.PromptOf(["--askpass", "Password:"]));
+        Assert.Equal("Password:", AskPass.PromptOf([]));
     }
 }

@@ -11,9 +11,9 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length >= 1 && args[0] == AskPass.Flag)
+        if (AskPass.IsAskPassRun(args, Environment.GetEnvironmentVariable(AskPass.Variable)))
         {
-            return AskPass.Run(args.Length > 1 ? string.Join(' ', args[1..]) : "Password:");
+            return AskPass.Run(AskPass.PromptOf(args));
         }
 
         HostSession.Capture();

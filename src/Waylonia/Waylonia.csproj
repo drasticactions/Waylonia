@@ -42,7 +42,6 @@
     <PackageReference Include="BluerCurve" />
     <PackageReference Include="Basin.XWayland" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <PackageReference Include="Avalonia.Desktop" />
-    <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="JAJ.Packages.MiniAudioEx" />
     <PackageReference Include="System.CommandLine" />
