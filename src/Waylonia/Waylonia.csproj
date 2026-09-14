@@ -9,6 +9,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NoWarn>$(NoWarn);IL2104</NoWarn>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 
   <ItemGroup>
@@ -41,6 +42,7 @@
     <PackageReference Include="Basin.XWayland" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="JAJ.Packages.MiniAudioEx" />
     <PackageReference Include="System.CommandLine" />
     <PackageReference Include="Tomlyn" />

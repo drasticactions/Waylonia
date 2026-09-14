@@ -37,13 +37,22 @@ internal sealed class WayloniaHostHarness : IDisposable
             !HasWaylandClient,
             "this host has no libwayland client, and the host-window tests drive the compositor with one");
 
-    public WayloniaHostHarness()
+    private readonly List<ShmTestClient> _extraClients = [];
+
+    public WayloniaHostHarness(
+        Action<BasinCompositorHost>? configure = null,
+        Action<Wayland.Server.WlClient>? onClient = null)
     {
         SkipWithoutWaylandClient();
         BasinCounters.Reset();
         Host = new BasinCompositorHost(new BasinCompositorOptions { AppName = "waylonia-tests" });
         Windows = new ToplevelWindows(Host, action => action(), requestFrame: () => FrameRequests++);
+        configure?.Invoke(Host);
+        _client = Connect(onClient, client => _client = client);
+    }
 
+    private ShmTestClient Connect(Action<Wayland.Server.WlClient>? onClient, Action<ShmTestClient> register)
+    {
         int serverFd, clientFd;
         unsafe
         {
@@ -53,9 +62,28 @@ internal sealed class WayloniaHostHarness : IDisposable
             clientFd = fds[1];
         }
 
-        Host.Display.CreateClient(serverFd);
-        Client = new ShmTestClient(clientFd);
-        Client.BindGlobals(Pump);
+        var server = Host.Display.CreateClient(serverFd);
+        onClient?.Invoke(server);
+        var client = new ShmTestClient(clientFd);
+        register(client);
+        client.BindGlobals(Pump);
+        return client;
+    }
+
+    public ShmTestClient AddClient(Action<Wayland.Server.WlClient>? onClient = null) =>
+        Connect(onClient, _extraClients.Add);
+
+    private IEnumerable<ShmTestClient> Clients()
+    {
+        if (_client is { } client)
+        {
+            yield return client;
+        }
+
+        foreach (var extra in _extraClients)
+        {
+            yield return extra;
+        }
     }
 
     private ZwlrLayerShellV1? _layerShell;
@@ -64,21 +92,31 @@ internal sealed class WayloniaHostHarness : IDisposable
 
     public ToplevelWindows Windows { get; }
 
-    public ShmTestClient Client { get; }
+    private ShmTestClient? _client;
+
+    public ShmTestClient Client => _client!;
 
     public int FrameRequests { get; private set; }
 
     public void Pump()
     {
-        Client.Display.Flush();
-        Host.Loop.Dispatch(0);
-        Host.Display.FlushClients();
-        while (Readable())
+        foreach (var client in Clients())
         {
-            Client.Display.Dispatch();
+            client.Display.Flush();
         }
 
-        Client.Display.DispatchPending();
+        Host.Loop.Dispatch(0);
+        Host.Display.FlushClients();
+        foreach (var client in Clients())
+        {
+            while (Readable(client))
+            {
+                client.Display.Dispatch();
+            }
+
+            client.Display.DispatchPending();
+        }
+
         Dispatcher.UIThread.RunJobs();
     }
 
@@ -217,17 +255,22 @@ internal sealed class WayloniaHostHarness : IDisposable
         }
     };
 
-    private bool Readable()
+    private static bool Readable(ShmTestClient client)
     {
         unsafe
         {
-            var pollFd = new PollFd { Fd = Client.Display.Fd, Events = 1 };
+            var pollFd = new PollFd { Fd = client.Display.Fd, Events = 1 };
             return poll(&pollFd, 1, 0) > 0 && (pollFd.REvents & 1) != 0;
         }
     }
 
     public void Dispose()
     {
+        foreach (var extra in _extraClients)
+        {
+            extra.Dispose();
+        }
+
         Client.Dispose();
         Host.Loop.Dispatch(0);
         Host.Loop.Dispatch(0);

@@ -1,43 +1,26 @@
-using System.CommandLine;
-using System.Diagnostics;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Layout;
-using Avalonia.Threading;
-using Basin;
-using Basin.Avalonia;
-using Waylonia.Cli;
-using Basin.Diagnostics;
-using Basin.Scene;
+using Basin.Capabilities;
+using Basin.Transport.Waypipe;
+using Waylonia.Sessions;
 
 namespace Waylonia;
 
 internal sealed record WayloniaRun(
+    HostSettings Host,
+    IReadOnlyList<SessionSettings> Initial,
+    bool Manager,
+    string? LocalCommand,
+    LocalDesktop? LocalDesktop,
+    ListenSettings? WaypipeListen,
     long Frames,
     string? Screenshot,
     string? SocketName,
-    string? Command,
-    string? WaypipeListen,
-    string? SshHost,
-    string? SshCommand,
-    Basin.Transport.Waypipe.WaypipeCompression Compression,
-    bool Gpu,
-    bool Audio,
-    string AudioFormat,
-    string? Video,
-    Basin.Capabilities.IVideoDecoder? VideoDecoder,
-    bool XWayland,
-    bool Tray,
-    bool Clipboard,
-    bool Drag,
-    bool FollowCursor,
-    bool GtkDpi,
-    IReadOnlyList<Hotkey> Hotkeys,
-    DesktopRecipe? Desktop = null,
-    IReadOnlyList<string>? DesktopEnv = null,
-    (int Width, int Height)? DesktopSize = null,
-    string CaptureChord = "double:RightControl",
-    bool TrayApps = true,
-    string? Terminal = null,
-    string? CurrentDesktop = null);
+    Config Config,
+    SessionStore Store,
+    string AudioFormat = "f32")
+{
+    public bool ChannelsWanted => Manager || Initial.Count > 0 || WaypipeListen is not null || !OperatingSystem.IsLinux();
+
+    public bool ManagedTransport => ChannelsWanted && LocalCommand is null && LocalDesktop is null;
+
+    public bool LocalOnly => !ManagedTransport;
+}

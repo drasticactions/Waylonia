@@ -1,4 +1,5 @@
 using Waylonia;
+using Waylonia.Sessions;
 using Xunit;
 
 using Basin.Diagnostics;
@@ -76,7 +77,7 @@ public sealed class ConfigTests : IDisposable
     }
 
     [Fact]
-    public void The_tray_applications_settings_read_at_the_top_level_and_per_host()
+    public void The_tray_applications_settings_read_at_the_top_level()
     {
         var config = Load(Write("""
             terminal = ["foot", "-e"]
@@ -84,25 +85,38 @@ public sealed class ConfigTests : IDisposable
 
             [host]
             tray-apps = false
-
-            [hosts.lab]
-            ssh = "user@lab"
-            terminal = "xdg-terminal-exec"
-            current-desktop = "KDE:GNOME"
-
-            [hosts.plain]
-            ssh = "user@plain"
             """));
 
         Assert.False(config.TrayApps);
         Assert.Equal("foot -e", config.Terminal);
         Assert.Equal("GNOME", config.CurrentDesktop);
-        Assert.Equal("xdg-terminal-exec", config.Hosts["lab"].Terminal);
-        Assert.Equal("KDE:GNOME", config.Hosts["lab"].CurrentDesktop);
-        Assert.Null(config.Hosts["plain"].Terminal);
-        Assert.Null(config.Hosts["plain"].CurrentDesktop);
         Assert.True(Load(Write("compress = \"none\"")).TrayApps);
         Assert.Null(Load(Write("compress = \"none\"")).Terminal);
+    }
+
+    [Fact]
+    public void Lang_defaults_to_C_UTF8_and_reads_at_the_top_level()
+    {
+        Assert.Equal("C.UTF-8", Load(Write("compress = \"none\"")).Lang);
+        Assert.Equal("en_US.UTF-8", Load(Write("lang = \"en_US.UTF-8\"")).Lang);
+        Assert.Equal("", Load(Write("lang = \"\"")).Lang);
+        Assert.Equal("C.UTF-8", Load(Write("lang = \"C.UTF-8; rm -rf /\"")).Lang);
+    }
+
+    [Fact]
+    public void Session_titles_default_on_and_turn_off_under_host()
+    {
+        Assert.True(Load(Write("compress = \"none\"")).SessionTitles);
+        Assert.False(Load(Write("[host]\nsession-titles = false")).SessionTitles);
+    }
+
+    [Fact]
+    public void The_sessions_directory_sits_beside_the_config_file()
+    {
+        var config = Load(Write("compress = \"none\""));
+
+        Assert.Equal(Path.Combine(_directory, "sessions"), config.SessionsDirectory);
+        Assert.Null(Config.Load(true, null, BasinLogger.None).SessionsDirectory);
     }
 
     [Fact]
@@ -133,34 +147,49 @@ public sealed class ConfigTests : IDisposable
     }
 
     [Fact]
-    public void A_host_profile_carries_its_ssh_command_and_compression()
+    public void A_legacy_host_profile_is_kept_for_migration_and_warned_about()
     {
-        var config = Load(Write("""
+        using var capture = new LogCapture();
+        var warnings = capture.Lines;
+        var config = Config.Load(false, Write("""
             [hosts.dev]
             ssh = "user@devbox"
             command = "tmux new -A -s main"
             compress = "none"
-            """));
+            lang = "ja_JP.UTF-8"
 
-        var profile = Assert.Contains("dev", config.Hosts);
+            [hosts.broken]
+            command = "foot"
+            """), BasinLog.For("test"));
+
+        var profile = Assert.Single(config.LegacyHosts);
+        Assert.Equal("dev", profile.Name);
         Assert.Equal("user@devbox", profile.Ssh);
         Assert.Equal("tmux new -A -s main", profile.Command);
         Assert.Equal("none", profile.Compress);
+        Assert.Equal("ja_JP.UTF-8", profile.Lang);
+        Assert.Contains(warnings, line => line.Contains("[hosts.dev] moved to sessions/dev.toml", StringComparison.Ordinal));
+        Assert.Contains(warnings, line => line.Contains("[hosts.broken] cannot become a session", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void A_host_profile_without_an_ssh_destination_is_skipped()
+    public void A_legacy_host_migrates_into_the_sessions_directory()
     {
         var config = Load(Write("""
-            [hosts.broken]
-            command = "foot"
-
             [hosts.dev]
             ssh = "user@devbox"
+            terminal = "xdg-terminal-exec"
             """));
+        var store = new SessionStore(config.SessionsDirectory);
 
-        Assert.DoesNotContain("broken", config.Hosts);
-        Assert.Contains("dev", config.Hosts);
+        store.Save(config.LegacyHosts[0]);
+
+        var reloaded = store.Load(BasinLogger.None);
+        var session = Assert.Single(reloaded.Profiles);
+        Assert.Equal("dev", session.Name);
+        Assert.Equal("user@devbox", session.Ssh);
+        Assert.Equal("xdg-terminal-exec", session.Terminal);
+        Assert.True(File.Exists(Path.Combine(_directory, "sessions", "dev.toml")));
     }
 
     [Fact]
@@ -174,7 +203,7 @@ public sealed class ConfigTests : IDisposable
             """));
 
         Assert.Equal("wayland-9", config.Socket);
-        Assert.Empty(config.Hosts);
+        Assert.Empty(config.LegacyHosts);
     }
 
     [Fact]
@@ -231,7 +260,8 @@ public sealed class ConfigTests : IDisposable
             Assert.Null(reloaded.Compress);
             Assert.Null(reloaded.Command);
             Assert.True(reloaded.XWayland);
-            Assert.Empty(reloaded.Hosts);
+            Assert.True(reloaded.SessionTitles);
+            Assert.Empty(reloaded.LegacyHosts);
             Assert.Empty(reloaded.Hotkeys);
         }
         finally

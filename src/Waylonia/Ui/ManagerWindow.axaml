@@ -1,0 +1,141 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:Waylonia.Ui"
+        x:Class="Waylonia.Ui.ManagerWindow"
+        x:DataType="ui:ManagerViewModel"
+        Title="Waylonia Sessions"
+        Width="760" Height="640" MinWidth="560" MinHeight="400"
+        ShowInTaskbar="True">
+  <Window.Styles>
+    <Style Selector="TextBlock.problem">
+      <Setter Property="Foreground" Value="OrangeRed" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Margin" Value="120,0,0,0" />
+    </Style>
+    <Style Selector="TextBlock.caption">
+      <Setter Property="Width" Value="120" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="StackPanel.field">
+      <Setter Property="Spacing" Value="2" />
+    </Style>
+    <Style Selector="TextBox.lines">
+      <Setter Property="AcceptsReturn" Value="True" />
+      <Setter Property="MinHeight" Value="48" />
+    </Style>
+  </Window.Styles>
+  <DockPanel LastChildFill="True">
+    <Menu DockPanel.Dock="Top" x:Name="MenuBar">
+      <MenuItem Header="Session">
+        <MenuItem Header="New" Command="{Binding NewSessionCommand}" />
+        <MenuItem Header="Save" Command="{Binding SaveSessionCommand}" />
+        <MenuItem Header="Delete" Command="{Binding DeleteSessionCommand}" />
+        <Separator />
+        <MenuItem Header="{Binding ConnectLabel}" Command="{Binding ToggleConnectionCommand}" />
+      </MenuItem>
+    </Menu>
+    <Grid ColumnDefinitions="240,*">
+      <ListBox Grid.Column="0" Margin="12" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="ui:SessionRowViewModel">
+            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="2" />
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <ScrollViewer Grid.Column="1">
+        <StackPanel Spacing="6" Margin="12">
+          <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
+          <TextBlock Classes="problem" Margin="0" Text="{Binding Problem}"
+                     IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <StackPanel Classes="field" DataContext="{Binding Form}" x:DataType="ui:SessionFormViewModel" Spacing="6">
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="Name" />
+                <TextBox x:Name="NameBox" Text="{Binding Name}" PlaceholderText="name" />
+              </DockPanel>
+              <TextBlock Classes="problem" Text="{Binding NameProblem}"
+                         IsVisible="{Binding NameProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="ssh" />
+                <TextBox Text="{Binding Ssh}" PlaceholderText="user@host" />
+              </DockPanel>
+              <TextBlock Classes="problem" Text="{Binding SshProblem}"
+                         IsVisible="{Binding SshProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="command" />
+                <TextBox Text="{Binding Command}" PlaceholderText="run at connect, or the desktop command" />
+              </DockPanel>
+              <TextBlock Classes="problem" Text="{Binding CommandProblem}"
+                         IsVisible="{Binding CommandProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <DockPanel>
+              <TextBlock Classes="caption" Text="autostart" />
+              <TextBox Classes="lines" Text="{Binding Autostart}" PlaceholderText="one command per line" />
+            </DockPanel>
+            <DockPanel>
+              <TextBlock Classes="caption" Text="compress" />
+              <ComboBox ItemsSource="{Binding CompressChoices}" SelectedIndex="{Binding CompressIndex}" HorizontalAlignment="Left" />
+            </DockPanel>
+            <StackPanel Orientation="Horizontal" Spacing="16">
+              <CheckBox Content="gpu" IsThreeState="True" IsChecked="{Binding Gpu}" />
+              <CheckBox Content="audio" IsThreeState="True" IsChecked="{Binding Audio}" />
+              <CheckBox Content="autoconnect" IsChecked="{Binding Autoconnect}" />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="video" />
+                <TextBox Text="{Binding Video}" PlaceholderText="h264,hw" />
+              </DockPanel>
+              <TextBlock Classes="problem" Text="{Binding VideoProblem}"
+                         IsVisible="{Binding VideoProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <DockPanel>
+              <TextBlock Classes="caption" Text="terminal" />
+              <TextBox Text="{Binding Terminal}" PlaceholderText="foot -e" />
+            </DockPanel>
+            <DockPanel>
+              <TextBlock Classes="caption" Text="current-desktop" />
+              <TextBox Text="{Binding CurrentDesktop}" PlaceholderText="KDE" />
+            </DockPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="lang" />
+                <TextBox Text="{Binding Lang}" PlaceholderText="en_US.UTF-8" />
+              </DockPanel>
+              <TextBlock Classes="problem" Text="{Binding LangProblem}"
+                         IsVisible="{Binding LangProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <DockPanel>
+              <TextBlock Classes="caption" Text="desktop" />
+              <ComboBox ItemsSource="{Binding DesktopChoices}" SelectedIndex="{Binding DesktopIndex}" HorizontalAlignment="Left" />
+            </DockPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="desktop-size" />
+                <TextBox Text="{Binding DesktopSize}" PlaceholderText="1920x1080" />
+              </DockPanel>
+              <TextBlock Classes="problem" Text="{Binding DesktopSizeProblem}"
+                         IsVisible="{Binding DesktopSizeProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <DockPanel>
+              <TextBlock Classes="caption" Text="desktop-env" />
+              <TextBox Classes="lines" Text="{Binding DesktopEnv}" PlaceholderText="NAME=value, one per line" />
+            </DockPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="hotkeys" />
+                <TextBox Classes="lines" Text="{Binding Hotkeys}" PlaceholderText="ctrl+alt+t = foot, one per line" />
+              </DockPanel>
+              <TextBlock Classes="problem" Text="{Binding HotkeysProblem}"
+                         IsVisible="{Binding HotkeysProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+  </DockPanel>
+</Window>

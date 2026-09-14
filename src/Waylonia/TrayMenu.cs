@@ -2,23 +2,15 @@ using Avalonia.Controls;
 
 namespace Waylonia;
 
-internal sealed class TrayMenu(bool applications, Action refresh, Action<string, string> launch, Action quit)
+internal sealed class TrayMenu(Action<string?, string, string> launch, Action quit)
 {
-    public NativeMenu Menu { get; private set; } = new();
+    public NativeMenu Menu { get; } = new();
 
-    public event Action<NativeMenu>? Rebuilt;
+    public void ShowNotice(string text) => Rebuild([new NativeMenuItem(text) { IsEnabled = false }, new NativeMenuItemSeparator()]);
 
-    public void ShowNotice(string text) => Rebuild([new NativeMenuItem(text) { IsEnabled = false }]);
-
-    public void ShowApplications(IReadOnlyList<ApplicationMenuItem> items)
+    public void Show(IReadOnlyList<ApplicationMenuItem> items)
     {
         ArgumentNullException.ThrowIfNull(items);
-        if (items.Count == 0)
-        {
-            ShowNotice("No applications found");
-            return;
-        }
-
         Rebuild(items.Select(Convert));
     }
 
@@ -26,26 +18,25 @@ internal sealed class TrayMenu(bool applications, Action refresh, Action<string,
 
     private void Rebuild(IEnumerable<NativeMenuItemBase> top)
     {
-        var menu = new NativeMenu();
-        if (applications)
+        var items = new List<NativeMenuItemBase>(top);
+        while (items.Count > 0 && items[^1] is NativeMenuItemSeparator)
         {
-            foreach (var item in top)
-            {
-                menu.Items.Add(item);
-            }
+            items.RemoveAt(items.Count - 1);
+        }
 
-            menu.Items.Add(new NativeMenuItemSeparator());
-            var refreshItem = new NativeMenuItem("Refresh applications");
-            refreshItem.Click += (_, _) => refresh();
-            menu.Items.Add(refreshItem);
-            menu.Items.Add(new NativeMenuItemSeparator());
+        if (items.Count > 0)
+        {
+            items.Add(new NativeMenuItemSeparator());
         }
 
         var quitItem = new NativeMenuItem("Quit Waylonia");
         quitItem.Click += (_, _) => quit();
-        menu.Items.Add(quitItem);
-        Menu = menu;
-        Rebuilt?.Invoke(menu);
+        items.Add(quitItem);
+        Menu.Items.Clear();
+        foreach (var item in items)
+        {
+            Menu.Items.Add(item);
+        }
     }
 
     private NativeMenuItemBase Convert(ApplicationMenuItem item)
@@ -66,10 +57,15 @@ internal sealed class TrayMenu(bool applications, Action refresh, Action<string,
 
             native.Menu = submenu;
         }
+        else if (item.Invoke is { } invoke)
+        {
+            native.Click += (_, _) => invoke();
+        }
         else if (item.Command is { } command)
         {
             var label = item.Label;
-            native.Click += (_, _) => launch(label, command);
+            var session = item.Session;
+            native.Click += (_, _) => launch(session, label, command);
         }
         else
         {

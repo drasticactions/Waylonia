@@ -1,40 +1,56 @@
-using System.CommandLine;
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Layout;
 using Avalonia.Threading;
 using Basin;
 using Basin.Avalonia;
-using Waylonia.Cli;
 using Basin.Diagnostics;
 using Basin.Freedesktop;
 using Basin.Scene;
+using Wayland.Server;
+using Waylonia.Audio;
+using Waylonia.Cli;
+using Waylonia.Sessions;
+using Waylonia.Ui;
 using static Waylonia.WayloniaLog;
 
 namespace Waylonia;
 
-internal sealed class WayloniaApp : Application
+internal sealed class WayloniaApp : Application, ISessionHost
 {
     private static WayloniaRun? _run;
     private static int _exitStatus;
     private static long _rendered;
 
+    private readonly ChannelClients _channelClients = new();
+    private readonly List<System.Runtime.InteropServices.PosixSignalRegistration> _signals = [];
+    private readonly AudioMixer _mixer = new();
     private BasinOutputView? _view;
     private BasinCompositorHost? _host;
     private ToplevelWindows? _windows;
     private HostClipboard? _clipboard;
     private HostDrag? _hostDrag;
     private AvaloniaTextInput? _textInput;
-    private Process? _client;
+    private Process? _localClient;
     private Window? _window;
     private TrayIcon? _tray;
     private TrayMenu? _trayMenu;
     private IDisposable? _globalHotkeys;
+    private string _hotkeySignature = string.Empty;
+    private bool _hotkeysDisarmed;
     private DesktopShellPolicy? _desktop;
     private CaptureToggle? _capture;
-    private readonly List<Process> _launched = [];
+    private Basin.IProtocolModule? _xwayland;
+    private WireClockClients? _wireClock;
+    private DispatcherTimer? _channelPump;
+    private int _attachedClients;
+    private WaypipeAcceptor? _listen;
+    private SessionRegistry? _registry;
+    private SessionCatalog _catalog = SessionCatalog.Empty;
+    private ManagerWindow? _manager;
+    private IReadOnlyList<ApplicationMenuItem>? _localApplications;
+    private string? _localNotice;
     private bool _shuttingDown;
 
     public static long Rendered => Interlocked.Read(ref _rendered);
@@ -49,6 +65,40 @@ internal sealed class WayloniaApp : Application
             .With(new MacOSPlatformOptions { ShowInDock = false });
         var status = builder.StartWithClassicDesktopLifetime([]);
         return status != 0 ? status : _exitStatus;
+    }
+
+    BasinCompositorHost ISessionHost.Compositor => _host!;
+
+    HostSettings ISessionHost.Settings => _run!.Host;
+
+    AudioMixer ISessionHost.Audio => _mixer;
+
+    bool ISessionHost.ShuttingDown => _shuttingDown;
+
+    void ISessionHost.Post(Action action) => _view!.Post(action);
+
+    void ISessionHost.Status(string text) => UpdateStatus(text);
+
+    void ISessionHost.Attach(WaypipeAcceptor owner, WlClient client)
+    {
+        _channelClients.Add(client, owner);
+        _wireClock?.Add(client);
+        if (owner.Session is { IsDesktop: true } && _desktop is { HasClaimed: false } desktop)
+        {
+            desktop.Declare(client);
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            _attachedClients++;
+            if (_channelPump is null && !_shuttingDown)
+            {
+                _channelPump = new DispatcherTimer(
+                    TimeSpan.FromMilliseconds(16), DispatcherPriority.Background, (_, _) => _view?.RequestFrame());
+                _channelPump.Start();
+            }
+        });
+        Protocol($"CHANNEL {owner.Name} {owner.Attached} attached");
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -82,13 +132,23 @@ internal sealed class WayloniaApp : Application
             }
         };
 
-        if (_run!.Tray)
+        _channelClients.Removed += _ => Dispatcher.UIThread.Post(() =>
         {
-            _trayMenu = new TrayMenu(
-                ApplicationsWanted,
-                () => LoadApplications(),
-                (label, command) => LaunchCommand(command, label),
-                () => _ = ShutdownAsync(0));
+            if (--_attachedClients == 0 && _channelPump is { } pump)
+            {
+                pump.Stop();
+                _channelPump = null;
+            }
+        });
+        _registry = new SessionRegistry(this);
+        _registry.Changed += OnSessionsChanged;
+        _registry.SessionEnded += OnSessionEnded;
+        _run!.Store.Changed += () => Dispatcher.UIThread.Post(RefreshCatalog);
+        _catalog = _run.Store.Load(Log);
+
+        if (_run!.Host.Tray)
+        {
+            _trayMenu = new TrayMenu(LaunchFromTray, () => _ = ShutdownAsync(0));
             _trayMenu.ShowQuitOnly();
             _tray = new TrayIcon
             {
@@ -96,7 +156,6 @@ internal sealed class WayloniaApp : Application
                 ToolTipText = "Waylonia — starting…",
                 Menu = _trayMenu.Menu,
             };
-            _trayMenu.Rebuilt += menu => _tray.Menu = menu;
             TrayIcon.SetIcons(this, [_tray]);
         }
 
@@ -114,42 +173,39 @@ internal sealed class WayloniaApp : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    private readonly List<System.Runtime.InteropServices.PosixSignalRegistration> _signals = [];
-
     private void OnPosixSignal(System.Runtime.InteropServices.PosixSignalContext context)
     {
         context.Cancel = true;
         Dispatcher.UIThread.Post(() => _ = ShutdownAsync(0));
     }
 
-    private Basin.IProtocolModule? _xwayland;
-
     private BasinCompositorHost CreateHost()
     {
+        var run = _run!;
         _textInput = new AvaloniaTextInput(action => _view!.Post(action));
-        _xwayland = OperatingSystem.IsLinux() && _run!.XWayland && _run.WaypipeListen is null && _run.SshHost is null
+        _xwayland = OperatingSystem.IsLinux() && run.Host.XWayland && run.LocalOnly
             ? WayloniaXWayland.TryCreateModule()
             : null;
         var host = new BasinCompositorHost(new BasinCompositorOptions
         {
             AppName = "waylonia",
-            SocketName = _run!.SocketName,
-            ManagedTransport = _run.WaypipeListen is not null || _run.SshHost is not null || !OperatingSystem.IsLinux(),
+            SocketName = run.SocketName,
+            ManagedTransport = run.ManagedTransport,
             TextInput = _textInput,
             ExtraModules = _xwayland is { } xwayland ? [xwayland] : null,
         });
         _windows = new ToplevelWindows(host, action => _view!.Post(action), requestFrame: () => _view?.RequestFrame());
         _desktop = new DesktopShellPolicy(
-            _run.FollowCursor ? new CursorScreenPolicy() : new AvaloniaShellPolicy())
+            run.Host.FollowCursor ? new CursorScreenPolicy() : new AvaloniaShellPolicy())
         {
-            Size = _run.DesktopSize,
+            Size = run.LocalDesktop?.Size,
         };
         if (host.Services.Find<Basin.Desktop.FullscreenShellGlobal>() is { } fullscreenShell)
         {
             _desktop.BoundClients = () => fullscreenShell.BoundClients;
         }
 
-        if (_run.WaypipeListen is not null || _run.SshHost is not null)
+        if (run.ManagedTransport)
         {
             _wireClock = new WireClockClients();
             if (host.Services.Find<PresentationTimeGlobal>() is { } presentation)
@@ -161,23 +217,27 @@ internal sealed class WayloniaApp : Application
             {
                 timing.WireClock = _wireClock;
             }
+
+            host.Display.SetGlobalFilter(_channelClients.Filter);
         }
 
         _windows.Policy = _desktop;
         _windows.ScreenWindowChanged += OnScreenWindowChanged;
-
+        _windows.WindowOpened += OnWindowOpened;
         _windows.CountChanged += count => UpdateStatus($"{count} client window(s) on {host.Socket}");
-        if (_run.Drag)
+        if (run.Host.Drag)
         {
             _hostDrag = new HostDrag(host);
             _windows.AttachDrag(_hostDrag);
         }
+
         _windows.AttachTextInput(_textInput);
         if (_xwayland is { } attachXwayland)
         {
             WayloniaXWayland.Attach(attachXwayland, host, _windows);
         }
-        if (_run.Clipboard)
+
+        if (run.Host.Clipboard)
         {
             _clipboard = new HostClipboard(
                 host,
@@ -185,13 +245,28 @@ internal sealed class WayloniaApp : Application
                 action => _view!.Post(action));
             _windows.WindowActivatedOnHost += () => _ = _clipboard!.PushFromHostAsync();
         }
+
         host.Composited += OnComposited;
         _host = host;
         return host;
     }
 
+    private void OnWindowOpened(ToplevelWindow window, WlClient? client)
+    {
+        if (!_run!.Host.SessionTitles
+            || client is null
+            || _channelClients.OwnerOf(client) is not WaypipeAcceptor { Session: not null } owner)
+        {
+            return;
+        }
+
+        var name = owner.Name;
+        window.DecorateTitle(title => $"{title} — {name}");
+    }
+
     private void OnHostReady(BasinCompositorHost host)
     {
+        var run = _run!;
         if (_window is { } window)
         {
             var screens = window.Screens;
@@ -249,15 +324,16 @@ internal sealed class WayloniaApp : Application
         }
 
         BasinReport.Line(ReportLines.Socket(host.Socket));
-        StartGlobalHotkeys(host);
+        StartGlobalHotkeys();
         if (_windows is { } windows
-            && CaptureChord.Parse(_run!.CaptureChord, BasinLog.For("waylonia")) is { } chord)
+            && CaptureChord.Parse(run.Host.CaptureChord, BasinLog.For("waylonia")) is { } chord)
         {
             _capture = new CaptureToggle(chord, windows, _view!, host, arm =>
             {
+                _hotkeysDisarmed = !arm;
                 if (arm)
                 {
-                    StartGlobalHotkeys(host);
+                    StartGlobalHotkeys();
                 }
                 else
                 {
@@ -273,74 +349,293 @@ internal sealed class WayloniaApp : Application
             Environment.SetEnvironmentVariable("DISPLAY", xdisplay);
         }
 
-        UpdateStatus($"waiting for clients on {host.Socket}");
-        if (_run!.SshHost is null)
+        UpdateStatus(run.ManagedTransport ? "ready" : $"waiting for clients on {host.Socket}");
+        if (LocalApplicationsWanted(host))
         {
-            LoadApplications();
+            LoadLocalApplications();
         }
 
-        if (_run!.Desktop is { } recipe)
+        if (run.LocalDesktop is { } local)
         {
-            var screen = HostCursor.TryGetPosition() is { } cursor && _window?.Screens is { } screens
-                ? screens.ScreenFromPoint(cursor) ?? screens.Primary
-                : _window?.Screens?.Primary;
-            var scaling = screen?.Scaling is > 0 ? screen.Scaling : 1.0;
-            var size = _run.DesktopSize ?? DesktopShellPolicy.DefaultSize(screen, scaling);
             if (_desktop is not null)
             {
-                _desktop.Size = size;
+                _desktop.Size = local.Size ?? DesktopSize();
             }
 
-            _ = LaunchDesktopAsync(host, recipe);
+            LaunchLocalDesktop(host, local);
         }
-        else if (_run!.WaypipeListen is { } endpoint)
+        else if (run.WaypipeListen is { } listen)
         {
-            _ = AcceptChannelAsync(host, endpoint);
-        }
-        else if (_run.SshHost is { } sshHost)
-        {
-            _ = LaunchSshAsync(host, sshHost, _run.SshCommand);
+            StartListening(listen);
         }
 
-        if (_run!.Command is { } command)
+        foreach (var settings in run.Initial)
         {
-            _client = BasinDiagnostics.StartClient(command, host.Socket);
-            if (_client is null)
+            _ = ConnectSessionAsync(settings);
+        }
+
+        if (run.LocalCommand is { } command)
+        {
+            _localClient = BasinDiagnostics.StartClient(command, host.Socket);
+            if (_localClient is null)
             {
                 Log.Error($"failed to start '{command}'");
                 _ = ShutdownAsync(1);
             }
         }
+
+        RebuildTray();
     }
 
-    private void LaunchHotkey(Hotkey hotkey) => LaunchCommand(hotkey.Command, $"hotkey '{hotkey.Chord}'");
+    private bool LocalApplicationsWanted(BasinCompositorHost host) =>
+        _run!.Host.Tray && _run.Host.TrayApps && OperatingSystem.IsLinux() && host.Socket.Length > 0
+        && _run.WaypipeListen is null && _run.LocalDesktop is null;
 
-    private void LaunchCommand(string command, string label)
+    private (int Width, int Height) DesktopSize()
     {
-        if (!_shuttingDown && _host is { } host)
+        var screen = HostCursor.TryGetPosition() is { } cursor && _window?.Screens is { } screens
+            ? screens.ScreenFromPoint(cursor) ?? screens.Primary
+            : _window?.Screens?.Primary;
+        var scaling = screen?.Scaling is > 0 ? screen.Scaling : 1.0;
+        return DesktopShellPolicy.DefaultSize(screen, scaling);
+    }
+
+    private void StartListening(ListenSettings listen)
+    {
+        var acceptor = new WaypipeAcceptor(
+            listen.Endpoint, this, listen.Compression, listen.Gpu, listen.Video, listen.VideoDecoder, session: null);
+        acceptor.Failed += failure => Dispatcher.UIThread.Post(() => _ = ShutdownAsync(1));
+        _listen = acceptor;
+        UpdateStatus($"waiting for a waypipe channel on {listen.Endpoint}");
+        try
         {
-            _ = LaunchCommandAsync(host, command, label);
+            var endpoint = WaypipeAcceptor.ParseEndpoint(listen.Endpoint, out var error);
+            if (endpoint is null)
+            {
+                Log.Error($"{error}");
+                _ = ShutdownAsync(1);
+                return;
+            }
+
+            acceptor.Accept(WaypipeAcceptor.Listen(endpoint));
+        }
+        catch (Exception error) when (error is System.Net.Sockets.SocketException or IOException or FormatException or UnauthorizedAccessException)
+        {
+            Log.Error($"the channel listener failed: {error.Message}");
+            _ = ShutdownAsync(1);
         }
     }
 
-    private async Task LaunchCommandAsync(BasinCompositorHost host, string command, string label)
+    private void LaunchLocalDesktop(BasinCompositorHost host, LocalDesktop local)
     {
-        var remote = _run!.SshHost;
-        Process? client;
+        var recipe = local.Recipe;
+        var environment = DesktopSession.Environment(recipe, local.Env, local.Gpu);
+        var wrapper = DesktopSession.Wrapper(recipe, host.Socket, recipe.Command, environment);
+        Log.Debug($"starting the {recipe.Name} session on this machine");
+        _localClient = BasinDiagnostics.StartClient(wrapper, host.Socket, [("DISPLAY", null)]);
+        if (_localClient is null)
+        {
+            Log.Error($"the {recipe.Name} session failed to start");
+            _ = ShutdownAsync(1);
+            return;
+        }
+
+        if (_desktop is not null)
+        {
+            _desktop.DeclaredPid = _localClient.Id;
+        }
+
+        UpdateStatus($"starting {recipe.Name}");
+    }
+
+    private async Task<string?> ConnectSessionAsync(SessionSettings settings)
+    {
+        if (_shuttingDown || _registry is not { } registry)
+        {
+            return "waylonia is shutting down";
+        }
+
+        if (!_run!.ManagedTransport)
+        {
+            const string why = "this run binds the system libwayland socket for a local client, which carries no " +
+                "waypipe channel; start waylonia without a command to connect sessions";
+            Log.Error($"{why}");
+            return why;
+        }
+
+        if (registry.WhyRefused(settings) is { } refused)
+        {
+            Log.Error($"{refused}");
+            UpdateStatus(refused);
+            return refused;
+        }
+
+        if (settings.IsDesktop && _desktop is { } desktop)
+        {
+            desktop.Size = settings.DesktopSize ?? DesktopSize();
+        }
+
+        var session = registry.Add(settings);
+        return await session.ConnectAsync() ? null : session.LastError ?? $"{settings.Name} could not connect";
+    }
+
+    private Task<string?> ConnectProfileAsync(SessionProfile profile)
+    {
+        var resolved = SessionSettings.Resolve(
+            profile, new SessionOverrides(AudioFormat: _run!.AudioFormat), _run.Config, Log);
+        if (resolved.Settings is not { } settings)
+        {
+            Log.Error($"{resolved.Error}");
+            return Task.FromResult<string?>(resolved.Error);
+        }
+
+        return ConnectSessionAsync(settings);
+    }
+
+    private async Task DisconnectSessionAsync(string name)
+    {
+        if (_registry is { } registry)
+        {
+            await registry.DisconnectAsync(name);
+        }
+    }
+
+    private void OnSessionsChanged() => Dispatcher.UIThread.Post(() =>
+    {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
+        if (_desktop is { HasClaimed: true } desktop
+            && _registry is { } registry
+            && !registry.Live.Any(static session => session.Settings.IsDesktop)
+            && _run!.LocalDesktop is null)
+        {
+            desktop.Release();
+        }
+
+        RestartGlobalHotkeys();
+        RebuildTray();
+    });
+
+    private void OnSessionEnded(SshSession session, int code) => Dispatcher.UIThread.Post(() =>
+    {
+        if (_shuttingDown || _registry is not { } registry)
+        {
+            return;
+        }
+
+        var othersLive = registry.Live.Any(other => !ReferenceEquals(other, session));
+        if (SessionRegistry.ExitsProcess(session.Settings.AdHoc, session.HadClients, othersLive, _run!.Manager))
+        {
+            _ = ShutdownAsync(code);
+        }
+    });
+
+    private void RefreshCatalog()
+    {
+        _catalog = _run!.Store.Load(Log);
+        RebuildTray();
+    }
+
+    private void OpenManager()
+    {
+        if (_shuttingDown || _registry is not { } registry)
+        {
+            return;
+        }
+
+        if (_manager is null)
+        {
+            _manager = new ManagerWindow(
+                new ManagerViewModel(_run!.Store, registry, Log, ConnectProfileAsync, DisconnectSessionAsync));
+        }
+        else
+        {
+            _manager.Model.Reload();
+        }
+
+        _manager.Show();
+        _manager.Activate();
+    }
+
+    private void LaunchHotkey(Hotkey hotkey)
+    {
+        var label = $"hotkey '{hotkey.Chord}'";
+        if (hotkey.Session is { } name)
+        {
+            LaunchInSession(name, label, hotkey.Command);
+        }
+        else if (_registry?.AdHoc is { } adHoc)
+        {
+            _ = adHoc.LaunchAsync(hotkey.Command, label);
+        }
+        else
+        {
+            LaunchLocal(hotkey.Command, label);
+        }
+    }
+
+    private void LaunchFromTray(string? session, string label, string command)
+    {
+        if (session is { } name)
+        {
+            LaunchInSession(name, label, command);
+        }
+        else
+        {
+            LaunchLocal(command, label);
+        }
+    }
+
+    private void LaunchInSession(string name, string label, string command)
+    {
+        if (_shuttingDown || _registry is not { } registry)
+        {
+            return;
+        }
+
+        if (registry.Get(name) is { } session)
+        {
+            _ = session.LaunchAsync(command, label);
+        }
+        else if (_catalog.Find(name) is { } profile)
+        {
+            _ = ConnectThenLaunchAsync(profile, command, label);
+        }
+        else
+        {
+            Log.Warn($"{label}: no session is named {name}");
+        }
+    }
+
+    private async Task ConnectThenLaunchAsync(SessionProfile profile, string command, string label)
+    {
+        if (await ConnectProfileAsync(profile) is null && _registry?.Get(profile.Name) is { } session)
+        {
+            await session.LaunchAsync(command, label);
+        }
+    }
+
+    private void LaunchLocal(string command, string label)
+    {
+        if (_shuttingDown || _host is not { } host)
+        {
+            return;
+        }
+
+        if (host.Socket.Length == 0)
+        {
+            Log.Warn($"{label}: '{command}' has no local socket to start on");
+            return;
+        }
+
         try
         {
-            if (remote is null)
+            if (BasinDiagnostics.StartClient(command, host.Socket) is null)
             {
-                client = BasinDiagnostics.StartClient(command, host.Socket);
-            }
-            else
-            {
-                if (!await EnsureConnectedAsync(host, remote))
-                {
-                    return;
-                }
-
-                client = StartRemoteClient(remote, command);
+                return;
             }
         }
         catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
@@ -349,83 +644,39 @@ internal sealed class WayloniaApp : Application
             return;
         }
 
-        if (client is null)
+        UpdateStatus($"started '{command}'");
+    }
+
+    private void LoadLocalApplications()
+    {
+        if (_trayMenu is null || _shuttingDown)
         {
             return;
         }
 
-        _launched.Add(client);
-        UpdateStatus(remote is null
-            ? $"started '{command}'"
-            : $"started '{command}' on {remote}");
+        _localNotice = "Loading applications…";
+        RebuildTray();
+        _ = LoadLocalApplicationsAsync();
     }
 
-    private async Task<bool> EnsureConnectedAsync(BasinCompositorHost host, string remote)
-    {
-        if (_ssh is not (null or { HasExited: true }))
-        {
-            return await WaitForLoginAsync();
-        }
-
-        Log.Info($"the connection to {remote} is gone; opening it again");
-        UpdateStatus($"reconnecting to {remote}");
-        if (!await ConnectAsync(host, remote))
-        {
-            return false;
-        }
-
-        _ = WatchForwardAsync(remote);
-        LoadApplications();
-        return true;
-    }
-
-    private bool ApplicationsWanted =>
-        _run!.Tray && _run.TrayApps && _run.Desktop is null && _run.WaypipeListen is null;
-
-    private void LoadApplications()
-    {
-        if (_trayMenu is null || !ApplicationsWanted || _shuttingDown)
-        {
-            return;
-        }
-
-        _trayMenu.ShowNotice("Loading applications…");
-        _ = LoadApplicationsAsync(_trayMenu);
-    }
-
-    private async Task LoadApplicationsAsync(TrayMenu menu)
+    private async Task LoadLocalApplicationsAsync()
     {
         var locale = DesktopLocale.FromEnvironment();
-        var currentDesktop = ApplicationMenu.CurrentDesktop(_run!.CurrentDesktop);
-        var terminal = ApplicationMenu.Terminal(_run.Terminal);
+        var currentDesktop = ApplicationMenu.CurrentDesktop(_run!.Host.CurrentDesktop);
+        var terminal = ApplicationMenu.Terminal(_run.Host.Terminal);
         IReadOnlyList<DesktopEntry> listable;
         try
         {
-            if (_run.SshHost is { } remote)
-            {
-                if (_ssh is null or { HasExited: true } || !await WaitForLoginAsync())
-                {
-                    Show(menu, $"Disconnected from {remote}");
-                    return;
-                }
-
-                if (await ReadRemoteApplicationsAsync(remote, locale) is not { } output)
-                {
-                    Show(menu, $"The applications on {remote} could not be read");
-                    return;
-                }
-
-                listable = RemoteApplications.Parse(output, locale).Listable(currentDesktop);
-            }
-            else
-            {
-                listable = await Task.Run(() => new DesktopEntries(locale).Listable(currentDesktop));
-            }
+            listable = await Task.Run(() => new DesktopEntries(locale).Listable(currentDesktop));
         }
         catch (Exception error) when (error is IOException or System.ComponentModel.Win32Exception or InvalidOperationException)
         {
             Log.Warn($"the application list could not be read: {error.Message}");
-            Show(menu, "The applications could not be read");
+            Dispatcher.UIThread.Post(() =>
+            {
+                _localNotice = "The applications could not be read";
+                RebuildTray();
+            });
             return;
         }
 
@@ -438,65 +689,73 @@ internal sealed class WayloniaApp : Application
         Log.Debug($"{listable.Count} application(s) in {items.Count} categor(ies) for the tray menu");
         Dispatcher.UIThread.Post(() =>
         {
-            if (!_shuttingDown)
-            {
-                menu.ShowApplications(items);
-            }
+            _localApplications = items;
+            _localNotice = null;
+            RebuildTray();
         });
     }
 
-    private static void Show(TrayMenu menu, string notice) => Dispatcher.UIThread.Post(() => menu.ShowNotice(notice));
-
-    private async Task<string?> ReadRemoteApplicationsAsync(string sshHost, DesktopLocale locale)
+    private void RebuildTray()
     {
-        var info = new ProcessStartInfo("ssh")
+        if (_trayMenu is not { } menu || _shuttingDown || _registry is not { } registry)
         {
-            UseShellExecute = false,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true,
-            StandardOutputEncoding = System.Text.Encoding.UTF8,
-        };
-        if (_sshControlPath is { } control)
-        {
-            info.ArgumentList.Add("-o");
-            info.ArgumentList.Add($"ControlPath={control}");
-            info.ArgumentList.Add("-o");
-            info.ArgumentList.Add("ControlMaster=no");
+            return;
         }
 
-        info.ArgumentList.Add(sshHost);
-        info.ArgumentList.Add(RemoteApplications.Script(locale));
-        using var listing = Process.Start(info);
-        if (listing is null)
+        var run = _run!;
+        var apps = run.Host.TrayApps;
+        var entries = new List<SessionMenuEntry>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var session in registry.Sessions)
         {
-            return null;
+            seen.Add(session.Name);
+            entries.Add(Entry(session.Name, session));
         }
 
-        var relay = new Relay("applications");
-        relay.Watch(listing.StandardError);
-        var output = listing.StandardOutput.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
-        try
+        foreach (var profile in _catalog.Profiles)
         {
-            await listing.WaitForExitAsync(timeout.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            Log.Warn($"listing the applications on {sshHost} took over 90 s; giving up");
-            listing.Kill();
-            return null;
+            if (seen.Add(profile.Name))
+            {
+                entries.Add(Entry(profile.Name, null));
+            }
         }
 
-        if (listing.ExitCode != 0)
+        if (run.WaypipeListen is not null || run.LocalDesktop is not null)
         {
-            Log.Warn($"listing the applications on {sshHost} exited with {listing.ExitCode}");
-            relay.Report();
+            entries.Clear();
         }
 
-        return await output;
+        var manager = run.ManagedTransport && run.WaypipeListen is null;
+        menu.Show(SessionMenu.Build(
+            entries,
+            apps ? _localApplications : null,
+            apps ? _localNotice : null,
+            apps && _localApplications is not null || _localNotice is not null ? () => LoadLocalApplications() : null,
+            manager ? OpenManager : null));
+
+        SessionMenuEntry Entry(string name, SshSession? session) => new(
+            name,
+            session?.Status ?? SessionStatus.Disconnected,
+            apps ? session?.Applications : null,
+            apps ? session?.ApplicationsNotice : null,
+            () => ConnectByName(name),
+            () => _ = DisconnectSessionAsync(name),
+            () => _ = session?.LoadApplicationsAsync() ?? Task.CompletedTask);
     }
 
-    private void OnScreenWindowChanged(Basin.Avalonia.ToplevelWindow? window)
+    private void ConnectByName(string name)
+    {
+        if (_catalog.Find(name) is { } profile)
+        {
+            _ = ConnectProfileAsync(profile);
+        }
+        else if (_registry?.Get(name) is { } session)
+        {
+            _ = ConnectSessionAsync(session.Settings);
+        }
+    }
+
+    private void OnScreenWindowChanged(ToplevelWindow? window)
     {
         if (window is null)
         {
@@ -506,9 +765,14 @@ internal sealed class WayloniaApp : Application
         }
 
         var title = window.Title ?? "desktop";
-        if (_run!.Desktop is { } recipe)
+        if (_registry?.Live.FirstOrDefault(static session => session.Settings.IsDesktop) is { } desktopSession)
         {
-            title = _run.SshHost is { } host ? $"{recipe.Name} @ {host}" : recipe.Name;
+            title = $"{desktopSession.Settings.Desktop!.Name} @ {desktopSession.Ssh}";
+            window.OverrideTitle(title);
+        }
+        else if (_run!.LocalDesktop is { } local)
+        {
+            title = local.Recipe.Name;
             window.OverrideTitle(title);
         }
 
@@ -516,120 +780,50 @@ internal sealed class WayloniaApp : Application
         UpdateStatus($"the desktop window is up");
     }
 
-    private void StartGlobalHotkeys(BasinCompositorHost host)
+    private void StartGlobalHotkeys()
     {
-        if (_globalHotkeys is not null || _run!.Hotkeys.Count == 0 || _window is not { } anchor)
+        if (_globalHotkeys is not null || _hotkeysDisarmed || _shuttingDown
+            || _window is not { } anchor || _host is not { } host || _registry is not { } registry)
         {
             return;
         }
 
-        if (host.Socket.Length == 0 && _run.SshHost is null)
+        var hotkeys = registry.Hotkeys(_run!.Host.Hotkeys);
+        _hotkeySignature = Signature(hotkeys);
+        if (hotkeys.Count == 0)
         {
-            Log.Warn($"this session has no local socket, global hotkeys are off");
             return;
         }
 
-        _globalHotkeys = GlobalHotkeys.TryStart(
-            _run.Hotkeys, anchor, _view!, host, LaunchHotkey);
+        if (host.Socket.Length == 0 && !registry.AnyLive)
+        {
+            Log.Warn($"this session has no local socket and no connected session, global hotkeys wait");
+            return;
+        }
+
+        _globalHotkeys = GlobalHotkeys.TryStart(hotkeys, anchor, _view!, host, LaunchHotkey);
     }
 
-    private async Task LaunchDesktopAsync(BasinCompositorHost host, DesktopRecipe recipe)
+    private void RestartGlobalHotkeys()
     {
-        var environment = DesktopSession.Environment(recipe, _run!.DesktopEnv ?? [], _run.Gpu);
-        if (_run.SshHost is not { } sshHost)
-        {
-            var local = DesktopSession.Wrapper(recipe, host.Socket, recipe.Command, environment);
-            Log.Debug($"starting the {recipe.Name} session on this machine");
-            _client = BasinDiagnostics.StartClient(local, host.Socket, [("DISPLAY", null)]);
-            if (_client is null)
-            {
-                Log.Error($"the {recipe.Name} session failed to start");
-                _ = ShutdownAsync(1);
-                return;
-            }
-
-            if (_desktop is not null)
-            {
-                _desktop.DeclaredPid = _client.Id;
-            }
-
-            UpdateStatus($"starting {recipe.Name}");
-            return;
-        }
-
-        if (!await ConnectAsync(host, sshHost))
+        if (_registry is not { } registry || _hotkeysDisarmed)
         {
             return;
         }
 
-        var wrapper = DesktopSession.Wrapper(recipe, _sshDisplayName!, recipe.Command, environment);
-        if (StartRemoteClient(sshHost, wrapper, exportDisplay: false) is { } started)
+        var signature = Signature(registry.Hotkeys(_run!.Host.Hotkeys, quiet: true));
+        if (signature == _hotkeySignature && (_globalHotkeys is not null || signature.Length == 0))
         {
-            _launched.Add(started);
+            return;
         }
 
-        UpdateStatus($"starting {recipe.Name} on {sshHost}");
-        await WatchForwardAsync(sshHost);
+        _globalHotkeys?.Dispose();
+        _globalHotkeys = null;
+        StartGlobalHotkeys();
     }
 
-    private const string RemoteRuntimeDir =
-        "if [ -z \"$XDG_RUNTIME_DIR\" ] || [ ! -d \"$XDG_RUNTIME_DIR\" ]; then " +
-        "r=/run/user/$(id -u); " +
-        "if [ ! -d \"$r\" ]; then r=/tmp/waylonia-run-$(id -u); mkdir -p \"$r\" && chmod 700 \"$r\"; fi; " +
-        "XDG_RUNTIME_DIR=$r; export XDG_RUNTIME_DIR; fi; ";
-
-    private Process? StartRemoteClient(string sshHost, string command, bool exportDisplay = true)
-    {
-        if (_sshDisplayName is not { } displayName)
-        {
-            Log.Warn($"'{command}' cannot start on {sshHost}: the remote session is not up");
-            return null;
-        }
-
-        var quoted = command.Replace("'", "'\\''");
-        var info = new ProcessStartInfo("ssh")
-        {
-            UseShellExecute = false,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true,
-        };
-        if (_sshControlPath is { } control)
-        {
-            info.ArgumentList.Add("-o");
-            info.ArgumentList.Add($"ControlPath={control}");
-            info.ArgumentList.Add("-o");
-            info.ArgumentList.Add("ControlMaster=no");
-        }
-
-        info.ArgumentList.Add(sshHost);
-        var pulse = _run!.Audio && _sshSinkName is { } sinkName
-            ? $"PULSE_SINK={sinkName} PIPEWIRE_NODE={sinkName} "
-            : string.Empty;
-        var gtkConfig = _sshConfigDir is { } configDir
-            ? $"if [ -d {configDir} ]; then XDG_CONFIG_HOME={configDir}; export XDG_CONFIG_HOME; fi; "
-            : string.Empty;
-        var display = exportDisplay
-            ? $"if [ -s {_sshXDisplayFile} ]; then DISPLAY=$(cat {_sshXDisplayFile}); export DISPLAY; fi; "
-            : string.Empty;
-        info.ArgumentList.Add(
-            RemoteRuntimeDir +
-            $"d=\"$XDG_RUNTIME_DIR/{displayName}\"; i=0; " +
-            $"while [ ! -S \"$d\" ] && [ $i -lt 50 ]; do sleep 0.2; i=$((i+1)); done; " +
-            display +
-            gtkConfig +
-            $"{pulse}XDG_SESSION_TYPE=wayland WAYLAND_DISPLAY={displayName} sh -c '{quoted}'");
-        var started = Process.Start(info);
-        if (started is null)
-        {
-            return null;
-        }
-
-        var relay = new Relay(command);
-        relay.Watch(started.StandardOutput);
-        relay.Watch(started.StandardError);
-        _ = WatchClientAsync(started, relay, command);
-        return started;
-    }
+    private static string Signature(IReadOnlyList<Hotkey> hotkeys) =>
+        string.Join('\n', hotkeys.Select(static hotkey => $"{hotkey.Modifiers}+{hotkey.Key}={hotkey.Session}:{hotkey.Command}"));
 
     private void UpdateStatus(string text)
     {
@@ -652,518 +846,8 @@ internal sealed class WayloniaApp : Application
         }
     }
 
-    private WireClockClients? _wireClock;
-    private readonly List<Basin.Transport.Waypipe.WaypipeChannel> _channels = [];
-    private LinuxDmabufGlobal? _channelDmabuf;
-    private System.Net.Sockets.Socket? _channelListener;
-    private Process? _ssh;
-    private Relay? _sshRelay;
-    private TaskCompletionSource? _sshLoggedIn;
-    private string? _sshRemoteSocket;
-    private string? _sshDisplayName;
-    private string? _sshXDisplayFile;
-    private string? _sshConfigDir;
-    private string? _sshControlPath;
-    private string? _sshSinkName;
-    private Audio.WayloniaAudio? _audio;
-    private string? _forwardTarget;
-    private int _attachedTotal;
-    private DispatcherTimer? _channelPump;
-
-    private async Task AcceptChannelAsync(BasinCompositorHost host, string endpointText)
-    {
-        System.Net.EndPoint endpoint;
-        if (endpointText.Contains(':', StringComparison.Ordinal))
-        {
-            var parsed = System.Net.IPEndPoint.Parse(endpointText);
-            if (parsed.Address.Equals(System.Net.IPAddress.Any) || parsed.Address.Equals(System.Net.IPAddress.IPv6Any))
-            {
-                Log.Error($"a waypipe channel binds an explicit address, never a wildcard");
-                _ = ShutdownAsync(1);
-                return;
-            }
-
-            endpoint = parsed;
-        }
-        else
-        {
-            if (File.Exists(endpointText))
-            {
-                File.Delete(endpointText);
-            }
-
-            endpoint = new System.Net.Sockets.UnixDomainSocketEndPoint(endpointText);
-        }
-
-        UpdateStatus($"waiting for a waypipe channel on {endpointText}");
-        System.Net.Sockets.Socket listener;
-        try
-        {
-            listener = Listen(endpoint);
-        }
-        catch (Exception error)
-        {
-            Log.Error($"the channel listener failed: {error.Message}");
-            _ = ShutdownAsync(1);
-            return;
-        }
-
-        await AcceptLoopAsync(host, listener);
-    }
-
-    private static System.Net.Sockets.Socket Listen(System.Net.EndPoint endpoint)
-    {
-        var listener = new System.Net.Sockets.Socket(
-            endpoint.AddressFamily,
-            System.Net.Sockets.SocketType.Stream,
-            endpoint is System.Net.Sockets.UnixDomainSocketEndPoint
-                ? System.Net.Sockets.ProtocolType.Unspecified
-                : System.Net.Sockets.ProtocolType.Tcp);
-        listener.Bind(endpoint);
-        listener.Listen(8);
-        return listener;
-    }
-
-    private async Task AcceptLoopAsync(BasinCompositorHost host, System.Net.Sockets.Socket listener)
-    {
-        _channelListener = listener;
-        var channelClients = new HashSet<Wayland.Server.WlClient>();
-        try
-        {
-            var compression = _run!.Compression;
-            while (true)
-            {
-                var accepted = await listener.AcceptAsync();
-                var channel = Basin.Transport.Waypipe.WaypipeChannel.AttachChannel(
-                    new System.Net.Sockets.NetworkStream(accepted, ownsSocket: true),
-                    compression,
-                    options: new Basin.Transport.Waypipe.WaypipeChannelOptions
-                    {
-                        CarriesDmabuf = _run!.Gpu,
-                        AcceptsVideo = _run.Video is not null,
-                        VideoDecoder = _run.VideoDecoder,
-                    });
-                _channels.Add(channel);
-                var index = ++_attachedTotal;
-                channel.Ended += failure =>
-                {
-                    if (failure is null)
-                    {
-                        Log.Debug($"channel {index} ended");
-                        UpdateStatus($"channel {index} ended");
-                    }
-                    else
-                    {
-                        Log.Warn($"channel {index} ended: {failure.Message}");
-                        UpdateStatus($"channel {index} ended: {failure.Message}");
-                    }
-                };
-                var globals = channel.Globals;
-                _view!.Post(() =>
-                {
-                    if (_run!.Gpu && _channelDmabuf is null)
-                    {
-                        _channelDmabuf = new LinuxDmabufGlobal(
-                            host.Display,
-                            host.Services.Require<ClientBufferRegistry>(),
-                            globals.Formats,
-                            Basin.Transport.Waypipe.WaypipeGlobals.SyntheticMainDevice,
-                            compositor: host.Services.Require<CompositorGlobal>());
-                    }
-
-                    var channelDmabuf = _channelDmabuf;
-                    var remote = host.Display.CreateClient(channel.Transport);
-                    channelClients.Add(remote);
-                    _wireClock?.Add(remote);
-                    if (_run!.Desktop is not null && _desktop is { HasClaimed: false })
-                    {
-                        _desktop.Declare(remote);
-                    }
-
-                    host.Display.SetGlobalFilter((client, wlGlobal, name) =>
-                    {
-                        var isChannel = channelClients.Contains(client);
-                        if (channelDmabuf is not null && wlGlobal is not null && name == "zwp_linux_dmabuf_v1")
-                        {
-                            return isChannel ? channelDmabuf.Owns(wlGlobal) : !channelDmabuf.Owns(wlGlobal);
-                        }
-
-                        return !isChannel || globals.Carries(name);
-                    });
-                });
-                Protocol($"CHANNEL {index} attached");
-                UpdateStatus($"{index} channel client(s) attached");
-                if (_channelPump is null)
-                {
-                    _channelPump = new DispatcherTimer(
-                        TimeSpan.FromMilliseconds(16), DispatcherPriority.Background, (_, _) => _view?.RequestFrame());
-                    _channelPump.Start();
-                }
-            }
-        }
-        catch (ObjectDisposedException)
-        {
-        }
-        catch (Exception error)
-        {
-            if (!_shuttingDown)
-            {
-                Log.Error($"the channel listener failed: {error.Message}");
-                _ = ShutdownAsync(1);
-            }
-        }
-    }
-
-    private void RemoveRemoteSocket()
-    {
-        if (_run!.SshHost is not { } sshHost || _sshRemoteSocket is not { } remoteSocket)
-        {
-            return;
-        }
-
-        var info = new ProcessStartInfo("ssh")
-        {
-            UseShellExecute = false,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true,
-        };
-        info.ArgumentList.Add("-o");
-        info.ArgumentList.Add("BatchMode=yes");
-        if (_sshControlPath is { } control)
-        {
-            info.ArgumentList.Add("-o");
-            info.ArgumentList.Add($"ControlPath={control}");
-            info.ArgumentList.Add("-o");
-            info.ArgumentList.Add("ControlMaster=no");
-        }
-
-        info.ArgumentList.Add(sshHost);
-        var removeConfig = _sshConfigDir is { } configDir ? $"; rm -rf {configDir}" : string.Empty;
-        info.ArgumentList.Add(
-            RemoteRuntimeDir +
-            $"rm -f {remoteSocket} {_sshXDisplayFile} \"$XDG_RUNTIME_DIR/{_sshDisplayName}\"{removeConfig}");
-        try
-        {
-            using var remove = Process.Start(info);
-            if (remove is null)
-            {
-                return;
-            }
-
-            var complaint = remove.StandardError.ReadToEndAsync();
-            if (remove.WaitForExit(2000) && remove.ExitCode != 0)
-            {
-                Log.Debug($"{remoteSocket} may still exist on {sshHost}: {complaint.Result.Trim()}");
-            }
-        }
-        catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
-        {
-            Log.Warn($"{remoteSocket} could not be removed from {sshHost}: {error.Message}");
-        }
-    }
-
     [Conditional("DEBUG")]
     private static void Protocol(string line) => BasinReport.Line(line);
-
-    internal sealed class Relay(string name)
-    {
-        private const int Kept = 20;
-        private readonly Queue<string> _lines = new(Kept);
-
-        public void Watch(StreamReader reader, Func<string, bool>? claim = null) => _ = Task.Run(async () =>
-        {
-            while (await reader.ReadLineAsync() is { } line)
-            {
-                if (claim is not null && claim(line))
-                {
-                    continue;
-                }
-
-                lock (_lines)
-                {
-                    if (_lines.Count == Kept)
-                    {
-                        _lines.Dequeue();
-                    }
-
-                    _lines.Enqueue(line);
-                }
-            }
-        });
-
-        public void Report()
-        {
-            string[] kept;
-            lock (_lines)
-            {
-                kept = [.. _lines];
-            }
-
-            foreach (var line in kept)
-            {
-                Log.Error($"{name}: {line}");
-            }
-        }
-    }
-
-    private async Task LaunchSshAsync(BasinCompositorHost host, string sshHost, string? command)
-    {
-        if (!await ConnectAsync(host, sshHost))
-        {
-            return;
-        }
-
-        LoadApplications();
-
-        if (command is null)
-        {
-            Log.Info($"holding the channel to {sshHost} open; clients attach as they start");
-            UpdateStatus($"connected to {sshHost}, waiting for a client");
-            await WatchForwardAsync(sshHost);
-            return;
-        }
-
-        if (StartRemoteClient(sshHost, command) is { } started)
-        {
-            _launched.Add(started);
-        }
-
-        var attachedTask = Task.Run(async () =>
-        {
-            while (_channels.Count == 0 && !_shuttingDown)
-            {
-                await Task.Delay(200);
-            }
-        });
-        await Task.WhenAny(attachedTask, _ssh!.WaitForExitAsync(), Task.Delay(TimeSpan.FromSeconds(30)));
-        var attached = _channels.Count > 0;
-        if (!attached || _ssh!.HasExited)
-        {
-            if (_ssh!.HasExited)
-            {
-                Log.Error($"ssh to {sshHost} exited with {_ssh.ExitCode} before the channel arrived");
-            }
-            else
-            {
-                Log.Error($"no channel arrived from {sshHost} within 30 seconds");
-            }
-
-            _sshRelay?.Report();
-            _ = ShutdownAsync(1);
-            return;
-        }
-
-        await WatchForwardAsync(sshHost);
-    }
-
-    private bool StartForward(BasinCompositorHost host, string sshHost)
-    {
-        _sshRemoteSocket = $"/tmp/waylonia-{Environment.ProcessId}.sock";
-        _sshDisplayName = $"waylonia-{Environment.ProcessId}";
-        _sshXDisplayFile = $"/tmp/waylonia-x-{Environment.ProcessId}";
-        _sshConfigDir = _run!.GtkDpi ? $"/tmp/waylonia-config-{Environment.ProcessId}" : null;
-        _sshSinkName = $"waylonia-{Environment.ProcessId}";
-        var compress = _run!.Compression switch
-        {
-            Basin.Transport.Waypipe.WaypipeCompression.None => "none",
-            Basin.Transport.Waypipe.WaypipeCompression.Zstd => "zstd",
-            _ => "lz4",
-        };
-        var gpuArgument = _run.Gpu ? string.Empty : "--no-gpu ";
-        var videoArgument = _run.Video is { } codec ? $"--video={codec} " : string.Empty;
-        var xwayland = _run.XWayland
-            ? "if command -v xwayland-satellite >/dev/null 2>&1; then w=--xwls; else w=; fi; "
-              + "export XCURSOR_SIZE=\"${XCURSOR_SIZE:-24}\"; "
-            : "w=; ";
-        var sink = _run.Audio
-            ? $"m=$(pactl load-module module-null-sink sink_name={_sshSinkName} " +
-              $"sink_properties=device.description=Waylonia 2>/dev/null) || m=; "
-            : string.Empty;
-        var unloadSink = _run.Audio ? "[ -n \"$m\" ] && pactl unload-module \"$m\"; " : string.Empty;
-        var gtkConfig = _sshConfigDir is { } configDir
-            ? $"c=\"${{XDG_CONFIG_HOME:-$HOME/.config}}\"; g={configDir}; rm -rf \"$g\"; " +
-              "if mkdir -p \"$g\" 2>/dev/null; then " +
-              "for e in \"$c\"/* \"$c\"/.[!.]*; do " +
-              "if [ -e \"$e\" ]; then ln -s \"$e\" \"$g/${e##*/}\"; fi; done; " +
-              "for v in 3.0 4.0; do rm -f \"$g/gtk-$v\"; mkdir -p \"$g/gtk-$v\"; " +
-              "for e in \"$c/gtk-$v\"/*; do " +
-              "if [ -e \"$e\" ]; then ln -s \"$e\" \"$g/gtk-$v/${e##*/}\"; fi; done; " +
-              "if [ -f \"$c/gtk-$v/settings.ini\" ]; then rm -f \"$g/gtk-$v/settings.ini\"; " +
-              "sed \"s/^gtk-xft-dpi[[:space:]]*=.*/gtk-xft-dpi=98304/\" " +
-              "\"$c/gtk-$v/settings.ini\" > \"$g/gtk-$v/settings.ini\"; fi; done; fi; "
-            : string.Empty;
-        var removeGtkConfig = _sshConfigDir is { } staged ? $"rm -rf {staged}; " : string.Empty;
-        var remote =
-            $"echo '{LoggedIn}'; " +
-            RemoteRuntimeDir +
-            $"d=\"$XDG_RUNTIME_DIR/{_sshDisplayName}\"; rm -f \"$d\" {_sshXDisplayFile}; " +
-            xwayland +
-            gtkConfig +
-            sink +
-            $"waypipe --compress {compress} {gpuArgument}{videoArgument}--socket {_sshRemoteSocket} " +
-            $"--display {_sshDisplayName} $w server -- " +
-            $"sh -c 'printf %s \"$DISPLAY\" > {_sshXDisplayFile}; exec cat >/dev/null'; " +
-            $"status=$?; rm -f {_sshRemoteSocket} \"$d\" {_sshXDisplayFile}; " +
-            removeGtkConfig +
-            unloadSink +
-            "exit $status";
-
-        if (_forwardTarget is null)
-        {
-            if (OperatingSystem.IsWindows())
-            {
-                System.Net.Sockets.Socket listener;
-                try
-                {
-                    listener = Listen(new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 0));
-                }
-                catch (Exception error)
-                {
-                    Log.Error($"the channel listener failed: {error.Message}");
-                    _ = ShutdownAsync(1);
-                    return false;
-                }
-
-                _forwardTarget = $"127.0.0.1:{((System.Net.IPEndPoint)listener.LocalEndPoint!).Port}";
-                UpdateStatus($"waiting for a waypipe channel on {_forwardTarget}");
-                _ = AcceptLoopAsync(host, listener);
-            }
-            else
-            {
-                var runtimeDir = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") ?? Path.GetTempPath();
-                _forwardTarget = Path.Combine(runtimeDir, $"waylonia-ssh-{Environment.ProcessId}.sock");
-                _ = AcceptChannelAsync(host, _forwardTarget);
-            }
-        }
-
-        var info = new ProcessStartInfo("ssh")
-        {
-            UseShellExecute = false,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true,
-            RedirectStandardInput = true,
-        };
-        info.ArgumentList.Add("-o");
-        info.ArgumentList.Add("StreamLocalBindUnlink=yes");
-        info.ArgumentList.Add("-o");
-        info.ArgumentList.Add("ExitOnForwardFailure=yes");
-        if (!OperatingSystem.IsWindows())
-        {
-            var controlDir = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") ?? Path.GetTempPath();
-            _sshControlPath = Path.Combine(controlDir, $"waylonia-ssh-{Environment.ProcessId}.ctl");
-            try
-            {
-                File.Delete(_sshControlPath);
-            }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-            {
-            }
-
-            info.ArgumentList.Add("-o");
-            info.ArgumentList.Add("ControlMaster=auto");
-            info.ArgumentList.Add("-o");
-            info.ArgumentList.Add($"ControlPath={_sshControlPath}");
-            info.ArgumentList.Add("-o");
-            info.ArgumentList.Add("ControlPersist=no");
-        }
-
-        info.ArgumentList.Add("-R");
-        info.ArgumentList.Add($"{_sshRemoteSocket}:{_forwardTarget}");
-        info.ArgumentList.Add(sshHost);
-        info.ArgumentList.Add(remote);
-        try
-        {
-            _ssh = Process.Start(info);
-        }
-        catch (Exception error)
-        {
-            Log.Error($"ssh could not start: {error.Message}");
-            _ = ShutdownAsync(1);
-            return false;
-        }
-
-        if (_ssh is null)
-        {
-            Log.Error($"ssh could not start");
-            _ = ShutdownAsync(1);
-            return false;
-        }
-
-        var loggedIn = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        _sshLoggedIn = loggedIn;
-        _sshRelay = new Relay("ssh");
-        _sshRelay.Watch(_ssh.StandardOutput, line => line == LoggedIn && loggedIn.TrySetResult());
-        _sshRelay.Watch(_ssh.StandardError);
-        return true;
-    }
-
-    private const string LoggedIn = "waylonia: logged in";
-
-    private async Task<bool> ConnectAsync(BasinCompositorHost host, string sshHost)
-    {
-        if (!StartForward(host, sshHost))
-        {
-            return false;
-        }
-
-        UpdateStatus($"logging in to {sshHost}");
-        if (!await WaitForLoginAsync())
-        {
-            await WatchForwardAsync(sshHost);
-            return false;
-        }
-
-        if (_run!.Audio && _audio is null && _sshSinkName is { } audioSink)
-        {
-            _audio = Audio.WayloniaAudio.TryStart(sshHost, _sshControlPath, audioSink, _run.AudioFormat);
-        }
-
-        return true;
-    }
-
-    private async Task<bool> WaitForLoginAsync()
-    {
-        if (_ssh is not { } ssh || _sshLoggedIn is not { } loggedIn)
-        {
-            return false;
-        }
-
-        await Task.WhenAny(loggedIn.Task, ssh.WaitForExitAsync());
-        return loggedIn.Task.IsCompleted && !ssh.HasExited && !_shuttingDown;
-    }
-
-    private async Task WatchForwardAsync(string sshHost)
-    {
-        var ssh = _ssh!;
-        await ssh.WaitForExitAsync();
-        if (_shuttingDown || !ReferenceEquals(ssh, _ssh))
-        {
-            return;
-        }
-
-        if (_attachedTotal > 0)
-        {
-            Log.Info($"the connection to {sshHost} ended; a hotkey opens it again");
-            UpdateStatus($"disconnected from {sshHost}");
-            return;
-        }
-
-        Log.Error($"ssh to {sshHost} exited with {ssh.ExitCode}");
-        _sshRelay?.Report();
-        _ = ShutdownAsync(ssh.ExitCode == 0 ? 0 : 1);
-    }
-
-    private async Task WatchClientAsync(Process client, Relay relay, string command)
-    {
-        await client.WaitForExitAsync();
-        if (_shuttingDown || client.ExitCode == 0)
-        {
-            return;
-        }
-
-        Log.Warn($"'{command}' exited with {client.ExitCode}");
-        relay.Report();
-    }
 
     private static void WriteScreenshot(BasinCompositorHost host, string path)
     {
@@ -1202,6 +886,12 @@ internal sealed class WayloniaApp : Application
         _globalHotkeys?.Dispose();
         _globalHotkeys = null;
         HostCursor.Close();
+        if (_manager is { } manager)
+        {
+            manager.AllowClose();
+            manager.Close();
+            _manager = null;
+        }
 
         if (_run!.Screenshot is { } path && _host is { } aliveHost && _view is { } pump)
         {
@@ -1215,14 +905,16 @@ internal sealed class WayloniaApp : Application
             await Task.WhenAny(written.Task, Task.Delay(2000));
         }
 
-        var stopped = _launched.Count > 0;
-        foreach (var launched in _launched)
+        var stopped = false;
+        if (_registry is { } registry)
         {
-            BasinDiagnostics.StopClient(launched);
+            foreach (var session in registry.Sessions)
+            {
+                stopped |= session.StopClients();
+            }
         }
 
-        _launched.Clear();
-        if (_client is { } client)
+        if (_localClient is { } client)
         {
             BasinDiagnostics.StopClient(client);
             stopped = true;
@@ -1238,47 +930,13 @@ internal sealed class WayloniaApp : Application
         }
 
         _channelPump?.Stop();
-        _audio?.Dispose();
-        _audio = null;
-        if (_ssh is { } ssh)
-        {
-            RemoveRemoteSocket();
-            if (!ssh.HasExited)
-            {
-                try
-                {
-                    ssh.Kill(entireProcessTree: true);
-                }
-                catch (InvalidOperationException)
-                {
-                }
-            }
-        }
-
-        if (_sshControlPath is { } control)
-        {
-            try
-            {
-                File.Delete(control);
-            }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-            {
-            }
-        }
-
-        _channelListener?.Dispose();
-        foreach (var channel in _channels)
-        {
-            channel.Dispose();
-        }
+        _channelPump = null;
+        await Task.Run(() => _registry?.DisposeAll());
+        _listen?.Dispose();
+        _mixer.Dispose();
 
         if (_view is { } integrationPump)
         {
-            if (_channelDmabuf is { } channelDmabuf)
-            {
-                integrationPump.Post(channelDmabuf.Dispose);
-            }
-
             if (_clipboard is { } clipboard)
             {
                 integrationPump.Post(clipboard.Dispose);

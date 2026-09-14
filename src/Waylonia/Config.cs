@@ -1,5 +1,5 @@
 using Waylonia.Cli;
-using Tomlyn;
+using Waylonia.Sessions;
 using Tomlyn.Model;
 
 using Basin.Diagnostics;
@@ -34,19 +34,30 @@ internal sealed class Config
 
     public bool GtkDpi { get; private set; } = true;
 
+    public bool SessionTitles { get; private set; } = true;
+
     public string CaptureChord { get; private set; } = "double:RightControl";
 
     public string? Terminal { get; private set; }
 
     public string? CurrentDesktop { get; private set; }
 
+    public string Lang { get; private set; } = "C.UTF-8";
+
+    public string? Path { get; private set; }
+
+    public string? SessionsDirectory { get; private set; }
+
     public IReadOnlyDictionary<string, DesktopProfile> Desktops { get; private set; } =
         new Dictionary<string, DesktopProfile>();
 
-    public IReadOnlyDictionary<string, HostProfile> Hosts { get; private set; } =
-        new Dictionary<string, HostProfile>();
+    public IReadOnlyList<SessionProfile> LegacyHosts { get; private set; } = [];
 
     public IReadOnlyList<Hotkey> Hotkeys { get; private set; } = [];
+
+    public HostSettings Host => new(
+        XWayland, Tray, TrayApps, Clipboard, Drag, FollowCursor, GtkDpi, CaptureChord, SessionTitles,
+        Hotkeys, Terminal, CurrentDesktop);
 
     public static Config Load(bool skipFile, string? path, BasinLogger log)
     {
@@ -58,6 +69,8 @@ internal sealed class Config
 
         var explicitPath = path is not null;
         path ??= TomlConfig.DefaultPath("waylonia");
+        config.Path = path;
+        config.SessionsDirectory = SessionStore.DirectoryFor(path);
         if (!explicitPath && !File.Exists(path))
         {
             WritePlaceholder(path, log);
@@ -73,21 +86,13 @@ internal sealed class Config
         {
             if (value is TomlTable && name is not ("host" or "hosts" or "hotkeys" or "desktops"))
             {
-                log.Warn($"{path} has an unknown section '[{name}]', ignoring it; a remote host profile is [hosts.{name}]");
+                log.Warn($"{path} has an unknown section '[{name}]', ignoring it; a remote session is a file in {config.SessionsDirectory}");
             }
         }
 
         config.Compress = Compression(table, "compress", log);
-        if (table.TryGetValue("gpu", out var gpu) && gpu is bool gpuEnabled)
-        {
-            config.Gpu = gpuEnabled;
-        }
-
-        if (table.TryGetValue("audio", out var audio) && audio is bool audioEnabled)
-        {
-            config.Audio = audioEnabled;
-        }
-
+        config.Gpu = Flag(table, "gpu");
+        config.Audio = Flag(table, "audio");
         if (table.TryGetValue("video", out var video) && video is string videoCodec)
         {
             if (VideoChoice.IsValid(videoCodec))
@@ -108,6 +113,7 @@ internal sealed class Config
         config.Command = CommandText(table, "command");
         config.Terminal = CommandText(table, "terminal");
         config.CurrentDesktop = Text(table, "current-desktop");
+        config.Lang = LocaleName(table, log) ?? config.Lang;
 
         if (table.TryGetValue("host", out var host) && host is TomlTable hostTable)
         {
@@ -118,6 +124,7 @@ internal sealed class Config
             config.Drag = Toggle(hostTable, "drag", config.Drag);
             config.FollowCursor = Toggle(hostTable, "follow-cursor", config.FollowCursor);
             config.GtkDpi = Toggle(hostTable, "gtk-dpi", config.GtkDpi);
+            config.SessionTitles = Toggle(hostTable, "session-titles", config.SessionTitles);
             if (hostTable.TryGetValue("capture-chord", out var chord)
                 && chord is string chordText
                 && chordText.Trim().Length > 0)
@@ -128,7 +135,7 @@ internal sealed class Config
 
         if (table.TryGetValue("hosts", out var hosts) && hosts is TomlTable hostsTable)
         {
-            var parsed = new Dictionary<string, HostProfile>();
+            var parsed = new List<SessionProfile>();
             foreach (var (name, value) in hostsTable)
             {
                 if (value is not TomlTable profileTable)
@@ -136,23 +143,19 @@ internal sealed class Config
                     continue;
                 }
 
-                if (!profileTable.TryGetValue("ssh", out var destination)
-                    || destination is not string sshDestination
-                    || sshDestination.Length == 0)
+                log.Warn($"[hosts.{name}] moved to sessions/{name}.toml; run waylonia --migrate-hosts to convert it");
+                if (SessionStore.FromTable(name, profileTable, BasinLogger.None, out var why) is { } profile
+                    && SessionStore.IsValidName(name))
                 {
-                    log.Warn($"host profile '{name}' has no ssh destination, skipping");
-                    continue;
+                    parsed.Add(profile);
                 }
-
-                parsed[name] = new HostProfile(
-                    sshDestination,
-                    CommandText(profileTable, "command"),
-                    Compression(profileTable, "compress", log),
-                    CommandText(profileTable, "terminal"),
-                    Text(profileTable, "current-desktop"));
+                else
+                {
+                    log.Warn($"[hosts.{name}] cannot become a session: {why ?? SessionStore.WhyInvalidName(name)}");
+                }
             }
 
-            config.Hosts = parsed;
+            config.LegacyHosts = parsed;
         }
 
         if (table.TryGetValue("desktops", out var desktops) && desktops is TomlTable desktopsTable)
@@ -172,7 +175,7 @@ internal sealed class Config
                     Text(profileTable, "size"),
                     CommandText(profileTable, "command"),
                     Assignments(profileTable, "env"),
-                    profileTable.TryGetValue("gpu", out var desktopGpu) && desktopGpu is bool flag ? flag : null,
+                    Flag(profileTable, "gpu"),
                     Text(profileTable, "video"));
             }
 
@@ -196,10 +199,11 @@ internal sealed class Config
         return config;
     }
 
-    private static void WritePlaceholder(string path, BasinLogger log)
+    internal static void WritePlaceholder(string path, BasinLogger log)
     {
         const string placeholder = """
-            # The waypipe channel compression: "lz4", "zstd" or "none".
+            # The waypipe channel compression: "lz4", "zstd" or "none". A session
+            # file may override every setting up to [host].
             #compress = "lz4"
 
             # Advertise dmabuf to the remote session. Each remote buffer is
@@ -217,13 +221,15 @@ internal sealed class Config
             # from a sink of its own on the remote and streamed over the same
             # ssh connection, which costs about 384 kB/s. Off by default,
             # because a local client already plays to this host's sound server.
+            # Every session with sound is mixed into the one playback device.
             #audio = true
 
             # The Wayland socket name to bind, where the platform has one.
             #socket = "wayland-9"
 
-            # The local client a bare `waylonia` spawns; a string or an argv array.
-            # Ignored when --ssh or --waypipe-listen selects a remote session.
+            # The local client a bare `waylonia` spawns on Linux; a string or an
+            # argv array. Without it a bare `waylonia` sits in the tray, where
+            # "Sessions…" opens the session manager.
             #command = "foot"
 
             # The terminal the tray menu wraps around an application that says
@@ -236,11 +242,17 @@ internal sealed class Config
             # OnlyShowIn or NotShowIn. Unset lists no OnlyShowIn entry.
             #current-desktop = "GNOME"
 
+            # The LANG an ssh session gets when the remote login sets none.
+            # A non-interactive ssh shell usually has no locale at all, which
+            # makes terminal programs like btop refuse to start. "" leaves the
+            # remote alone.
+            #lang = "C.UTF-8"
+
             # Host desktop integration; every toggle defaults to on.
             #[host]
             #xwayland = true
             #tray = true
-            # List the session's applications in the tray menu, by category,
+            # List each session's applications in the tray menu, by category,
             # and launch one from there. Needs tray.
             #tray-apps = true
             #clipboard = true
@@ -248,26 +260,44 @@ internal sealed class Config
             # Open each new client window on the screen the pointer is on, rather
             # than wherever the host desktop would put it.
             #follow-cursor = true
-            # Read an --ssh session's GTK settings through a staged copy whose
+            # Read a session's GTK settings through a staged copy whose
             # gtk-xft-dpi is 96, so a remote desktop's own display scaling does
             # not size GTK windows twice. Off leaves the remote config alone.
             #gtk-dpi = true
-
-            # Remote-session profiles:
-            #[hosts.dev]
-            #ssh = "user@devbox"
-            #command = "tmux new -A -s main"
-            #compress = "none"
-            #terminal = "xdg-terminal-exec"
-            #current-desktop = "KDE"
+            # End every window title with " — NAME", the session it belongs to.
+            #session-titles = true
 
             # Take the host's own keyboard and pointer for a nested desktop.
             # A double tap of one modifier within 400 ms toggles it.
             #capture-chord = "double:RightControl"
 
-            # Whole-desktop sessions. --desktop NAME matches one of these
-            # first, then a built-in recipe name: sway, niri, plasma, cosmic
-            # or xfce.
+            # Remote sessions live one per file in the sessions/ directory
+            # beside this file, as sessions/NAME.toml, and the session manager
+            # window writes them. `waylonia --ssh NAME` connects one; a session
+            # with autoconnect = true connects when waylonia starts. One looks
+            # like this:
+            #
+            #   ssh = "user@devbox"
+            #   command = "tmux new -A -s main"
+            #   autostart = ["foot", "firefox"]
+            #   compress = "none"
+            #   gpu = true
+            #   video = "h264,hw"
+            #   audio = true
+            #   terminal = "xdg-terminal-exec"
+            #   current-desktop = "KDE"
+            #   lang = "en_US.UTF-8"
+            #   autoconnect = true
+            #   desktop = "plasma"
+            #   desktop-size = "1920x1080"
+            #   desktop-env = ["QT_QPA_PLATFORM=wayland"]
+            #
+            #   [hotkeys]
+            #   "ctrl+alt+t" = "foot"
+
+            # Whole-desktop sessions. --desktop NAME matches a session file
+            # first, then one of these, then a built-in recipe name: sway,
+            # niri, plasma, cosmic or xfce. host names a session.
             #[desktops.plasma]
             #recipe = "plasma"
             #host = "lab"
@@ -277,14 +307,15 @@ internal sealed class Config
             #gpu = false
             #video = "none"
 
-            # Host-global hotkeys.
+            # Host-global hotkeys. Each runs on this machine, or on the session
+            # `waylonia --ssh` opened.
             #[hotkeys]
             #"ctrl+alt+t" = "foot"
 
             """;
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
             using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
             using var writer = new StreamWriter(stream);
             writer.Write(placeholder);
@@ -299,7 +330,10 @@ internal sealed class Config
     private static bool Toggle(TomlTable table, string key, bool fallback) =>
         TomlConfig.Flag(table, key, fallback);
 
-    private static string? Compression(TomlTable table, string key, BasinLogger log)
+    internal static bool? Flag(TomlTable table, string key) =>
+        table.TryGetValue(key, out var value) && value is bool flag ? flag : null;
+
+    internal static string? Compression(TomlTable table, string key, BasinLogger log)
     {
         if (!table.TryGetValue(key, out var value) || value is not string name)
         {
@@ -315,12 +349,32 @@ internal sealed class Config
         return null;
     }
 
-    private static string? Text(TomlTable table, string key) =>
+    internal static string? LocaleName(TomlTable table, BasinLogger log)
+    {
+        if (!table.TryGetValue("lang", out var value) || value is not string text)
+        {
+            return null;
+        }
+
+        var lang = text.Trim();
+        if (IsLocaleName(lang))
+        {
+            return lang;
+        }
+
+        log.Warn($"lang '{lang}' is not a locale name like C.UTF-8 or en_US.UTF-8, ignoring it");
+        return null;
+    }
+
+    internal static bool IsLocaleName(string lang) =>
+        lang.All(static c => char.IsAsciiLetterOrDigit(c) || c is '_' or '.' or '@' or '-');
+
+    internal static string? Text(TomlTable table, string key) =>
         table.TryGetValue(key, out var value) && value is string text && text.Trim().Length > 0
             ? text.Trim()
             : null;
 
-    private static IReadOnlyList<string> Assignments(TomlTable table, string key)
+    internal static IReadOnlyList<string> Assignments(TomlTable table, string key)
     {
         if (!table.TryGetValue(key, out var value))
         {
@@ -338,10 +392,30 @@ internal sealed class Config
         };
     }
 
-    private static string? CommandText(TomlTable table, string key) =>
+    internal static IReadOnlyList<string> Commands(TomlTable table, string key)
+    {
+        if (!table.TryGetValue(key, out var value))
+        {
+            return [];
+        }
+
+        return value switch
+        {
+            string single when single.Trim().Length > 0 => [single.Trim()],
+            TomlArray array => array
+                .Select(static item => item is TomlArray argv ? CommandText(argv) : item as string)
+                .Select(static part => part?.Trim())
+                .Where(static part => part is { Length: > 0 })
+                .Select(static part => part!)
+                .ToArray(),
+            _ => [],
+        };
+    }
+
+    internal static string? CommandText(TomlTable table, string key) =>
         table.TryGetValue(key, out var value) ? CommandText(value) : null;
 
-    private static string? CommandText(object? value)
+    internal static string? CommandText(object? value)
     {
         var text = value switch
         {

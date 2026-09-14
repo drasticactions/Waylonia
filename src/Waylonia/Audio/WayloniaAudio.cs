@@ -4,18 +4,18 @@ namespace Waylonia.Audio;
 
 internal sealed class WayloniaAudio : IDisposable
 {
-    public const int Rate = 48000;
+    public const int Rate = AudioMixer.Rate;
 
-    public const int Channels = 2;
+    public const int Channels = AudioMixer.Channels;
 
     private readonly AudioRing _ring;
-    private readonly AudioSink _sink;
+    private readonly AudioMixer _mixer;
     private readonly RemoteAudioSource _source;
 
-    private WayloniaAudio(AudioRing ring, AudioSink sink, RemoteAudioSource source)
+    private WayloniaAudio(AudioRing ring, AudioMixer mixer, RemoteAudioSource source)
     {
         _ring = ring;
-        _sink = sink;
+        _mixer = mixer;
         _source = source;
     }
 
@@ -43,26 +43,27 @@ internal sealed class WayloniaAudio : IDisposable
         return true;
     }
 
-    public static WayloniaAudio? TryStart(string sshHost, string? controlPath, string sink, string format)
+    public static WayloniaAudio? TryStart(AudioMixer mixer, string sshHost, string? controlPath, string sink, string format)
     {
+        ArgumentNullException.ThrowIfNull(mixer);
         var ring = AudioRing.ForSession(Rate, Channels);
-        var device = AudioSink.TryCreate(ring, Rate, Channels, out var whyNot);
-        if (device is null)
+        if (!mixer.Add(ring))
         {
-            Log.Warn($"this host has no playback device, so the session has no sound: {whyNot}");
+            mixer.Remove(ring);
+            Log.Warn($"{sshHost} has no sound here, because this host has no playback device");
             return null;
         }
 
         var source = new RemoteAudioSource(ring, sshHost, controlPath, sink, Rate, Channels, format == "s16");
         source.Start();
         Log.Info($"playing {sshHost}'s sound on this host from {sink}.monitor as {format}");
-        return new WayloniaAudio(ring, device, source);
+        return new WayloniaAudio(ring, mixer, source);
     }
 
     public void Dispose()
     {
-        _sink.Dispose();
         _source.Dispose();
+        _mixer.Remove(_ring);
         Log.Debug($"audio ended with {_ring.Underruns} underrun(s) and {_ring.Dropped} sample(s) dropped");
     }
 }

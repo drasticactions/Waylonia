@@ -8,21 +8,21 @@ namespace Waylonia.Audio;
 internal sealed unsafe class AudioSink : IDisposable
 {
     private readonly MaDevice _device;
-    private readonly AudioRing _ring;
+    private readonly AudioFill _fill;
     private readonly int _channels;
     private GCHandle _self;
     private bool _started;
 
-    private AudioSink(MaDevice device, AudioRing ring, int channels)
+    private AudioSink(MaDevice device, AudioFill fill, int channels)
     {
         _device = device;
-        _ring = ring;
+        _fill = fill;
         _channels = channels;
     }
 
-    public static AudioSink? TryCreate(AudioRing ring, int rate, int channels, out string whyNot)
+    public static AudioSink? TryCreate(AudioFill fill, int rate, int channels, out string whyNot)
     {
-        var sink = new AudioSink(new MaDevice(), ring, channels);
+        var sink = new AudioSink(new MaDevice(), fill, channels);
         sink._self = GCHandle.Alloc(sink);
         var config = sink._device.GetConfig(ma_device_type.playback);
         config.sampleRate = (uint)rate;
@@ -68,7 +68,7 @@ internal sealed unsafe class AudioSink : IDisposable
                 return;
             }
 
-            sink._ring.Read(new Span<float>((void*)output, (int)frames * sink._channels));
+            sink._fill(new Span<float>((void*)output, (int)frames * sink._channels));
         }
         catch (Exception)
         {

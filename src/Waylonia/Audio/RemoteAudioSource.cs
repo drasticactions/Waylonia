@@ -24,7 +24,7 @@ internal sealed class RemoteAudioSource : IDisposable
     private readonly string _monitor;
 
     private Process? _capture;
-    private WayloniaApp.Relay _relay = new("audio");
+    private Relay _relay = new("audio");
     private bool _complained;
     private bool _delivered;
     private int _attempts;
@@ -87,7 +87,7 @@ internal sealed class RemoteAudioSource : IDisposable
         var backoff = 500;
         while (!_stopping.IsCancellationRequested)
         {
-            var relay = new WayloniaApp.Relay("audio");
+            var relay = new Relay("audio");
             _relay = relay;
             Process? capture;
             try

@@ -27,6 +27,7 @@
     <PackageVersion Include="Avalonia.Headless.XUnit" Version="$(AvaloniaVersion)" />
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
     <PackageVersion Include="Avalonia.Wayland" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageVersion Include="JAJ.Packages.MiniAudioEx" Version="3.3.6" />
     <PackageVersion Include="System.CommandLine" Version="2.0.10" />
     <PackageVersion Include="Tmds.DBus.Protocol" Version="0.95.1" />

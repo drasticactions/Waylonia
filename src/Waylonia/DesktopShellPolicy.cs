@@ -25,6 +25,13 @@ internal sealed class DesktopShellPolicy(IAvaloniaShellPolicy inner) : IAvalonia
         }
     }
 
+    public void Release()
+    {
+        _declared.Clear();
+        _claimed = false;
+        DeclaredPid = 0;
+    }
+
     public bool IsDeclared(WlClient client) => _declared.Contains(client);
 
     public bool HasDeclared => _declared.Count > 0;

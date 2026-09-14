@@ -2,9 +2,9 @@ using Basin.Diagnostics;
 
 namespace Waylonia;
 
-internal sealed record Hotkey(string Chord, HotkeyModifiers Modifiers, string Key, string Command)
+internal sealed record Hotkey(string Chord, HotkeyModifiers Modifiers, string Key, string Command, string? Session = null)
 {
-    public static Hotkey? Parse(string chord, string? command, BasinLogger log)
+    public static Hotkey? Parse(string chord, string? command, BasinLogger log, string? session = null)
     {
         if (command is null)
         {
@@ -42,6 +42,8 @@ internal sealed record Hotkey(string Chord, HotkeyModifiers Modifiers, string Ke
             }
         }
 
-        return new Hotkey(chord, modifiers, tokens[^1].ToLowerInvariant(), command);
+        return new Hotkey(chord, modifiers, tokens[^1].ToLowerInvariant(), command, session);
     }
+
+    public bool SameChord(Hotkey other) => Modifiers == other.Modifiers && Key == other.Key;
 }
