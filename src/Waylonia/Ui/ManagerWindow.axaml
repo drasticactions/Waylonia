@@ -33,7 +33,7 @@
         <Separator />
         <MenuItem Header="{Binding ConnectLabel}" Command="{Binding ToggleConnectionCommand}" />
       </MenuItem>
-      <MenuItem Header="Settings…" Command="{Binding OpenSettingsCommand}" />
+      <MenuItem Header="Settings" Command="{Binding OpenSettingsCommand}" />
     </Menu>
     <Grid ColumnDefinitions="240,*">
       <ListBox Grid.Column="0" Margin="12" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}">
