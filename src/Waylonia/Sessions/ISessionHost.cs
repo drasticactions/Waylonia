@@ -2,6 +2,8 @@ using Basin.Avalonia;
 using Wayland.Server;
 using Waylonia.Audio;
 
+using Basin.Freedesktop;
+
 namespace Waylonia.Sessions;
 
 internal interface ISessionHost
@@ -9,6 +11,14 @@ internal interface ISessionHost
     BasinCompositorHost Compositor { get; }
 
     HostSettings Settings { get; }
+
+    string? AskPassSocket => null;
+
+    IconCache? Icons => null;
+
+    string? ThemeIconFor(DesktopEntry entry) => null;
+
+    string? ThemeIconFor(DesktopMainCategory category) => null;
 
     AudioMixer Audio { get; }
 

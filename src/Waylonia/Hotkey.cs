@@ -22,28 +22,28 @@ internal sealed record Hotkey(string Chord, HotkeyModifiers Modifiers, string Ke
         var modifiers = HotkeyModifiers.None;
         for (var i = 0; i < tokens.Length - 1; i++)
         {
-            switch (tokens[i].ToLowerInvariant())
+            if (ModifierNamed(tokens[i]) is { } modifier)
             {
-                case "shift":
-                    modifiers |= HotkeyModifiers.Shift;
-                    break;
-                case "ctrl" or "control":
-                    modifiers |= HotkeyModifiers.Ctrl;
-                    break;
-                case "alt" or "option":
-                    modifiers |= HotkeyModifiers.Alt;
-                    break;
-                case "super" or "cmd" or "command" or "win" or "logo":
-                    modifiers |= HotkeyModifiers.Super;
-                    break;
-                default:
-                    log.Warn($"unknown modifier '{(tokens[i])}' in hotkey '{chord}', skipping");
-                    return null;
+                modifiers |= modifier;
+            }
+            else
+            {
+                log.Warn($"unknown modifier '{(tokens[i])}' in hotkey '{chord}', skipping");
+                return null;
             }
         }
 
         return new Hotkey(chord, modifiers, tokens[^1].ToLowerInvariant(), command, session);
     }
+
+    public static HotkeyModifiers? ModifierNamed(string token) => token.Trim().ToLowerInvariant() switch
+    {
+        "shift" => HotkeyModifiers.Shift,
+        "ctrl" or "control" => HotkeyModifiers.Ctrl,
+        "alt" or "option" => HotkeyModifiers.Alt,
+        "super" or "cmd" or "command" or "win" or "logo" => HotkeyModifiers.Super,
+        _ => null,
+    };
 
     public bool SameChord(Hotkey other) => Modifiers == other.Modifiers && Key == other.Key;
 }

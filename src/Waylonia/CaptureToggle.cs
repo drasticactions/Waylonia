@@ -6,13 +6,14 @@ namespace Waylonia;
 internal sealed class CaptureToggle : IDisposable
 {
     private readonly CaptureChord _chord;
-    private readonly ToplevelWindows _windows;
     private readonly BasinOutputView _view;
     private readonly BasinCompositorHost _host;
     private readonly Action<bool> _hotkeys;
     private readonly CaptureHooks _hooks;
 
-    private ToplevelWindow? _window;
+    private ICaptureTarget? _target;
+    private global::Avalonia.Controls.Window? _window;
+    private Action<string>? _overrideTitle;
     private string _title = string.Empty;
     private IDisposable? _grab;
     private long _lastTap;
@@ -22,45 +23,51 @@ internal sealed class CaptureToggle : IDisposable
 
     public CaptureToggle(
         CaptureChord chord,
-        ToplevelWindows windows,
         BasinOutputView view,
         BasinCompositorHost host,
         Action<bool> hotkeys)
     {
         _chord = chord;
-        _windows = windows;
         _view = view;
         _host = host;
         _hotkeys = hotkeys;
-        _hooks = new CaptureHooks(OnKey, (code, pressed) => _window?.InjectKey(code, pressed));
+        _hooks = new CaptureHooks(OnKey, (code, pressed) => _target?.InjectKey(code, pressed));
     }
 
     public bool Captured { get; private set; }
 
-    public void Attach(ToplevelWindow window, string title)
+    public void Attach(ToplevelWindow window, string title) =>
+        Attach(window, window, title, window.OverrideTitle);
+
+    public void Attach(ICaptureTarget target, global::Avalonia.Controls.Window window, string title, Action<string> overrideTitle)
     {
+        ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(window);
         Detach();
+        _target = target;
         _window = window;
+        _overrideTitle = overrideTitle;
         _title = title;
         _held = HotkeyModifiers.None;
         _lastTap = 0;
-        window.KeyFilter = OnKey;
+        target.KeyFilter = OnKey;
         window.Deactivated += OnDeactivated;
         Log.Info($"the desktop takes this host's keyboard on {_chord.Text}");
     }
 
     public void Detach()
     {
-        if (_window is not { } window)
+        if (_target is not { } target || _window is not { } window)
         {
             return;
         }
 
         Release();
-        window.KeyFilter = null;
+        target.KeyFilter = null;
         window.Deactivated -= OnDeactivated;
+        _target = null;
         _window = null;
+        _overrideTitle = null;
     }
 
     public void Dispose()
@@ -134,9 +141,9 @@ internal sealed class CaptureToggle : IDisposable
 
         Captured = true;
         _hotkeys(false);
-        _windows.CaptureInput(true);
+        _target?.CaptureInput(true);
         _grab = HostCapture.TryGrab(_window!, _view, _host, _hooks);
-        _window?.OverrideTitle($"{_title} — captured, {_chord.Text} to release");
+        _overrideTitle?.Invoke($"{_title} — captured, {_chord.Text} to release");
         Log.Info($"the desktop has this host's keyboard; use {_chord.Text} to release");
     }
 
@@ -150,9 +157,9 @@ internal sealed class CaptureToggle : IDisposable
         Captured = false;
         _grab?.Dispose();
         _grab = null;
-        _windows.CaptureInput(false);
+        _target?.CaptureInput(false);
         _hotkeys(true);
-        _window?.OverrideTitle(_title);
+        _overrideTitle?.Invoke(_title);
         Log.Info($"the host has its keyboard back");
     }
 }

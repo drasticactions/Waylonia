@@ -1,6 +1,8 @@
 using Basin;
 using Basin.Avalonia;
+using Basin.Diagnostics;
 using Basin.XWayland;
+using Waylonia.Shell;
 
 namespace Waylonia;
 
@@ -20,6 +22,14 @@ internal static class WayloniaXWayland
             wm.WindowMapped += window => Add(windows, window, overrideRedirect: false);
             wm.OverrideRedirectMapped += window => Add(windows, window, overrideRedirect: true);
         };
+    }
+
+    public static void AttachShell(IProtocolModule module, NestedShell shell, IconCache icons, BasinLogger log)
+    {
+        if (module is XWaylandModule xwayland)
+        {
+            _ = new XWaylandShell(xwayland, shell, icons, log);
+        }
     }
 
     public static string? DisplayName(BasinCompositorHost host) =>

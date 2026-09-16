@@ -1,3 +1,5 @@
+using Waylonia.Shell;
+
 namespace Waylonia;
 
 internal sealed record HostSettings(
@@ -12,7 +14,8 @@ internal sealed record HostSettings(
     bool SessionTitles = true,
     IReadOnlyList<Hotkey>? Hotkeys = null,
     string? Terminal = null,
-    string? CurrentDesktop = null)
+    string? CurrentDesktop = null,
+    ShellMode Shell = ShellMode.Windows)
 {
     public IReadOnlyList<Hotkey> Hotkeys { get; init; } = Hotkeys ?? [];
 }

@@ -18,12 +18,12 @@ public sealed class HostWindowTests
         using var harness = new WayloniaHostHarness();
         var toplevel = harness.MapToplevel(width: 120, height: 90, title: "notes", appId: "org.basin.notes");
 
-        var window = Assert.Single(harness.Windows.Windows);
+        var window = Assert.Single(harness.Windows!.Windows);
         Assert.Equal("notes", window.Title);
         Assert.True(window.IsVisible);
 
         toplevel.Destroy();
-        harness.PumpUntil(() => harness.Windows.Windows.Count == 0, "the host window outlived its toplevel");
+        harness.PumpUntil(() => harness.Windows!.Windows.Count == 0, "the host window outlived its toplevel");
     }
 
     [AvaloniaFact]
@@ -31,7 +31,7 @@ public sealed class HostWindowTests
     {
         using var harness = new WayloniaHostHarness();
         var toplevel = harness.MapToplevel(title: "before");
-        var window = Assert.Single(harness.Windows.Windows);
+        var window = Assert.Single(harness.Windows!.Windows);
         Assert.Equal("before", window.Title);
 
         toplevel.Toplevel.SetTitle("after");
@@ -39,7 +39,7 @@ public sealed class HostWindowTests
         harness.PumpUntil(() => window.Title == "after", "the host window kept the old title");
 
         toplevel.Destroy();
-        harness.PumpUntil(() => harness.Windows.Windows.Count == 0, "the host window outlived its toplevel");
+        harness.PumpUntil(() => harness.Windows!.Windows.Count == 0, "the host window outlived its toplevel");
     }
 
     [AvaloniaFact]
@@ -47,18 +47,18 @@ public sealed class HostWindowTests
     {
         using var harness = new WayloniaHostHarness();
         var counts = new List<int>();
-        harness.Windows.CountChanged += counts.Add;
+        harness.Windows!.CountChanged += counts.Add;
 
         var first = harness.MapToplevel(title: "first");
         var second = harness.MapToplevel(title: "second");
 
-        Assert.Equal(2, harness.Windows.Windows.Count);
+        Assert.Equal(2, harness.Windows!.Windows.Count);
         Assert.Equal([1, 2], counts);
 
         second.Destroy();
-        harness.PumpUntil(() => harness.Windows.Windows.Count == 1, "the second host window stayed open");
+        harness.PumpUntil(() => harness.Windows!.Windows.Count == 1, "the second host window stayed open");
         first.Destroy();
-        harness.PumpUntil(() => harness.Windows.Windows.Count == 0, "the first host window stayed open");
+        harness.PumpUntil(() => harness.Windows!.Windows.Count == 0, "the first host window stayed open");
     }
 
     [AvaloniaFact]
@@ -66,16 +66,16 @@ public sealed class HostWindowTests
     {
         using var harness = new WayloniaHostHarness();
         var toplevel = harness.MapToplevel();
-        var window = Assert.Single(harness.Windows.Windows);
+        var window = Assert.Single(harness.Windows!.Windows);
 
         window.Close();
         harness.PumpUntil(() => toplevel.CloseReceived, "the client was never asked to close");
 
-        Assert.Single(harness.Windows.Windows);
+        Assert.Single(harness.Windows!.Windows);
         Assert.False(toplevel.Surface.IsDestroyed);
 
         toplevel.Destroy();
-        harness.PumpUntil(() => harness.Windows.Windows.Count == 0, "the host window outlived its toplevel");
+        harness.PumpUntil(() => harness.Windows!.Windows.Count == 0, "the host window outlived its toplevel");
     }
 
     [AvaloniaFact]
@@ -83,7 +83,7 @@ public sealed class HostWindowTests
     {
         using var harness = new WayloniaHostHarness();
         var toplevel = harness.MapToplevel(width: 120, height: 90);
-        var window = Assert.Single(harness.Windows.Windows);
+        var window = Assert.Single(harness.Windows!.Windows);
 
         var before = (toplevel.ConfiguredWidth, toplevel.ConfiguredHeight);
         window.Width = 200;
@@ -97,7 +97,7 @@ public sealed class HostWindowTests
         Assert.True(toplevel.ConfiguredHeight >= 90, $"the configure shortened to {toplevel.ConfiguredHeight}");
 
         toplevel.Destroy();
-        harness.PumpUntil(() => harness.Windows.Windows.Count == 0, "the host window outlived its toplevel");
+        harness.PumpUntil(() => harness.Windows!.Windows.Count == 0, "the host window outlived its toplevel");
     }
 
     [AvaloniaFact]
@@ -107,9 +107,9 @@ public sealed class HostWindowTests
         using (var harness = new WayloniaHostHarness())
         {
             var toplevel = harness.MapToplevel();
-            Assert.Single(harness.Windows.Windows);
+            Assert.Single(harness.Windows!.Windows);
             toplevel.Destroy();
-            harness.PumpUntil(() => harness.Windows.Windows.Count == 0, "the host window outlived its toplevel");
+            harness.PumpUntil(() => harness.Windows!.Windows.Count == 0, "the host window outlived its toplevel");
         }
 
         Dispatcher.UIThread.RunJobs();
@@ -123,19 +123,19 @@ public sealed class HostWindowTests
         using var harness = new WayloniaHostHarness();
         var panel = harness.MapLayer(width: 200, height: 40);
 
-        var window = Assert.Single(harness.Windows.LayerWindows);
+        var window = Assert.Single(harness.Windows!.LayerWindows);
         Assert.True(window.IsVisible);
 
         harness.HideLayer(panel);
         harness.PumpUntil(() => !window.IsVisible, "the host window outlived the unmapped layer surface");
-        Assert.Single(harness.Windows.LayerWindows);
+        Assert.Single(harness.Windows!.LayerWindows);
 
         harness.ShowLayer(panel);
         harness.PumpUntil(() => window.IsVisible, "the remapped layer surface never came back on screen");
-        Assert.Same(window, Assert.Single(harness.Windows.LayerWindows));
+        Assert.Same(window, Assert.Single(harness.Windows!.LayerWindows));
 
         panel.Destroy();
-        harness.PumpUntil(() => harness.Windows.LayerWindows.Count == 0, "the host window outlived its layer surface");
+        harness.PumpUntil(() => harness.Windows!.LayerWindows.Count == 0, "the host window outlived its layer surface");
     }
 
     [AvaloniaFact]
@@ -147,7 +147,7 @@ public sealed class HostWindowTests
         var backdrop = harness.MapLayer(width: 400, height: 300, scope: "backdrop", anchor: anchor);
         harness.SetInputRegion(backdrop, (0, 100, 400, 200), (200, 0, 200, 100));
 
-        var window = harness.Windows.LayerWindows.Single(w => w.Width == 400);
+        var window = harness.Windows!.LayerWindows.Single(w => w.Width == 400);
         window.MouseMove(new Point(60, 200));
         harness.PumpInput();
 
@@ -160,7 +160,7 @@ public sealed class HostWindowTests
 
         backdrop.Destroy();
         panel.Destroy();
-        harness.PumpUntil(() => harness.Windows.LayerWindows.Count == 0, "a host window outlived its layer surface");
+        harness.PumpUntil(() => harness.Windows!.LayerWindows.Count == 0, "a host window outlived its layer surface");
     }
 
     [AvaloniaFact]
@@ -177,10 +177,10 @@ public sealed class HostWindowTests
         var focus = harness.Host.Seat.Keyboard.Focus;
         Assert.NotNull(focus);
 
-        harness.Windows.Enqueue(new BasinInputEvent
+        harness.Windows!.Enqueue(new BasinInputEvent
         {
             Kind = InputKind.FocusOut,
-            WindowId = harness.Windows.LayerWindows.Single().Id,
+            WindowId = harness.Windows!.LayerWindows.Single().Id,
         });
         harness.PumpInput();
 
@@ -192,6 +192,6 @@ public sealed class HostWindowTests
         Assert.Null(harness.Host.Seat.Keyboard.Focus);
 
         launcher.Destroy();
-        harness.PumpUntil(() => harness.Windows.LayerWindows.Count == 0, "the host window outlived its layer surface");
+        harness.PumpUntil(() => harness.Windows!.LayerWindows.Count == 0, "the host window outlived its layer surface");
     }
 }

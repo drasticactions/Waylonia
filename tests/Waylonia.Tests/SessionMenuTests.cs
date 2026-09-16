@@ -133,4 +133,23 @@ public sealed class SessionMenuTests
         Assert.True(items[3].Separator);
         Assert.Equal("○ dev", items[4].Label);
     }
+
+    [Fact]
+    public void A_nested_run_offers_only_the_shell_window()
+    {
+        var opened = 0;
+        var items = SessionMenu.BuildNested(() => opened++);
+
+        var item = Assert.Single(items);
+        Assert.Equal(SessionMenu.ShellWindowLabel, item.Label);
+        item.Invoke!();
+        Assert.Equal(1, opened);
+    }
+
+    [Fact]
+    public void A_windows_run_shows_no_shell_items()
+    {
+        var items = SessionMenu.Build([Entry("dev", SessionStatus.Connected)], null, null, null, () => { });
+        Assert.DoesNotContain(items, item => item.Label == SessionMenu.ShellWindowLabel);
+    }
 }

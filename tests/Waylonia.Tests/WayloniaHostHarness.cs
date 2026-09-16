@@ -4,6 +4,7 @@ using Basin.Avalonia;
 using Basin.Diagnostics;
 using Basin.Shell.Xdg.Protocol;
 using Wayland;
+using Waylonia.Shell;
 using Xunit;
 
 namespace Waylonia.Tests;
@@ -41,15 +42,53 @@ internal sealed class WayloniaHostHarness : IDisposable
 
     public WayloniaHostHarness(
         Action<BasinCompositorHost>? configure = null,
-        Action<Wayland.Server.WlClient>? onClient = null)
+        Action<Wayland.Server.WlClient>? onClient = null,
+        NestedShellOptions? nested = null)
     {
         SkipWithoutWaylandClient();
         BasinCounters.Reset();
         Host = new BasinCompositorHost(new BasinCompositorOptions { AppName = "waylonia-tests" });
-        Windows = new ToplevelWindows(Host, action => action(), requestFrame: () => FrameRequests++);
+        if (nested is { } options)
+        {
+            ShellView = Host.CreateViewOutput(options.Width, options.Height, options.Scale, NestedShell.OutputKey);
+            Shell = new NestedShell(
+                Host,
+                ShellView,
+                options.Settings,
+                PanelLayout.From(options.Panel, BasinLogger.None),
+                KeyTable.Build(options.Settings.Keys, [], BasinLogger.None),
+                _ => null,
+                sessionTitles: true,
+                action => action(),
+                action => action(),
+                BasinLog.For("waylonia-tests"));
+        }
+        else
+        {
+            Windows = new ToplevelWindows(Host, action => action(), requestFrame: () => FrameRequests++);
+        }
+
         configure?.Invoke(Host);
         _client = Connect(onClient, client => _client = client);
     }
+
+    public sealed record NestedShellOptions(
+        int Width = 800,
+        int Height = 600,
+        double Scale = 1.0,
+        ShellSettings? Settings = null,
+        PanelSettings? Panel = null)
+    {
+        public ShellSettings Settings { get; init; } = Settings ?? new ShellSettings();
+
+        public PanelSettings Panel { get; init; } = Panel ?? new PanelSettings();
+    }
+
+    public NestedShell? Shell { get; }
+
+    public BasinViewOutput? ShellView { get; }
+
+    public int WindowCount => Shell?.Windows.Count ?? Windows!.Windows.Count;
 
     private ShmTestClient Connect(Action<Wayland.Server.WlClient>? onClient, Action<ShmTestClient> register)
     {
@@ -90,7 +129,7 @@ internal sealed class WayloniaHostHarness : IDisposable
 
     public BasinCompositorHost Host { get; }
 
-    public ToplevelWindows Windows { get; }
+    public ToplevelWindows? Windows { get; }
 
     private ShmTestClient? _client;
 
@@ -142,9 +181,10 @@ internal sealed class WayloniaHostHarness : IDisposable
         int width = 120,
         int height = 90,
         string title = "waylonia",
-        string appId = "waylonia.test")
+        string appId = "waylonia.test",
+        bool serverDecorated = false)
     {
-        var existing = Windows.Windows.Count;
+        var existing = WindowCount;
         var surface = Client.Compositor.CreateSurface();
         var xdgSurface = Client.WmBase!.GetXdgSurface(surface);
         var toplevel = xdgSurface.GetToplevel();
@@ -166,13 +206,22 @@ internal sealed class WayloniaHostHarness : IDisposable
 
         surface.Commit();
         PumpUntil(() => mapped.Configured, "the compositor never configured the toplevel");
+        if (serverDecorated && Client.DecorationManager is { } decorations)
+        {
+            var decoration = decorations.GetToplevelDecoration(toplevel);
+            mapped.Decoration = decoration;
+            var configuredMode = false;
+            decoration.Configure += (_, _) => configuredMode = true;
+            decoration.SetMode(ZxdgToplevelDecorationV1.Mode.ServerSide);
+            PumpUntil(() => configuredMode, "the compositor never answered the decoration mode");
+        }
 
         var buffer = Client.CreateBuffer(width, height, Fill(width, height, 0xFF3366AA));
         mapped.Buffer = buffer;
         surface.Attach(buffer.Proxy, 0, 0);
         surface.Damage(0, 0, width, height);
         surface.Commit();
-        PumpUntil(() => Windows.Windows.Count > existing, "the mapped toplevel never became a host window");
+        PumpUntil(() => WindowCount > existing, "the mapped toplevel never became a managed window");
         return mapped;
     }
 
@@ -184,7 +233,7 @@ internal sealed class WayloniaHostHarness : IDisposable
         ZwlrLayerSurfaceV1.Anchor anchor = 0,
         ZwlrLayerSurfaceV1.KeyboardInteractivity keyboard = ZwlrLayerSurfaceV1.KeyboardInteractivity.None)
     {
-        var existing = Windows.LayerWindows.Count;
+        var existing = Windows!.LayerWindows.Count;
         _layerShell ??= Client.BindAt<ZwlrLayerShellV1>("zwlr_layer_shell_v1", 4);
         var surface = Client.Compositor.CreateSurface();
         var layerSurface = _layerShell.GetLayerSurface(surface, null, layer, scope);
@@ -203,7 +252,7 @@ internal sealed class WayloniaHostHarness : IDisposable
         mapped.Buffer = Client.CreateBuffer(width, height, Fill(width, height, 0xFF22AA55));
         ShowLayer(mapped);
         PumpUntil(
-            () => Windows.LayerWindows.Count > existing,
+            () => Windows!.LayerWindows.Count > existing,
             "the mapped layer surface never became a host window");
         return mapped;
     }
@@ -275,7 +324,9 @@ internal sealed class WayloniaHostHarness : IDisposable
         Host.Loop.Dispatch(0);
         Host.Loop.Dispatch(0);
         Dispatcher.UIThread.RunJobs();
-        Windows.Dispose();
+        Windows?.Dispose();
+        Shell?.Dispose();
+        ShellView?.Dispose();
         Host.Dispose();
         Dispatcher.UIThread.RunJobs();
     }
@@ -291,6 +342,8 @@ internal sealed class HarnessToplevel(WlSurface surface, XdgSurface xdgSurface, 
 
     public ClientShmBuffer? Buffer { get; set; }
 
+    public ZxdgToplevelDecorationV1? Decoration { get; set; }
+
     public bool Configured { get; set; }
 
     public bool CloseReceived { get; set; }
@@ -301,6 +354,7 @@ internal sealed class HarnessToplevel(WlSurface surface, XdgSurface xdgSurface, 
 
     public void Destroy()
     {
+        Decoration?.Dispose();
         Toplevel.Dispose();
         XdgSurface.Dispose();
         Surface.Dispose();

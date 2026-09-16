@@ -22,7 +22,7 @@ internal static class AskPass
 
     public static string Require(bool inputRedirected) => inputRedirected ? "force" : "prefer";
 
-    public static void Configure(IDictionary<string, string?> environment)
+    public static void Configure(IDictionary<string, string?> environment, string? relaySocket = null)
     {
         ArgumentNullException.ThrowIfNull(environment);
         if (Environment.ProcessPath is not { Length: > 0 } self)
@@ -32,6 +32,15 @@ internal static class AskPass
 
         environment["SSH_ASKPASS"] = self;
         environment[Variable] = "1";
+        if (relaySocket is not null)
+        {
+            environment[AskPassRelay.SocketVariable] = relaySocket;
+        }
+        else
+        {
+            environment.Remove(AskPassRelay.SocketVariable);
+        }
+
         environment["SSH_ASKPASS_REQUIRE"] = Require(Console.IsInputRedirected);
         if (!environment.TryGetValue("DISPLAY", out var display) || string.IsNullOrEmpty(display))
         {
@@ -50,6 +59,22 @@ internal static class AskPass
 
     public static int Run(string prompt)
     {
+        if (Environment.GetEnvironmentVariable(AskPassRelay.SocketVariable) is { Length: > 0 } socket)
+        {
+            var relayedAnswer = AskPassRelay.Ask(socket, prompt, TimeSpan.FromMinutes(10), out var relayed);
+            if (relayed)
+            {
+                if (relayedAnswer is null)
+                {
+                    return 1;
+                }
+
+                Console.Out.Write(relayedAnswer);
+                Console.Out.Flush();
+                return 0;
+            }
+        }
+
         AskPassApp.Prompt = prompt;
         var status = AppBuilder.Configure<AskPassApp>().UsePlatformDetect()
             .With(new MacOSPlatformOptions { ShowInDock = false })

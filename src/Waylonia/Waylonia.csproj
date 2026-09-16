@@ -30,22 +30,28 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Assets/Waylonia_Logo.png" LogicalName="Waylonia.Waylonia_Logo.png" />
+    <EmbeddedResource Include="Shell/Themes/Atlanta/metacity-theme-1.xml" LogicalName="Waylonia.Themes.Atlanta.metacity-theme-1.xml" />
     <None Include="waylonia.desktop" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Basin.Avalonia" />
+    <PackageReference Include="Basin.Frames.Metacity" />
     <PackageReference Include="Basin.Freedesktop" />
     <PackageReference Include="Basin.Render.Skia" />
     <PackageReference Include="Basin.Transport.Waypipe" />
+    <PackageReference Include="Basin.UI.Avalonia" />
+    <PackageReference Include="Basin.UI.Skia" />
     <PackageReference Include="Basin.Video.FFmpeg" />
     <PackageReference Include="BluerCurve" />
+    <PackageReference Include="BluerCurve.Icons" />
     <PackageReference Include="Basin.XWayland" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="JAJ.Packages.MiniAudioEx" />
     <PackageReference Include="System.CommandLine" />
     <PackageReference Include="Tomlyn" />
+    <PackageReference Include="Svg.Skia" />
     <PackageReference Include="Avalonia.Wayland" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <PackageReference Include="Tmds.DBus.Protocol" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </ItemGroup>

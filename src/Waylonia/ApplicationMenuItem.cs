@@ -6,7 +6,8 @@ internal sealed record ApplicationMenuItem(
     IReadOnlyList<ApplicationMenuItem>? Children = null,
     bool Separator = false,
     string? Session = null,
-    Action? Invoke = null)
+    Action? Invoke = null,
+    string? Icon = null)
 {
     public ApplicationMenuItem InSession(string session) => this with
     {

@@ -62,6 +62,42 @@ internal sealed class TomlSection
         Add(key, new BooleanValueSyntax(value));
     }
 
+    public void Set(string key, long value)
+    {
+        if (Find(key) is { } existing)
+        {
+            if (existing.Value is not IntegerValueSyntax number || number.Value != value)
+            {
+                Replace(existing, new IntegerValueSyntax(value));
+            }
+
+            return;
+        }
+
+        Add(key, new IntegerValueSyntax(value));
+    }
+
+    public void Set(string key, double value)
+    {
+        if (Find(key) is { } existing)
+        {
+            var same = existing.Value switch
+            {
+                IntegerValueSyntax number => number.Value == value,
+                FloatValueSyntax number => number.Value == value,
+                _ => false,
+            };
+            if (!same)
+            {
+                Replace(existing, Number(value));
+            }
+
+            return;
+        }
+
+        Add(key, Number(value));
+    }
+
     public void Set(string key, IReadOnlyList<string> values)
     {
         ArgumentNullException.ThrowIfNull(values);
@@ -176,6 +212,11 @@ internal sealed class TomlSection
             token.TrailingTrivia = oldTail;
         }
     }
+
+    private static ValueSyntax Number(double value) =>
+        double.IsInteger(value) && Math.Abs(value) < long.MaxValue
+            ? new IntegerValueSyntax((long)value)
+            : new FloatValueSyntax(value);
 
     private static SyntaxToken? LastToken(SyntaxNode? node) =>
         node?.Tokens(false).OfType<SyntaxToken>().LastOrDefault();

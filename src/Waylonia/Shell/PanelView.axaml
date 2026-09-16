@@ -1,0 +1,150 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shell="clr-namespace:Waylonia.Shell"
+             xmlns:applets="clr-namespace:Waylonia.Shell.Applets"
+             x:Class="Waylonia.Shell.PanelView"
+             x:DataType="shell:PanelViewModel"
+             FontSize="12">
+  <UserControl.Styles>
+    <Style Selector="Menu.panel">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Menu.panel > MenuItem">
+      <Setter Property="Padding" Value="8,0" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="ToggleButton.window">
+      <Setter Property="MinWidth" Value="40" />
+      <Setter Property="MaxWidth" Value="160" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="Margin" Value="1,2" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ToggleButton.window.minimized">
+      <Setter Property="Opacity" Value="0.6" />
+    </Style>
+    <Style Selector="ToggleButton.window.attention">
+      <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+    <Style Selector="Border.cell">
+      <Setter Property="Margin" Value="1" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource PanelForegroundBrush}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="ClipToBounds" Value="True" />
+    </Style>
+    <Style Selector="Border.cell.current">
+      <Setter Property="Background" Value="{DynamicResource PanelHighlightBrush}" />
+    </Style>
+    <Style Selector="Border.miniature">
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource PanelForegroundBrush}" />
+      <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
+    </Style>
+    <Style Selector="Border.miniature.focused">
+      <Setter Property="Background" Value="{DynamicResource PanelHighlightBrush}" />
+    </Style>
+  </UserControl.Styles>
+  <Border x:Name="Strip" Background="{DynamicResource PanelBackgroundBrush}" Padding="2,0">
+    <DockPanel LastChildFill="True">
+      <ItemsControl x:Name="AppletList" ItemsSource="{Binding Applets}" VerticalAlignment="Stretch">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <applets:AppletStrip />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.DataTemplates>
+          <DataTemplate DataType="applets:MenuBarViewModel">
+            <Menu Classes="panel" ItemsSource="{Binding Roots}">
+              <Menu.Styles>
+                <Style Selector="MenuItem" x:DataType="applets:MenuEntryViewModel">
+                  <Setter Property="Header" Value="{Binding Header}" />
+                  <Setter Property="ItemsSource" Value="{Binding Children}" />
+                  <Setter Property="Command" Value="{Binding Command}" />
+                  <Setter Property="IsEnabled" Value="{Binding IsEnabled}" />
+                  <Setter Property="ToolTip.Tip" Value="{Binding ToolTip}" />
+                  <Setter Property="Icon" Value="{Binding Icon, Converter={x:Static applets:IconImageConverter.Instance}}" />
+                </Style>
+              </Menu.Styles>
+            </Menu>
+          </DataTemplate>
+          <DataTemplate DataType="applets:WindowListViewModel">
+            <ItemsControl Classes="windows" ItemsSource="{Binding Buttons}" HorizontalAlignment="Left" VerticalAlignment="Stretch">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <UniformGrid Rows="1" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="applets:WindowButtonViewModel">
+                  <ToggleButton Classes="window"
+                                Classes.minimized="{Binding IsMinimized}"
+                                Classes.attention="{Binding DemandsAttention}"
+                                IsChecked="{Binding IsFocused, Mode=OneWay}"
+                                Command="{Binding ActivateCommand}"
+                                ToolTip.Tip="{Binding Title}">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <Image Source="{Binding Icon}" Width="16" Height="16" IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                      <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </ToggleButton>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </DataTemplate>
+          <DataTemplate DataType="applets:WorkspaceSwitcherViewModel">
+            <ItemsControl Classes="workspaces" ItemsSource="{Binding Cells}" VerticalAlignment="Center" Margin="2,0">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <UniformGrid Rows="{Binding Rows}" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="applets:WorkspaceCellViewModel">
+                  <Border Classes="cell"
+                          Classes.current="{Binding IsCurrent}"
+                          Width="{Binding Width}"
+                          Height="{Binding Height}"
+                          ToolTip.Tip="{Binding Name}">
+                    <ItemsControl ItemsSource="{Binding Windows}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <Canvas />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.Styles>
+                        <Style Selector="ContentPresenter" x:DataType="applets:WorkspaceMiniatureViewModel">
+                          <Setter Property="Canvas.Left" Value="{Binding X}" />
+                          <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                        </Style>
+                      </ItemsControl.Styles>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="applets:WorkspaceMiniatureViewModel">
+                          <Border Classes="miniature"
+                                  Classes.focused="{Binding IsFocused}"
+                                  Width="{Binding Width}"
+                                  Height="{Binding Height}" />
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </DataTemplate>
+          <DataTemplate DataType="applets:ClockViewModel">
+            <TextBlock Classes="clock" Text="{Binding Text}" VerticalAlignment="Center" Margin="6,0" />
+          </DataTemplate>
+          <DataTemplate DataType="applets:SpacerViewModel">
+            <Border Classes="spacer" HorizontalAlignment="Stretch" />
+          </DataTemplate>
+        </ItemsControl.DataTemplates>
+      </ItemsControl>
+    </DockPanel>
+  </Border>
+</UserControl>

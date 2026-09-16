@@ -69,7 +69,7 @@ public sealed class ManagerWindowTests : IDisposable
             """.ReplaceLineEndings("\n"), text);
         Assert.Equal("dev", model.Selected);
         Assert.Contains(model.Rows, row => row.Name == "dev");
-        Assert.Equal("dev", window.FindControl<TextBox>("NameBox")!.Text);
+        Assert.Equal("dev", window.View.FindControl<TextBox>("NameBox")!.Text);
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public sealed class ManagerWindowTests : IDisposable
         var window = new ManagerWindow(Model());
         window.Show();
 
-        var menu = window.FindControl<Menu>("MenuBar")!;
+        var menu = window.View.FindControl<Menu>("MenuBar")!;
         var top = menu.Items.OfType<MenuItem>().ToList();
         Assert.Equal(2, top.Count);
         var session = top[0];
@@ -162,14 +162,14 @@ public sealed class ManagerWindowTests : IDisposable
         Assert.Same(window.Model.OpenSettingsCommand, top[1].Command);
         Assert.False(window.Model.OpenSettingsCommand.CanExecute(null));
 
-        Assert.Same(window.Model.NewSessionCommand, window.FindControl<Button>("NewButton")!.Command);
-        Assert.Same(window.Model.SaveSessionCommand, window.FindControl<Button>("SaveButton")!.Command);
-        Assert.Same(window.Model.DeleteSessionCommand, window.FindControl<Button>("DeleteButton")!.Command);
-        var connect = window.FindControl<Button>("ConnectButton")!;
+        Assert.Same(window.Model.NewSessionCommand, window.View.FindControl<Button>("NewButton")!.Command);
+        Assert.Same(window.Model.SaveSessionCommand, window.View.FindControl<Button>("SaveButton")!.Command);
+        Assert.Same(window.Model.DeleteSessionCommand, window.View.FindControl<Button>("DeleteButton")!.Command);
+        var connect = window.View.FindControl<Button>("ConnectButton")!;
         Assert.Same(window.Model.ToggleConnectionCommand, connect.Command);
         Assert.Equal("Connect", connect.Content);
 
-        var rowItems = window.FindControl<ContextMenu>("RowMenu")!.Items.OfType<MenuItem>().ToList();
+        var rowItems = window.View.FindControl<ContextMenu>("RowMenu")!.Items.OfType<MenuItem>().ToList();
         Assert.Equal(["Save", "Delete"], rowItems.Skip(1).Select(entry => entry.Header?.ToString()));
         Assert.Equal(3, rowItems.Count);
     }
@@ -181,8 +181,8 @@ public sealed class ManagerWindowTests : IDisposable
         new SessionStore(_directory).Save(new SessionProfile("lab", "user@lab"));
         var window = new ManagerWindow(Model());
         window.Show();
-        var list = window.FindControl<ListBox>("SessionList")!;
-        var rowMenu = window.FindControl<ContextMenu>("RowMenu")!;
+        var list = window.View.FindControl<ListBox>("SessionList")!;
+        var rowMenu = window.View.FindControl<ContextMenu>("RowMenu")!;
         list.UpdateLayout();
 
         var row = (ListBoxItem)list.ContainerFromIndex(1)!;

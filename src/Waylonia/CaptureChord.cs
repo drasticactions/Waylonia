@@ -19,6 +19,12 @@ internal sealed record CaptureChord(string Text, bool DoubleTap, uint Code, Hotk
         ("escape", 1), ("esc", 1), ("space", 57), ("tab", 15), ("enter", 28), ("return", 28),
         ("f1", 59), ("f2", 60), ("f3", 61), ("f4", 62), ("f5", 63), ("f6", 64),
         ("f7", 65), ("f8", 66), ("f9", 67), ("f10", 68), ("f11", 87), ("f12", 88),
+        ("left", 105), ("right", 106), ("up", 103), ("down", 108),
+        ("grave", 41), ("backquote", 41), ("minus", 12), ("equal", 13),
+        ("backspace", 14), ("delete", 111), ("insert", 110), ("home", 102), ("end", 107),
+        ("pageup", 104), ("prior", 104), ("pagedown", 109), ("next", 109), ("print", 99),
+        ("comma", 51), ("period", 52), ("slash", 53), ("semicolon", 39), ("apostrophe", 40),
+        ("bracketleft", 26), ("bracketright", 27), ("backslash", 43),
     ];
 
     private const string Letters = "abcdefghijklmnopqrstuvwxyz";

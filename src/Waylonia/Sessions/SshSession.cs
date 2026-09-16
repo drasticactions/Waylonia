@@ -72,6 +72,13 @@ internal sealed class SshSession : IDisposable
 
     public IReadOnlyList<ApplicationMenuItem>? Applications { get; private set; }
 
+    private readonly Dictionary<string, string?> _icons = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DesktopEntry> _entriesByAppId = new(StringComparer.Ordinal);
+    private readonly Lock _iconLock = new();
+    private Task _iconFetch = Task.CompletedTask;
+
+    public event Action<SshSession>? IconsChanged;
+
     public string? ApplicationsNotice { get; private set; }
 
     public WaypipeAcceptor? Acceptor => _acceptor;
@@ -291,16 +298,143 @@ internal sealed class SshSession : IDisposable
             return;
         }
 
-        var items = ApplicationMenu.Build(listable, terminal);
+        lock (_iconLock)
+        {
+            _entriesByAppId.Clear();
+            foreach (var entry in listable)
+            {
+                var id = entry.Id.EndsWith(".desktop", StringComparison.Ordinal) ? entry.Id[..^".desktop".Length] : entry.Id;
+                _entriesByAppId.TryAdd(id, entry);
+                if (entry.StartupWMClass is { Length: > 0 } wmClass)
+                {
+                    _entriesByAppId.TryAdd(wmClass, entry);
+                }
+            }
+        }
+
+        var items = ApplicationMenu.Build(listable, terminal, EntryIcon, _host.ThemeIconFor);
         if (terminal is null && listable.Any(static entry => entry.Terminal))
         {
-            Log.Info($"{Name}: terminal applications are left out of the tray menu; set terminal to list them");
+            Log.Info($"{Name}: set terminal in the config to list terminal applications");
         }
 
         Log.Debug($"{Name}: {listable.Count} application(s) in {items.Count} categor(ies) for the tray menu");
         Applications = items;
         ApplicationsNotice = items.Count == 0 ? "No applications found" : null;
         Changed?.Invoke(this);
+        var wanted = listable.Select(static entry => entry.Icon).Where(static icon => icon is { Length: > 0 }).Select(static icon => icon!).ToList();
+        if (wanted.Count > 0 && _host.Icons is not null)
+        {
+            _ = FetchIconsAsync(wanted).ContinueWith(
+                _ =>
+                {
+                    Applications = ApplicationMenu.Build(listable, terminal, EntryIcon, _host.ThemeIconFor);
+                    Changed?.Invoke(this);
+                },
+                TaskScheduler.Default);
+        }
+    }
+
+    private string? EntryIcon(DesktopEntry entry) => IconPathFor(entry.Icon) ?? _host.ThemeIconFor(entry);
+
+    public string? IconPathFor(string? name)
+    {
+        if (name is not { Length: > 0 } || _host.Icons is not { } cache)
+        {
+            return null;
+        }
+
+        lock (_iconLock)
+        {
+            if (_icons.TryGetValue(name, out var known))
+            {
+                return known;
+            }
+        }
+
+        var cached = cache.Find(Name, name);
+        if (cached is not null)
+        {
+            lock (_iconLock)
+            {
+                _icons[name] = cached;
+            }
+        }
+
+        return cached;
+    }
+
+    public string? IconNameForAppId(string appId)
+    {
+        lock (_iconLock)
+        {
+            return _entriesByAppId.GetValueOrDefault(appId)?.Icon;
+        }
+    }
+
+    public Task FetchIconsAsync(IReadOnlyList<string> names)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+        var pending = new List<string>();
+        lock (_iconLock)
+        {
+            foreach (var name in names.Distinct(StringComparer.Ordinal))
+            {
+                if (RemoteIcons.IsSafeName(name) && !_icons.ContainsKey(name) && _host.Icons?.Find(Name, name) is null)
+                {
+                    pending.Add(name);
+                }
+            }
+
+            if (pending.Count == 0)
+            {
+                return _iconFetch;
+            }
+
+            _iconFetch = _iconFetch.ContinueWith(_ => FetchIconsCoreAsync(pending), TaskScheduler.Default).Unwrap();
+            return _iconFetch;
+        }
+    }
+
+    private async Task FetchIconsCoreAsync(IReadOnlyList<string> names)
+    {
+        if (_host.Icons is not { } cache || _ssh is null or { HasExited: true } || Status != SessionStatus.Connected)
+        {
+            return;
+        }
+
+        string? output;
+        try
+        {
+            output = await ReadRemoteAsync("icons", RemoteIcons.Script(names), TimeSpan.FromSeconds(120));
+        }
+        catch (Exception error) when (error is IOException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            Log.Warn($"{Name}: the icons could not be fetched: {error.Message}");
+            return;
+        }
+
+        if (output is null)
+        {
+            return;
+        }
+
+        var fetched = RemoteIcons.Parse(output);
+        lock (_iconLock)
+        {
+            foreach (var icon in fetched.Icons)
+            {
+                _icons[icon.Name] = cache.Store(Name, icon, Log);
+            }
+
+            foreach (var missing in fetched.Missing)
+            {
+                _icons.TryAdd(missing, null);
+            }
+        }
+
+        Log.Debug($"{Name}: fetched {fetched.Icons.Count} icon(s), {fetched.Missing.Count} missing");
+        IconsChanged?.Invoke(this);
     }
 
     private void Notice(string text)
@@ -336,35 +470,38 @@ internal sealed class SshSession : IDisposable
         return info;
     }
 
-    private async Task<string?> ReadRemoteApplicationsAsync(DesktopLocale locale)
+    private Task<string?> ReadRemoteApplicationsAsync(DesktopLocale locale) =>
+        ReadRemoteAsync("applications", RemoteApplications.Script(locale), TimeSpan.FromSeconds(90));
+
+    private async Task<string?> ReadRemoteAsync(string what, string script, TimeSpan limit)
     {
         var info = ControlledSsh();
         info.StandardOutputEncoding = System.Text.Encoding.UTF8;
-        info.ArgumentList.Add(RemoteApplications.Script(locale));
+        info.ArgumentList.Add(script);
         using var listing = Process.Start(info);
         if (listing is null)
         {
             return null;
         }
 
-        var relay = new Relay("applications");
+        var relay = new Relay(what);
         relay.Watch(listing.StandardError);
         var output = listing.StandardOutput.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+        using var timeout = new CancellationTokenSource(limit);
         try
         {
             await listing.WaitForExitAsync(timeout.Token);
         }
         catch (OperationCanceledException)
         {
-            Log.Warn($"listing the applications on {Ssh} took over 90 s; giving up");
+            Log.Warn($"reading the {what} on {Ssh} took over {limit.TotalSeconds:0} s; giving up");
             listing.Kill();
             return null;
         }
 
         if (listing.ExitCode != 0)
         {
-            Log.Warn($"listing the applications on {Ssh} exited with {listing.ExitCode}");
+            Log.Warn($"reading the {what} on {Ssh} exited with {listing.ExitCode}");
             relay.Report();
         }
 
@@ -536,7 +673,7 @@ internal sealed class SshSession : IDisposable
             RedirectStandardOutput = true,
             RedirectStandardInput = true,
         };
-        AskPass.Configure(info.Environment);
+        AskPass.Configure(info.Environment, _host.AskPassSocket);
         info.ArgumentList.Add("-o");
         info.ArgumentList.Add("StreamLocalBindUnlink=yes");
         info.ArgumentList.Add("-o");

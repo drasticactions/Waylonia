@@ -178,6 +178,23 @@ public sealed class TomlDocumentTests
     }
 
     [Fact]
+    public void Numbers_write_as_integers_when_whole_and_stay_put_when_equal()
+    {
+        var document = Parse("size = 24 # px\nscale = 1.0\nfont = 13\n");
+        document.Root.Set("size", 32L);
+        document.Root.Set("scale", 1.0);
+        document.Root.Set("font", 13.0);
+        document.Root.Set("delay", 500L);
+        document.Root.Set("ratio", 11.5);
+        document.Root.Set("whole", 14.0);
+
+        Assert.Equal(
+            "size = 32 # px\nscale = 1.0\nfont = 13\ndelay = 500\nratio = 11.5\nwhole = 14\n",
+            document.Render());
+        Assert.NotNull(TomlDocument.Parse(document.Render(), out _));
+    }
+
+    [Fact]
     public void Strings_are_escaped_and_round_trip()
     {
         var document = TomlDocument.Empty();

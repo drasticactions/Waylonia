@@ -19,6 +19,7 @@
     <PackageReference Include="Basin.Freedesktop" />
     <PackageReference Include="Basin.Scene" />
     <PackageReference Include="Basin.Shell.Xdg" />
+    <PackageReference Include="Basin.UI.Avalonia" />
   </ItemGroup>
 
   <ItemGroup>

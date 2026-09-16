@@ -1,0 +1,431 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:Waylonia.Ui"
+             x:Class="Waylonia.Ui.SettingsView"
+             x:DataType="ui:SettingsViewModel"
+             Background="{DynamicResource BcBgBrush}"
+             Foreground="{DynamicResource BcFgBrush}">
+  <UserControl.Styles>
+    <Style Selector="TextBlock.problem">
+      <Setter Property="Foreground" Value="OrangeRed" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Margin" Value="120,0,0,0" />
+    </Style>
+    <Style Selector="TextBlock.hint">
+      <Setter Property="Opacity" Value="0.7" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.caption">
+      <Setter Property="Width" Value="120" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="StackPanel.field">
+      <Setter Property="Spacing" Value="2" />
+    </Style>
+    <Style Selector="StackPanel.toggle">
+      <Setter Property="Spacing" Value="0" />
+      <Setter Property="Margin" Value="0,0,0,6" />
+    </Style>
+    <Style Selector="StackPanel.toggle > TextBlock.hint">
+      <Setter Property="Margin" Value="28,0,0,0" />
+    </Style>
+    <Style Selector="TextBox.lines">
+      <Setter Property="AcceptsReturn" Value="True" />
+      <Setter Property="MinHeight" Value="48" />
+    </Style>
+    <Style Selector="TextBlock.group">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,10,0,2" />
+    </Style>
+  </UserControl.Styles>
+  <DockPanel LastChildFill="True">
+    <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0" Spacing="4">
+      <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
+      <TextBlock Classes="problem" Margin="0" Text="{Binding Problem}"
+                 IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      <TextBlock Classes="hint" Text="{Binding Note}"
+                 IsVisible="{Binding Note, Converter={x:Static ObjectConverters.IsNotNull}}" />
+    </StackPanel>
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="12" HorizontalAlignment="Right">
+      <Button Content="Revert" Command="{Binding ReloadCommand}" />
+      <Button x:Name="SaveButton" Content="Save" Command="{Binding SaveSettingsCommand}" IsDefault="True" />
+    </StackPanel>
+    <TabControl x:Name="Tabs" Margin="12,6,12,0">
+      <TabItem Header="Host">
+        <ScrollViewer>
+          <StackPanel Margin="0,8,0,0" DataContext="{Binding Form}" x:DataType="ui:SettingsFormViewModel" Spacing="2">
+            <StackPanel Classes="toggle">
+              <CheckBox Content="xwayland" IsChecked="{Binding XWayland}" />
+              <TextBlock Classes="hint" Text="Start XWayland for a local client or desktop, and set up X support in each session." />
+            </StackPanel>
+            <StackPanel Classes="toggle">
+              <CheckBox Content="tray" IsChecked="{Binding Tray}" />
+              <TextBlock Classes="hint" Text="Show the tray icon and its menu." />
+            </StackPanel>
+            <StackPanel Classes="toggle">
+              <CheckBox Content="tray-apps" IsChecked="{Binding TrayApps}" />
+              <TextBlock Classes="hint" Text="List each session's applications in the tray menu, by category. Needs tray." />
+            </StackPanel>
+            <StackPanel Classes="toggle">
+              <CheckBox Content="clipboard" IsChecked="{Binding Clipboard}" />
+              <TextBlock Classes="hint" Text="Share the clipboard between the host desktop and the clients." />
+            </StackPanel>
+            <StackPanel Classes="toggle">
+              <CheckBox Content="drag" IsChecked="{Binding Drag}" />
+              <TextBlock Classes="hint" Text="Drag and drop between the host desktop and the clients." />
+            </StackPanel>
+            <StackPanel Classes="toggle">
+              <CheckBox Content="follow-cursor" IsChecked="{Binding FollowCursor}" />
+              <TextBlock Classes="hint" Text="Open each new client window on the screen the pointer is on." />
+            </StackPanel>
+            <StackPanel Classes="toggle">
+              <CheckBox Content="gtk-dpi" IsChecked="{Binding GtkDpi}" />
+              <TextBlock Classes="hint" Text="Read a session's GTK settings for its DPI." />
+            </StackPanel>
+            <StackPanel Classes="toggle">
+              <CheckBox Content="session-titles" IsChecked="{Binding SessionTitles}" />
+              <TextBlock Classes="hint" Text="Include the session title in each window's title." />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="capture-chord" />
+                <TextBox x:Name="CaptureChordBox" Text="{Binding CaptureChord}" PlaceholderText="double:RightControl" />
+              </DockPanel>
+              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Takes the host's keyboard and pointer for a nested desktop." />
+              <TextBlock Classes="problem" Text="{Binding CaptureChordProblem}"
+                         IsVisible="{Binding CaptureChordProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      <TabItem Header="Defaults">
+        <ScrollViewer>
+          <StackPanel Margin="0,8,0,0" DataContext="{Binding Form}" x:DataType="ui:SettingsFormViewModel" Spacing="6">
+            <TextBlock Classes="hint" Text="Note: Session files may override these." />
+            <DockPanel>
+              <TextBlock Classes="caption" Text="compress" />
+              <ComboBox ItemsSource="{Binding CompressChoices}" SelectedIndex="{Binding CompressIndex}" HorizontalAlignment="Left" />
+            </DockPanel>
+            <StackPanel Orientation="Horizontal" Spacing="16">
+              <CheckBox Content="gpu" IsThreeState="True" IsChecked="{Binding Gpu}" />
+              <CheckBox Content="audio" IsThreeState="True" IsChecked="{Binding Audio}" />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="video" />
+                <TextBox Text="{Binding Video}" PlaceholderText="h264,hw" />
+              </DockPanel>
+              <TextBlock Classes="problem" Text="{Binding VideoProblem}"
+                         IsVisible="{Binding VideoProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="lang" />
+                <TextBox Text="{Binding Lang}" PlaceholderText="C.UTF-8" />
+              </DockPanel>
+              <TextBlock Classes="problem" Text="{Binding LangProblem}"
+                         IsVisible="{Binding LangProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <DockPanel>
+              <TextBlock Classes="caption" Text="terminal" />
+              <TextBox Text="{Binding Terminal}" PlaceholderText="foot -e" />
+            </DockPanel>
+            <DockPanel>
+              <TextBlock Classes="caption" Text="current-desktop" />
+              <TextBox Text="{Binding CurrentDesktop}" PlaceholderText="GNOME" />
+            </DockPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="socket" />
+                <TextBox Text="{Binding Socket}" PlaceholderText="wayland-9" />
+              </DockPanel>
+              <TextBlock Classes="problem" Text="{Binding SocketProblem}"
+                         IsVisible="{Binding SocketProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="command" />
+                <TextBox Text="{Binding Command}" PlaceholderText="the local client a bare waylonia starts on Linux" />
+              </DockPanel>
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      <TabItem Header="Hotkeys">
+        <StackPanel Margin="0,8,0,0" DataContext="{Binding Form}" x:DataType="ui:SettingsFormViewModel" Spacing="6">
+          <TextBlock Classes="hint" Text="Host-global hotkeys. One per line, as CHORD = COMMAND." />
+          <TextBox x:Name="HotkeysBox" Classes="lines" MinHeight="160" Text="{Binding Hotkeys}" PlaceholderText="ctrl+alt+t = foot" />
+          <TextBlock Classes="problem" Margin="0" Text="{Binding HotkeysProblem}"
+                     IsVisible="{Binding HotkeysProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        </StackPanel>
+      </TabItem>
+      <TabItem Header="Desktops">
+        <Grid ColumnDefinitions="200,*" Margin="0,8,0,0">
+          <DockPanel Grid.Column="0">
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="6" Margin="0,6,0,0">
+              <Button Content="New" Command="{Binding NewDesktopCommand}" />
+              <Button Content="Delete" Command="{Binding DeleteDesktopCommand}" />
+            </StackPanel>
+            <ListBox x:Name="DesktopList" ItemsSource="{Binding Desktops}" SelectedItem="{Binding SelectedDesktop}">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="ui:DesktopFormViewModel">
+                  <TextBlock Text="{Binding Label}" Margin="2" />
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </DockPanel>
+          <ScrollViewer Grid.Column="1" Margin="12,0,0,0"
+                        IsVisible="{Binding SelectedDesktop, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <StackPanel DataContext="{Binding SelectedDesktop}" x:DataType="ui:DesktopFormViewModel" Spacing="6">
+              <StackPanel Classes="field">
+                <DockPanel>
+                  <TextBlock Classes="caption" Text="name" />
+                  <TextBox x:Name="DesktopNameBox" Text="{Binding Name}" PlaceholderText="name" />
+                </DockPanel>
+                <TextBlock Classes="problem" Text="{Binding NameProblem}"
+                           IsVisible="{Binding NameProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </StackPanel>
+              <StackPanel Classes="field">
+                <DockPanel>
+                  <TextBlock Classes="caption" Text="recipe" />
+                  <ComboBox ItemsSource="{Binding RecipeChoices}" SelectedIndex="{Binding RecipeIndex}" HorizontalAlignment="Left" />
+                </DockPanel>
+                <TextBlock Classes="problem" Text="{Binding RecipeProblem}"
+                           IsVisible="{Binding RecipeProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </StackPanel>
+              <DockPanel>
+                <TextBlock Classes="caption" Text="host" />
+                <TextBox Text="{Binding Host}" PlaceholderText="a session name, or user@host" />
+              </DockPanel>
+              <StackPanel Classes="field">
+                <DockPanel>
+                  <TextBlock Classes="caption" Text="size" />
+                  <TextBox Text="{Binding Size}" PlaceholderText="1920x1080" />
+                </DockPanel>
+                <TextBlock Classes="problem" Text="{Binding SizeProblem}"
+                           IsVisible="{Binding SizeProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </StackPanel>
+              <StackPanel Classes="field">
+                <DockPanel>
+                  <TextBlock Classes="caption" Text="command" />
+                  <TextBox Text="{Binding Command}" PlaceholderText="startplasma-wayland" />
+                </DockPanel>
+                <TextBlock Classes="problem" Text="{Binding CommandProblem}"
+                           IsVisible="{Binding CommandProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </StackPanel>
+              <DockPanel>
+                <TextBlock Classes="caption" Text="env" />
+                <TextBox Classes="lines" Text="{Binding Env}" PlaceholderText="NAME=value, one per line" />
+              </DockPanel>
+              <CheckBox Content="gpu" IsThreeState="True" IsChecked="{Binding Gpu}" />
+              <StackPanel Classes="field">
+                <DockPanel>
+                  <TextBlock Classes="caption" Text="video" />
+                  <TextBox Text="{Binding Video}" PlaceholderText="h264,hw" />
+                </DockPanel>
+                <TextBlock Classes="problem" Text="{Binding VideoProblem}"
+                           IsVisible="{Binding VideoProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </StackPanel>
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+      </TabItem>
+      <TabItem Header="Shell">
+        <ScrollViewer>
+          <StackPanel Margin="0,8,0,0" DataContext="{Binding Form}" x:DataType="ui:SettingsFormViewModel" Spacing="2">
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="mode" />
+                <ComboBox x:Name="ShellModeBox" ItemsSource="{Binding ShellModeChoices}" SelectedIndex="{Binding ShellModeIndex}" HorizontalAlignment="Left" />
+              </DockPanel>
+              <TextBlock Classes="hint" Margin="120,0,0,0" Text="One host window per client window (windows), or one window holding a desktop with frames and a panel (nested). Takes effect when Waylonia restarts." />
+            </StackPanel>
+            <TextBlock Classes="group" Text="Look" />
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="theme" />
+                <ComboBox x:Name="ThemeBox" IsEditable="True" Text="{Binding Theme}" ItemsSource="{Binding ThemeChoices}" PlaceholderText="Atlanta" HorizontalAlignment="Stretch" />
+              </DockPanel>
+              <TextBlock Classes="hint" Margin="120,0,0,0" Text="The bundled theme, or an installed metacity theme by name." />
+              <TextBlock Classes="problem" Text="{Binding ThemeProblem}"
+                         IsVisible="{Binding ThemeProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="button-layout" />
+                <TextBox Text="{Binding ButtonLayout}" PlaceholderText="menu:minimize,maximize,close" />
+              </DockPanel>
+              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Title bar buttons, left of the ':' and right of it." />
+              <TextBlock Classes="problem" Text="{Binding ButtonLayoutProblem}"
+                         IsVisible="{Binding ButtonLayoutProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="palette" />
+                <ComboBox ItemsSource="{Binding PaletteChoices}" SelectedIndex="{Binding PaletteIndex}" HorizontalAlignment="Left" />
+              </DockPanel>
+              <TextBlock Classes="hint" Margin="120,0,0,0" Text="The colors the theme's gtk: specs resolve against." />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="font-size" />
+                <TextBox Text="{Binding FontSize}" PlaceholderText="13" />
+              </DockPanel>
+              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Title font size in logical pixels." />
+              <TextBlock Classes="problem" Text="{Binding FontSizeProblem}"
+                         IsVisible="{Binding FontSizeProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="background" />
+                <TextBox Text="{Binding Background}" PlaceholderText="#5891ad" />
+              </DockPanel>
+              <TextBlock Classes="hint" Margin="120,0,0,0" Text="The background color of the desktop, as #rrggbb." />
+              <TextBlock Classes="problem" Text="{Binding BackgroundProblem}"
+                         IsVisible="{Binding BackgroundProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <TextBlock Classes="group" Text="Workspaces" />
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="workspaces" />
+                <TextBox Text="{Binding Workspaces}" PlaceholderText="4" />
+              </DockPanel>
+              <TextBlock Classes="problem" Text="{Binding WorkspacesProblem}"
+                         IsVisible="{Binding WorkspacesProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="workspace-rows" />
+                <TextBox Text="{Binding WorkspaceRows}" PlaceholderText="1" />
+              </DockPanel>
+              <TextBlock Classes="problem" Text="{Binding WorkspaceRowsProblem}"
+                         IsVisible="{Binding WorkspaceRowsProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="workspace-names" />
+                <TextBox Text="{Binding WorkspaceNames}" PlaceholderText="Main, Mail" />
+              </DockPanel>
+              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Comma-separated; workspaces past the list are numbered." />
+            </StackPanel>
+            <TextBlock Classes="group" Text="Focus" />
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="focus-mode" />
+                <ComboBox ItemsSource="{Binding FocusModeChoices}" SelectedIndex="{Binding FocusModeIndex}" HorizontalAlignment="Left" />
+              </DockPanel>
+              <TextBlock Classes="hint" Margin="120,0,0,0" Text="click focuses on click, sloppy and mouse follow the pointer." />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="focus-new-windows" />
+                <ComboBox ItemsSource="{Binding FocusNewWindowsChoices}" SelectedIndex="{Binding FocusNewWindowsIndex}" HorizontalAlignment="Left" />
+              </DockPanel>
+              <TextBlock Classes="hint" Margin="120,0,0,0" Text="smart focuses a new window unless you are typing elsewhere; strict never steals focus." />
+            </StackPanel>
+            <StackPanel Classes="toggle">
+              <CheckBox Content="raise-on-click" IsChecked="{Binding RaiseOnClick}" />
+              <TextBlock Classes="hint" Text="Raise a window when it is clicked." />
+            </StackPanel>
+            <StackPanel Classes="toggle">
+              <CheckBox Content="auto-raise" IsChecked="{Binding AutoRaise}" />
+              <TextBlock Classes="hint" Text="Raise the window under the pointer after auto-raise-delay, in sloppy and mouse focus modes." />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="auto-raise-delay" />
+                <TextBox Text="{Binding AutoRaiseDelay}" PlaceholderText="500" />
+              </DockPanel>
+              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Milliseconds." />
+              <TextBlock Classes="problem" Text="{Binding AutoRaiseDelayProblem}"
+                         IsVisible="{Binding AutoRaiseDelayProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <TextBlock Classes="group" Text="Placement" />
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="placement" />
+                <ComboBox ItemsSource="{Binding PlacementChoices}" SelectedIndex="{Binding PlacementIndex}" HorizontalAlignment="Left" />
+              </DockPanel>
+              <TextBlock Classes="hint" Margin="120,0,0,0" Text="automatic finds free space, pointer opens under the pointer, manual starts a move." />
+            </StackPanel>
+            <StackPanel Classes="toggle">
+              <CheckBox Content="center-new-windows" IsChecked="{Binding CenterNewWindows}" />
+              <TextBlock Classes="hint" Text="Center a window that fits nowhere instead of cascading it." />
+            </StackPanel>
+            <TextBlock Classes="group" Text="Mouse" />
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="mouse-button-modifier" />
+                <ComboBox ItemsSource="{Binding MouseButtonModifierChoices}" SelectedIndex="{Binding MouseButtonModifierIndex}" HorizontalAlignment="Left" />
+              </DockPanel>
+              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Held with a mouse button anywhere in a window to move, resize or lower it." />
+            </StackPanel>
+            <StackPanel Classes="toggle">
+              <CheckBox Content="resize-with-right-button" IsChecked="{Binding ResizeWithRightButton}" />
+              <TextBlock Classes="hint" Text="The modifier plus the right button resizes; off, the middle button does." />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="double-click-titlebar" />
+                <ComboBox ItemsSource="{Binding TitlebarActionChoices}" SelectedIndex="{Binding DoubleClickTitlebarIndex}" HorizontalAlignment="Left" />
+              </DockPanel>
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="middle-click-titlebar" />
+                <ComboBox ItemsSource="{Binding TitlebarActionChoices}" SelectedIndex="{Binding MiddleClickTitlebarIndex}" HorizontalAlignment="Left" />
+              </DockPanel>
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="right-click-titlebar" />
+                <ComboBox ItemsSource="{Binding TitlebarActionChoices}" SelectedIndex="{Binding RightClickTitlebarIndex}" HorizontalAlignment="Left" />
+              </DockPanel>
+            </StackPanel>
+            <StackPanel Classes="toggle">
+              <CheckBox Content="tiling" IsChecked="{Binding Tiling}" />
+              <TextBlock Classes="hint" Text="Dragging a window to the left or right edge tiles it to that half." />
+            </StackPanel>
+            <StackPanel Classes="toggle">
+              <CheckBox Content="top-tiling" IsChecked="{Binding TopTiling}" />
+              <TextBlock Classes="hint" Text="Dragging a window to the top edge maximizes it." />
+            </StackPanel>
+            <TextBlock Classes="group" Text="Keys" />
+            <TextBlock Classes="hint" Text="Keys inside the shell. One per line, as NAME = CHORD; a name with no chord turns that key off. The names are marco's, such as switch-windows, close, toggle-maximized and tile-to-side-w." />
+            <TextBox x:Name="ShellKeysBox" Classes="lines" MinHeight="120" Text="{Binding ShellKeys}" PlaceholderText="switch-windows = Alt+Tab" />
+            <TextBlock Classes="problem" Margin="0" Text="{Binding ShellKeysProblem}"
+                       IsVisible="{Binding ShellKeysProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            <TextBlock Classes="group" Text="Panel" />
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="size" />
+                <TextBox Text="{Binding PanelSize}" PlaceholderText="24" />
+              </DockPanel>
+              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Pixels." />
+              <TextBlock Classes="problem" Text="{Binding PanelSizeProblem}"
+                         IsVisible="{Binding PanelSizeProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="top" />
+                <TextBox Text="{Binding PanelTop}" PlaceholderText="menu-bar" />
+              </DockPanel>
+              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Comma-separated applets; empty removes the panel." />
+              <TextBlock Classes="problem" Text="{Binding PanelTopProblem}"
+                         IsVisible="{Binding PanelTopProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="bottom" />
+                <TextBox Text="{Binding PanelBottom}" PlaceholderText="window-list, workspace-switcher" />
+              </DockPanel>
+              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Comma-separated applets; empty removes the panel." />
+              <TextBlock Classes="problem" Text="{Binding PanelBottomProblem}"
+                         IsVisible="{Binding PanelBottomProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</UserControl>

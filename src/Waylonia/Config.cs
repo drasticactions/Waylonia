@@ -1,6 +1,7 @@
 using Waylonia.Cli;
 using Waylonia.Sessions;
 using Tomlyn.Model;
+using Waylonia.Shell;
 
 using Basin.Diagnostics;
 
@@ -38,6 +39,12 @@ internal sealed class Config
 
     public string CaptureChord { get; private set; } = ConfigValues.DefaultCaptureChord;
 
+    public ShellMode Shell { get; private set; }
+
+    public ShellSettings ShellSettings { get; private set; } = new();
+
+    public PanelSettings Panel { get; private set; } = new();
+
     public string? Terminal { get; private set; }
 
     public string? CurrentDesktop { get; private set; }
@@ -57,12 +64,12 @@ internal sealed class Config
 
     public HostSettings Host => new(
         XWayland, Tray, TrayApps, Clipboard, Drag, FollowCursor, GtkDpi, CaptureChord, SessionTitles,
-        Hotkeys, Terminal, CurrentDesktop);
+        Hotkeys, Terminal, CurrentDesktop, Shell);
 
     public ConfigValues Values => new(
         Compress, Gpu, Audio, Video, Socket, Command, Terminal, CurrentDesktop, Lang,
         XWayland, Tray, TrayApps, Clipboard, Drag, FollowCursor, GtkDpi, SessionTitles, CaptureChord,
-        Hotkeys, Desktops.Values.ToArray());
+        Hotkeys, Desktops.Values.ToArray(), Shell, ShellSettings, Panel);
 
     public static Config Load(bool skipFile, string? path, BasinLogger log)
     {
@@ -89,7 +96,7 @@ internal sealed class Config
 
         foreach (var (name, value) in table)
         {
-            if (value is TomlTable && name is not ("host" or "hosts" or "hotkeys" or "desktops"))
+            if (value is TomlTable && name is not ("host" or "hosts" or "hotkeys" or "desktops" or "shell" or "panel"))
             {
                 log.Warn($"{path} has an unknown section '[{name}]', ignoring it; a remote session is a file in {config.SessionsDirectory}");
             }
@@ -136,6 +143,28 @@ internal sealed class Config
             {
                 config.CaptureChord = chordText.Trim();
             }
+
+            if (Text(hostTable, "shell") is { } shell)
+            {
+                if (ShellModes.Parse(shell) is { } mode)
+                {
+                    config.Shell = mode;
+                }
+                else
+                {
+                    log.Warn($"[host] shell takes {ShellModes.Names}, ignoring '{shell}'");
+                }
+            }
+        }
+
+        if (table.TryGetValue("shell", out var shellSection) && shellSection is TomlTable shellTable)
+        {
+            config.ShellSettings = ShellConfig.Parse(shellTable, log);
+        }
+
+        if (table.TryGetValue("panel", out var panelSection) && panelSection is TomlTable panelTable)
+        {
+            config.Panel = PanelConfig.Parse(panelTable, log);
         }
 
         if (table.TryGetValue("hosts", out var hosts) && hosts is TomlTable hostsTable)
@@ -271,6 +300,10 @@ internal sealed class Config
             #gtk-dpi = true
             # End every window title with " — NAME", the session it belongs to.
             #session-titles = true
+            # One host window per client window ("windows"), or one window
+            # holding a Waylonia-managed desktop with frames and a panel
+            # ("nested"). Takes effect when waylonia restarts.
+            #shell = "windows"
 
             # Take the host's own keyboard and pointer for a nested desktop.
             # A double tap of one modifier within 400 ms toggles it.
@@ -316,6 +349,58 @@ internal sealed class Config
             # `waylonia --ssh` opened.
             #[hotkeys]
             #"ctrl+alt+t" = "foot"
+
+            # The nested shell, when [host] shell = "nested": frames, a panel
+            # and workspaces inside one host window. Every key defaults to
+            # what marco does. theme is the bundled one or an installed
+            # metacity theme by name; palette says which colors gtk: specs
+            # resolve against; font-size is in logical pixels; background is
+            # the desktop color behind the windows, as #rrggbb.
+            #[shell]
+            #theme = "Atlanta"
+            #button-layout = "menu:minimize,maximize,close"
+            #palette = "light"
+            #font-size = 13
+            #background = "#5891ad"
+            #workspaces = 4
+            #workspace-rows = 1
+            #workspace-names = ["Main", "Mail"]
+            # focus-mode: click, sloppy or mouse. focus-new-windows: smart or
+            # strict. placement: automatic, pointer or manual.
+            #focus-mode = "click"
+            #focus-new-windows = "smart"
+            #placement = "automatic"
+            #center-new-windows = true
+            #raise-on-click = true
+            #auto-raise = false
+            #auto-raise-delay = 500
+            #mouse-button-modifier = "Alt"
+            #resize-with-right-button = true
+            # The title-bar clicks take marco's action names: none,
+            # toggle_shade, toggle_maximize, toggle_maximize_horizontally,
+            # toggle_maximize_vertically, minimize, lower or menu.
+            #double-click-titlebar = "toggle_maximize"
+            #middle-click-titlebar = "lower"
+            #right-click-titlebar = "menu"
+            #tiling = true
+            #top-tiling = true
+
+            # The shell's own keys, by marco's names, consumed inside the shell
+            # window before the focused client sees them. "" turns one off.
+            #[shell.keys]
+            #switch-windows = "Alt+Tab"
+            #close = "Alt+F4"
+            #tile-to-side-w = "Super+Left"
+            #toggle-host-fullscreen = "Ctrl+Alt+Return"
+
+            # The panel strips: size in logical pixels, then the applets of
+            # each strip left to right, from menu-bar, window-list,
+            # workspace-switcher, clock, show-desktop, launcher:NAME and
+            # spacer. An empty list removes that strip.
+            #[panel]
+            #size = 24
+            #top = ["menu-bar"]
+            #bottom = ["window-list", "workspace-switcher"]
 
             """;
         try

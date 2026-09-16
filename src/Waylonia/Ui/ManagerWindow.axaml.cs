@@ -1,13 +1,10 @@
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
-using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
-using Avalonia.VisualTree;
+using BluerCurve.Chrome;
 
 namespace Waylonia.Ui;
 
-internal sealed partial class ManagerWindow : Window
+internal sealed partial class ManagerWindow : BluerCurveWindow
 {
     private bool _allowClose;
 
@@ -22,16 +19,6 @@ internal sealed partial class ManagerWindow : Window
                 Hide();
             }
         };
-        this.FindControl<ListBox>("SessionList")!
-            .AddHandler(ContextRequestedEvent, OnRowContextRequested, RoutingStrategies.Tunnel);
-    }
-
-    private static void OnRowContextRequested(object? sender, ContextRequestedEventArgs e)
-    {
-        if ((e.Source as Visual)?.FindAncestorOfType<ListBoxItem>(includeSelf: true) is null)
-        {
-            e.Handled = true;
-        }
     }
 
     public ManagerWindow(ManagerViewModel model)
@@ -42,6 +29,8 @@ internal sealed partial class ManagerWindow : Window
     }
 
     public ManagerViewModel Model => (ManagerViewModel)DataContext!;
+
+    public ManagerView View => (ManagerView)Content!;
 
     public void AllowClose()
     {

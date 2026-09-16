@@ -10,6 +10,14 @@ internal static class SessionMenu
 
     public const string RefreshLabel = "Refresh applications";
 
+    public const string ShellWindowLabel = "Open shell";
+
+    public static IReadOnlyList<ApplicationMenuItem> BuildNested(Action openShell)
+    {
+        ArgumentNullException.ThrowIfNull(openShell);
+        return [new ApplicationMenuItem(ShellWindowLabel, Invoke: openShell)];
+    }
+
     public static string Glyph(SessionStatus status) => status switch
     {
         SessionStatus.Connected => "●",

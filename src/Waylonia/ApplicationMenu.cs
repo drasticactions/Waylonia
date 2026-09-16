@@ -5,16 +5,20 @@ namespace Waylonia;
 internal static class ApplicationMenu
 {
     public static IReadOnlyList<ApplicationMenuItem> Build(
-        IEnumerable<DesktopEntry> entries, IReadOnlyList<string>? terminal)
+        IEnumerable<DesktopEntry> entries,
+        IReadOnlyList<string>? terminal,
+        Func<DesktopEntry, string?>? icon = null,
+        Func<DesktopMainCategory, string?>? categoryIcon = null)
     {
         ArgumentNullException.ThrowIfNull(entries);
         var items = new List<ApplicationMenuItem>();
         foreach (var group in DesktopCategories.Group(entries))
         {
-            var launchers = Launchers(group.Entries, terminal);
+            var launchers = Launchers(group.Entries, terminal, icon);
             if (launchers.Count > 0)
             {
-                items.Add(new ApplicationMenuItem(DesktopCategories.DefaultLabel(group.Category), Children: launchers));
+                items.Add(new ApplicationMenuItem(
+                    DesktopCategories.DefaultLabel(group.Category), Children: launchers, Icon: categoryIcon?.Invoke(group.Category)));
             }
         }
 
@@ -41,7 +45,8 @@ internal static class ApplicationMenu
         return names.Length == 0 ? null : new HashSet<string>(names, StringComparer.Ordinal);
     }
 
-    private static List<ApplicationMenuItem> Launchers(IReadOnlyList<DesktopEntry> entries, IReadOnlyList<string>? terminal)
+    private static List<ApplicationMenuItem> Launchers(
+        IReadOnlyList<DesktopEntry> entries, IReadOnlyList<string>? terminal, Func<DesktopEntry, string?>? icon)
     {
         var sorted = new List<DesktopEntry>(entries);
         sorted.Sort(static (a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
@@ -54,14 +59,15 @@ internal static class ApplicationMenu
             }
 
             var actions = Actions(entry, terminal);
+            var iconPath = icon?.Invoke(entry);
             items.Add(actions.Count == 0
-                ? new ApplicationMenuItem(entry.Name, command)
+                ? new ApplicationMenuItem(entry.Name, command, Icon: iconPath)
                 : new ApplicationMenuItem(entry.Name, Children:
                 [
-                    new ApplicationMenuItem(entry.Name, command),
+                    new ApplicationMenuItem(entry.Name, command, Icon: iconPath),
                     new ApplicationMenuItem(string.Empty, Separator: true),
                     .. actions,
-                ]));
+                ], Icon: iconPath));
         }
 
         return items;

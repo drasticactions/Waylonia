@@ -1,5 +1,6 @@
 using Basin.Diagnostics;
 using Waylonia.Cli;
+using Waylonia.Shell;
 using Xunit;
 
 namespace Waylonia.Tests;
@@ -138,6 +139,180 @@ public sealed class ConfigWriterTests : IDisposable
             new ConfigValues(Desktops: [new DesktopProfile("kde", "plasma", "devbox", null, null, [], true, null)]));
 
         Assert.Equal("[desktops.kde]\n# big\nrecipe = \"plasma\"\nhost = \"devbox\"\ngpu = true\n", text);
+    }
+
+    private static ShellSettings EveryShellValue() => new(
+        "Crux",
+        "close,minimize,maximize:menu",
+        "dark",
+        11.5,
+        "#023c88",
+        6,
+        2,
+        ["Main", "Mail"],
+        FocusMode.Sloppy,
+        FocusNewWindows.Strict,
+        PlacementMode.Pointer,
+        false,
+        false,
+        true,
+        250,
+        "Super",
+        false,
+        TitlebarAction.ToggleShade,
+        TitlebarAction.None,
+        TitlebarAction.Lower,
+        false,
+        false,
+        [new ShellKey("close", "Super+q"), new ShellKey("minimize", ""), new ShellKey("tile-to-side-w", "Super+Left")]);
+
+    [Fact]
+    public void Every_shell_and_panel_value_lands_in_the_file_and_loads_back()
+    {
+        var path = PathOf(null);
+        var shell = EveryShellValue();
+        var panel = new PanelSettings(32, ["menu-bar", "spacer", "clock"], []);
+
+        Assert.Null(ConfigWriter.Save(path, new ConfigValues(Shell: ShellMode.Nested, ShellSettings: shell, Panel: panel)));
+
+        var config = Config.Load(false, path, BasinLogger.None);
+        Assert.Equal(ShellMode.Nested, config.Shell);
+        Assert.Equal(shell, config.ShellSettings with { WorkspaceNames = shell.WorkspaceNames, Keys = shell.Keys });
+        Assert.Equal(shell.WorkspaceNames, config.ShellSettings.WorkspaceNames);
+        Assert.Equal(shell.Keys, config.ShellSettings.Keys);
+        Assert.Equal(32, config.Panel.Size);
+        Assert.Equal(["menu-bar", "spacer", "clock"], config.Panel.Top);
+        Assert.Empty(config.Panel.Bottom);
+    }
+
+    [Fact]
+    public void The_shell_tables_are_written_in_full_and_a_second_save_changes_nothing()
+    {
+        var text = Apply(string.Empty, new ConfigValues(Shell: ShellMode.Nested, ShellSettings: EveryShellValue(), Panel: new PanelSettings(32, ["menu-bar", "spacer", "clock"], [])));
+
+        Assert.Equal("""
+
+            [host]
+            shell = "nested"
+
+            [shell]
+            theme = "Crux"
+            button-layout = "close,minimize,maximize:menu"
+            palette = "dark"
+            font-size = 11.5
+            background = "#023c88"
+            workspaces = 6
+            workspace-rows = 2
+            workspace-names = ["Main", "Mail"]
+            focus-mode = "sloppy"
+            focus-new-windows = "strict"
+            placement = "pointer"
+            center-new-windows = false
+            raise-on-click = false
+            auto-raise = true
+            auto-raise-delay = 250
+            mouse-button-modifier = "Super"
+            resize-with-right-button = false
+            double-click-titlebar = "toggle_shade"
+            middle-click-titlebar = "none"
+            right-click-titlebar = "lower"
+            tiling = false
+            top-tiling = false
+
+            [shell.keys]
+            close = "Super+q"
+            minimize = ""
+            tile-to-side-w = "Super+Left"
+
+            [panel]
+            size = 32
+            top = ["menu-bar", "spacer", "clock"]
+            bottom = []
+
+            """, text);
+        Assert.Equal(text, Apply(text, new ConfigValues(Shell: ShellMode.Nested, ShellSettings: EveryShellValue(), Panel: new PanelSettings(32, ["menu-bar", "spacer", "clock"], []))));
+    }
+
+    [Fact]
+    public void Shell_values_back_at_their_defaults_lose_their_keys_and_the_emptied_tables_go()
+    {
+        var text = Apply(
+            """
+            [host]
+            shell = "nested"
+
+            # frames
+            [shell]
+            theme = "Crux"
+            font-size = 13
+            workspaces = 4
+
+            [shell.keys]
+            close = "Super+q"
+
+            [panel]
+            size = 24
+            top = ["menu-bar"]
+
+            # end
+            """,
+            new ConfigValues());
+
+        Assert.Equal("[host]\n\n# frames\n\n# end", text);
+        Assert.NotNull(TomlDocument.Parse(text, out _));
+    }
+
+    [Fact]
+    public void A_shell_key_dropped_from_the_list_goes_and_the_others_keep_their_comments()
+    {
+        var text = Apply(
+            "[shell]\n# the frame theme\ntheme = \"Crux\"\n\n[shell.keys]\n# quit\nclose = \"Super+q\"\n# hide\nminimize = \"Super+h\"\n",
+            new ConfigValues(ShellSettings: new ShellSettings(Theme: "Crux", Keys: [new ShellKey("minimize", "Super+h"), new ShellKey("lower", "Super+l")])));
+
+        Assert.Equal(
+            "[shell]\n# the frame theme\ntheme = \"Crux\"\n\n[shell.keys]\n# quit\n# hide\nminimize = \"Super+h\"\nlower = \"Super+l\"\n",
+            text);
+    }
+
+    [Fact]
+    public void A_whole_font_size_is_written_as_an_integer_and_an_unchanged_one_is_left_alone()
+    {
+        const string text = "[shell]\nfont-size = 14.0 # points\n";
+        Assert.Equal(text, Apply(text, new ConfigValues(ShellSettings: new ShellSettings(FontSize: 14))));
+        Assert.Equal("[shell]\nfont-size = 15 # points\n", Apply(text, new ConfigValues(ShellSettings: new ShellSettings(FontSize: 15))));
+        Assert.Equal("[shell]\nfont-size = 12.5 # points\n", Apply(text, new ConfigValues(ShellSettings: new ShellSettings(FontSize: 12.5))));
+    }
+
+    [Fact]
+    public void The_host_shell_key_is_written_for_nested_and_removed_for_windows()
+    {
+        Assert.Equal("\n[host]\nshell = \"nested\"\n", Apply(string.Empty, new ConfigValues(Shell: ShellMode.Nested)));
+        Assert.Equal("[host]\ntray = false\n", Apply("[host]\ntray = false\nshell = \"nested\"\n", new ConfigValues(Tray: false)));
+    }
+
+    [Fact]
+    public void The_placeholder_keeps_its_comments_around_the_new_shell_tables()
+    {
+        var path = PathOf(null);
+        Config.WritePlaceholder(path, BasinLogger.None);
+        var placeholder = File.ReadAllText(path);
+
+        Assert.Null(ConfigWriter.Save(path, new ConfigValues(
+            Shell: ShellMode.Nested,
+            ShellSettings: new ShellSettings(Workspaces: 2, Keys: [new ShellKey("close", "Super+q")]),
+            Panel: new PanelSettings(Bottom: []))));
+
+        var text = File.ReadAllText(path);
+        Assert.StartsWith(placeholder, text, StringComparison.Ordinal);
+        Assert.EndsWith(
+            "[host]\nshell = \"nested\"\n\n[shell]\nworkspaces = 2\n\n[shell.keys]\nclose = \"Super+q\"\n\n[panel]\nbottom = []\n",
+            text,
+            StringComparison.Ordinal);
+        var config = Config.Load(false, path, BasinLogger.None);
+        Assert.Equal(ShellMode.Nested, config.Shell);
+        Assert.Equal(2, config.ShellSettings.Workspaces);
+        Assert.Equal([new ShellKey("close", "Super+q")], config.ShellSettings.Keys);
+        Assert.Empty(config.Panel.Bottom);
     }
 
     [Fact]

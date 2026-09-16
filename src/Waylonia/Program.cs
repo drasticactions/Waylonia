@@ -2,6 +2,7 @@ using System.CommandLine;
 using Basin.Diagnostics;
 using Waylonia.Cli;
 using Waylonia.Sessions;
+using Waylonia.Shell;
 using Waylonia.Ui;
 
 namespace Waylonia;
@@ -78,6 +79,19 @@ internal static class Program
             Description = "the screen window's initial size, WxH. The default is 80% of its screen.",
             HelpName = "WxH",
         });
+        var shellOption = cli.Add(new Option<string?>("--shell")
+        {
+            Description = "windows opens one host window per client window; nested holds every client window " +
+                "inside one Waylonia-managed desktop with frames and a panel. Overrides [host] shell for this run.",
+            HelpName = "windows|nested",
+        });
+        shellOption.Validators.Add(result =>
+        {
+            if (result.GetValueOrDefault<string?>() is { } text && ShellModes.Parse(text) is null)
+            {
+                result.AddError($"--shell takes {ShellModes.Names}");
+            }
+        });
         var videoOption = cli.Add(CliOptions.Video());
         var compressOption = cli.Add(CliOptions.Compress());
         var command = new Argument<string[]>("command")
@@ -108,6 +122,8 @@ internal static class Program
             var ssh = result.GetValue(sshOption);
             var desktopName = result.GetValue(desktopOption);
             var desktopSize = result.GetValue(desktopSizeOption);
+            var shell = result.GetValue(shellOption) is { } shellText ? ShellModes.Parse(shellText)!.Value : config.Host.Shell;
+            var host = config.Host with { Shell = shell };
 
             if (desktopName is not null && commandText is not null)
             {
@@ -130,6 +146,12 @@ internal static class Program
             if (listen is not null && commandText is not null)
             {
                 log.Error($"a trailing command spawns a local client and --waypipe-listen waits for a remote one");
+                return 1;
+            }
+
+            if (NestedShellProblem(shell, desktopName, listen) is { } shellProblem)
+            {
+                log.Error($"{shellProblem}");
                 return 1;
             }
 
@@ -280,7 +302,7 @@ internal static class Program
             }
 
             var status = WayloniaApp.Run(new WayloniaRun(
-                config.Host,
+                host,
                 initial,
                 manager,
                 commandText,
@@ -416,6 +438,23 @@ internal static class Program
             && width > 0
             && height > 0
             ? (width, height)
+            : null;
+    }
+
+    internal static string? NestedShellProblem(ShellMode shell, string? desktop, string? listen)
+    {
+        if (shell != ShellMode.Nested)
+        {
+            return null;
+        }
+
+        if (desktop is not null)
+        {
+            return $"--shell nested manages the windows itself and --desktop hands the screen to {desktop}";
+        }
+
+        return listen is not null
+            ? "--shell nested manages the windows itself and --waypipe-listen hands them to whoever started the channel"
             : null;
     }
 

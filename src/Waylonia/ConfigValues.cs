@@ -1,3 +1,5 @@
+using Waylonia.Shell;
+
 namespace Waylonia;
 
 internal sealed record ConfigValues(
@@ -20,7 +22,10 @@ internal sealed record ConfigValues(
     bool SessionTitles = true,
     string CaptureChord = ConfigValues.DefaultCaptureChord,
     IReadOnlyList<Hotkey>? Hotkeys = null,
-    IReadOnlyList<DesktopProfile>? Desktops = null)
+    IReadOnlyList<DesktopProfile>? Desktops = null,
+    ShellMode Shell = ShellMode.Windows,
+    ShellSettings? ShellSettings = null,
+    PanelSettings? Panel = null)
 {
     public const string DefaultLang = "C.UTF-8";
 
@@ -30,6 +35,10 @@ internal sealed record ConfigValues(
 
     public IReadOnlyList<DesktopProfile> Desktops { get; init; } = Desktops ?? [];
 
+    public ShellSettings ShellSettings { get; init; } = ShellSettings ?? new ShellSettings();
+
+    public PanelSettings Panel { get; init; } = Panel ?? new PanelSettings();
+
     public IReadOnlyList<string> RestartKeysChanged(ConfigValues other)
     {
         ArgumentNullException.ThrowIfNull(other);
@@ -37,6 +46,11 @@ internal sealed record ConfigValues(
         if (XWayland != other.XWayland)
         {
             keys.Add("xwayland");
+        }
+
+        if (Shell != other.Shell)
+        {
+            keys.Add("shell");
         }
 
         if (Tray != other.Tray)
