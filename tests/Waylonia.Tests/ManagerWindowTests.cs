@@ -148,13 +148,35 @@ public sealed class ManagerWindowTests : IDisposable
         window.Show();
 
         var menu = window.FindControl<Menu>("MenuBar")!;
-        var session = Assert.IsType<MenuItem>(Assert.Single(menu.Items));
+        var top = menu.Items.OfType<MenuItem>().ToList();
+        Assert.Equal(2, top.Count);
+        var session = top[0];
         Assert.Equal("Session", session.Header);
         var items = session.Items.OfType<MenuItem>().ToList();
         Assert.Equal(["New", "Save", "Delete"], items.Take(3).Select(item => item.Header?.ToString()));
         Assert.Same(window.Model.ToggleConnectionCommand, items[3].Command);
         Assert.Contains(session.Items, item => item is Separator);
         Assert.Equal("Connect", window.Model.ConnectLabel);
+        Assert.Equal("Settings…", top[1].Header);
+        Assert.Same(window.Model.OpenSettingsCommand, top[1].Command);
+        Assert.False(window.Model.OpenSettingsCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void The_settings_command_calls_through_when_the_app_offers_it()
+    {
+        var opened = 0;
+        var model = new ManagerViewModel(
+            new SessionStore(_directory),
+            new SessionRegistry(new StubSessionHost()),
+            BasinLogger.None,
+            _ => Task.FromResult<string?>(null),
+            _ => Task.CompletedTask,
+            () => opened++);
+
+        Assert.True(model.OpenSettingsCommand.CanExecute(null));
+        model.OpenSettingsCommand.Execute(null);
+        Assert.Equal(1, opened);
     }
 
     [Fact]

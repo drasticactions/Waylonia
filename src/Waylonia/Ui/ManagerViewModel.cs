@@ -14,6 +14,7 @@ internal sealed partial class ManagerViewModel : ObservableObject
     private readonly BasinLogger _log;
     private readonly Func<SessionProfile, Task<string?>> _connect;
     private readonly Func<string, Task> _disconnect;
+    private readonly Action? _openSettings;
     private SessionCatalog _catalog = SessionCatalog.Empty;
     private string? _editing;
     private bool _loading;
@@ -44,7 +45,8 @@ internal sealed partial class ManagerViewModel : ObservableObject
         SessionRegistry registry,
         BasinLogger log,
         Func<SessionProfile, Task<string?>> connect,
-        Func<string, Task> disconnect)
+        Func<string, Task> disconnect,
+        Action? openSettings = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(registry);
@@ -55,6 +57,7 @@ internal sealed partial class ManagerViewModel : ObservableObject
         _log = log;
         _connect = connect;
         _disconnect = disconnect;
+        _openSettings = openSettings;
         _registry.Changed += OnRegistryChanged;
         Reload();
     }
@@ -121,6 +124,11 @@ internal sealed partial class ManagerViewModel : ObservableObject
 
     [RelayCommand]
     private void SaveSession() => Save();
+
+    [RelayCommand(CanExecute = nameof(CanOpenSettings))]
+    private void OpenSettings() => _openSettings?.Invoke();
+
+    public bool CanOpenSettings => _openSettings is not null;
 
     public bool Save()
     {

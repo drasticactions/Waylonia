@@ -16,7 +16,8 @@ internal sealed record WayloniaRun(
     string? SocketName,
     Config Config,
     SessionStore Store,
-    string AudioFormat = "f32")
+    string AudioFormat = "f32",
+    bool OpenSettings = false)
 {
     public bool ChannelsWanted => Manager || Initial.Count > 0 || WaypipeListen is not null || !OperatingSystem.IsLinux();
 

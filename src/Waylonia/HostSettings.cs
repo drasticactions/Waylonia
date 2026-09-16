@@ -8,7 +8,7 @@ internal sealed record HostSettings(
     bool Drag = true,
     bool FollowCursor = true,
     bool GtkDpi = true,
-    string CaptureChord = "double:RightControl",
+    string CaptureChord = ConfigValues.DefaultCaptureChord,
     bool SessionTitles = true,
     IReadOnlyList<Hotkey>? Hotkeys = null,
     string? Terminal = null,

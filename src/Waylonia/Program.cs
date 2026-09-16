@@ -42,6 +42,11 @@ internal static class Program
             Description = "write every [hosts.NAME] profile of the config file to sessions/NAME.toml and exit.",
             Hidden = true,
         });
+        var settingsOption = cli.Add(new Option<bool>("--settings")
+        {
+            Description = "open the settings window at start.",
+            Hidden = true,
+        });
         var gpuOption = cli.Add(CliOptions.Gpu());
         var audioOption = cli.Add(new Option<bool>("--audio")
         {
@@ -286,7 +291,8 @@ internal static class Program
                 result.GetValue(socketOption) ?? config.Socket,
                 config,
                 store,
-                audioFormat));
+                audioFormat,
+                result.GetValue(settingsOption)));
             cli.ReportFrames(WayloniaApp.Rendered);
             return status;
         });

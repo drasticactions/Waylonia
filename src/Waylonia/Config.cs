@@ -36,13 +36,13 @@ internal sealed class Config
 
     public bool SessionTitles { get; private set; } = true;
 
-    public string CaptureChord { get; private set; } = "double:RightControl";
+    public string CaptureChord { get; private set; } = ConfigValues.DefaultCaptureChord;
 
     public string? Terminal { get; private set; }
 
     public string? CurrentDesktop { get; private set; }
 
-    public string Lang { get; private set; } = "C.UTF-8";
+    public string Lang { get; private set; } = ConfigValues.DefaultLang;
 
     public string? Path { get; private set; }
 
@@ -58,6 +58,11 @@ internal sealed class Config
     public HostSettings Host => new(
         XWayland, Tray, TrayApps, Clipboard, Drag, FollowCursor, GtkDpi, CaptureChord, SessionTitles,
         Hotkeys, Terminal, CurrentDesktop);
+
+    public ConfigValues Values => new(
+        Compress, Gpu, Audio, Video, Socket, Command, Terminal, CurrentDesktop, Lang,
+        XWayland, Tray, TrayApps, Clipboard, Drag, FollowCursor, GtkDpi, SessionTitles, CaptureChord,
+        Hotkeys, Desktops.Values.ToArray());
 
     public static Config Load(bool skipFile, string? path, BasinLogger log)
     {

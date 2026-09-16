@@ -1,11 +1,10 @@
-using Basin.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Waylonia.Cli;
 using Waylonia.Sessions;
 
 namespace Waylonia.Ui;
 
-internal sealed partial class SessionFormViewModel : ObservableObject
+internal sealed partial class SessionFormViewModel : FormViewModel
 {
     public const string NameField = "name";
 
@@ -25,8 +24,6 @@ internal sealed partial class SessionFormViewModel : ObservableObject
 
     public static IReadOnlyList<string> DesktopChoices { get; } =
         ["none", .. DesktopRecipes.All.Select(static recipe => recipe.Name), "custom"];
-
-    private readonly Dictionary<string, string> _problems = [];
 
     [ObservableProperty]
     private string _name = string.Empty;
@@ -90,9 +87,11 @@ internal sealed partial class SessionFormViewModel : ObservableObject
 
     public string? HotkeysProblem => ProblemFor(HotkeysField);
 
-    public IReadOnlyDictionary<string, string> Problems => _problems;
-
-    public string? ProblemFor(string field) => _problems.GetValueOrDefault(field);
+    protected override IReadOnlyList<string> ProblemProperties { get; } =
+    [
+        nameof(NameProblem), nameof(SshProblem), nameof(CommandProblem), nameof(VideoProblem),
+        nameof(LangProblem), nameof(DesktopSizeProblem), nameof(HotkeysProblem),
+    ];
 
     public void Load(SessionProfile profile)
     {
@@ -112,32 +111,11 @@ internal sealed partial class SessionFormViewModel : ObservableObject
         DesktopIndex = Math.Max(0, IndexOf(DesktopChoices, profile.Desktop ?? "none"));
         DesktopSize = profile.DesktopSize ?? string.Empty;
         DesktopEnv = profile.DesktopEnv is { } env ? string.Join('\n', env) : string.Empty;
-        Hotkeys = profile.Hotkeys is { } hotkeys
-            ? string.Join('\n', hotkeys.Select(static hotkey => $"{hotkey.Chord} = {hotkey.Command}"))
-            : string.Empty;
+        Hotkeys = HotkeyLines.Render(profile.Hotkeys);
         ClearProblems();
     }
 
     public void Clear() => Load(new SessionProfile(string.Empty, string.Empty));
-
-    public void ClearProblems()
-    {
-        if (_problems.Count == 0)
-        {
-            return;
-        }
-
-        _problems.Clear();
-        RaiseProblems();
-    }
-
-    public void Complain(string field, string message)
-    {
-        if (_problems.TryAdd(field, message))
-        {
-            RaiseProblems();
-        }
-    }
 
     public SessionProfile? Validate()
     {
@@ -184,40 +162,19 @@ internal sealed partial class SessionFormViewModel : ObservableObject
             Complain(DesktopSizeField, "Use WIDTHxHEIGHT, such as 1920x1080.");
         }
 
-        var hotkeys = new List<Hotkey>();
-        foreach (var line in Lines(Hotkeys))
+        var hotkeys = HotkeyLines.Parse(Hotkeys, name, out var hotkeysProblem);
+        if (hotkeysProblem is not null)
         {
-            var split = line.IndexOf('=', StringComparison.Ordinal);
-            if (split <= 0)
-            {
-                Complain(HotkeysField, $"Write one hotkey per line as CHORD = COMMAND. '{line}' has no '='.");
-                break;
-            }
-
-            var chord = line[..split].Trim().Trim('"');
-            var hotkeyCommand = line[(split + 1)..].Trim().Trim('"');
-            if (hotkeyCommand.Length == 0)
-            {
-                Complain(HotkeysField, $"'{chord}' needs a command after the '='.");
-                break;
-            }
-
-            if (Hotkey.Parse(chord, hotkeyCommand, BasinLogger.None, name) is not { } hotkey)
-            {
-                Complain(HotkeysField, $"'{chord}' is not a chord. Use modifiers and one key, such as ctrl+alt+t.");
-                break;
-            }
-
-            hotkeys.Add(hotkey);
+            Complain(HotkeysField, hotkeysProblem);
         }
 
-        if (_problems.Count > 0)
+        if (HasProblems)
         {
             return null;
         }
 
-        var autostart = Lines(Autostart);
-        var env = Lines(DesktopEnv);
+        var autostart = HotkeyLines.Lines(Autostart);
+        var env = HotkeyLines.Lines(DesktopEnv);
         return new SessionProfile(
             name,
             ssh!,
@@ -234,36 +191,7 @@ internal sealed partial class SessionFormViewModel : ObservableObject
             desktop,
             size,
             env.Count > 0 ? env : null,
-            hotkeys.Count > 0 ? hotkeys : null);
+            hotkeys is { Count: > 0 } ? hotkeys : null);
     }
 
-    private void RaiseProblems()
-    {
-        OnPropertyChanged(nameof(Problems));
-        OnPropertyChanged(nameof(NameProblem));
-        OnPropertyChanged(nameof(SshProblem));
-        OnPropertyChanged(nameof(CommandProblem));
-        OnPropertyChanged(nameof(VideoProblem));
-        OnPropertyChanged(nameof(LangProblem));
-        OnPropertyChanged(nameof(DesktopSizeProblem));
-        OnPropertyChanged(nameof(HotkeysProblem));
-    }
-
-    private static int IndexOf(IReadOnlyList<string> choices, string value)
-    {
-        for (var i = 0; i < choices.Count; i++)
-        {
-            if (choices[i] == value)
-            {
-                return i;
-            }
-        }
-
-        return -1;
-    }
-
-    private static string? Blank(string? text) => text is { } value && value.Trim().Length > 0 ? value.Trim() : null;
-
-    private static List<string> Lines(string? text) =>
-        (text ?? string.Empty).Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
 }

@@ -136,8 +136,8 @@ internal sealed class CaptureToggle : IDisposable
         _hotkeys(false);
         _windows.CaptureInput(true);
         _grab = HostCapture.TryGrab(_window!, _view, _host, _hooks);
-        _window?.OverrideTitle($"{_title} — captured, {_chord.Text} releases");
-        Log.Info($"the desktop has this host's keyboard; {_chord.Text} releases it");
+        _window?.OverrideTitle($"{_title} — captured, {_chord.Text} to release");
+        Log.Info($"the desktop has this host's keyboard; use {_chord.Text} to release");
     }
 
     private void Release()

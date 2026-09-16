@@ -39,6 +39,25 @@ public sealed class SessionMenuTests
     }
 
     [Fact]
+    public void The_settings_item_follows_the_manager_item_and_stands_alone_without_it()
+    {
+        var opened = new List<string>();
+        var items = SessionMenu.Build(
+            [Entry("dev", SessionStatus.Connected)], null, null, null, () => opened.Add("manager"), () => opened.Add("settings"));
+
+        Assert.Equal([SessionMenu.ManagerLabel, SessionMenu.SettingsLabel], items.Take(2).Select(item => item.Label));
+        items[1].Invoke!();
+        Assert.Equal(["settings"], opened);
+        Assert.True(items[2].Separator);
+        Assert.Equal("● dev", items[3].Label);
+
+        var alone = SessionMenu.Build([], null, null, null, null, () => opened.Add("settings"));
+        Assert.Equal(SessionMenu.SettingsLabel, alone[0].Label);
+        Assert.True(alone[1].Separator);
+        Assert.Equal(2, alone.Count);
+    }
+
+    [Fact]
     public void A_disconnected_session_offers_connect_and_nothing_else()
     {
         var calls = new List<string>();

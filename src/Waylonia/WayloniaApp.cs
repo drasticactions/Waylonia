@@ -20,6 +20,7 @@ namespace Waylonia;
 internal sealed class WayloniaApp : Application, ISessionHost
 {
     private static WayloniaRun? _run;
+    private static ConfigValues? _startup;
     private static int _exitStatus;
     private static long _rendered;
 
@@ -49,6 +50,10 @@ internal sealed class WayloniaApp : Application, ISessionHost
     private SessionRegistry? _registry;
     private SessionCatalog _catalog = SessionCatalog.Empty;
     private ManagerWindow? _manager;
+    private SettingsWindow? _settings;
+    private readonly Dictionary<ToplevelWindow, string> _sessionWindows = [];
+    private ToplevelWindow? _screenWindow;
+    private string _screenTitle = string.Empty;
     private IReadOnlyList<ApplicationMenuItem>? _localApplications;
     private string? _localNotice;
     private bool _shuttingDown;
@@ -60,6 +65,7 @@ internal sealed class WayloniaApp : Application, ISessionHost
     public static int Run(WayloniaRun run)
     {
         _run = run;
+        _startup = run.Config.Values;
         _exitStatus = 0;
         var builder = AppBuilder.Configure<WayloniaApp>().UsePlatformDetect().UseHostWindowing()
             .With(new MacOSPlatformOptions { ShowInDock = false });
@@ -253,15 +259,18 @@ internal sealed class WayloniaApp : Application, ISessionHost
 
     private void OnWindowOpened(ToplevelWindow window, WlClient? client)
     {
-        if (!_run!.Host.SessionTitles
-            || client is null
-            || _channelClients.OwnerOf(client) is not WaypipeAcceptor { Session: not null } owner)
+        if (client is null || _channelClients.OwnerOf(client) is not WaypipeAcceptor { Session: not null } owner)
         {
             return;
         }
 
         var name = owner.Name;
-        window.DecorateTitle(title => $"{title} — {name}");
+        _sessionWindows[window] = name;
+        window.Closed += (_, _) => _sessionWindows.Remove(window);
+        if (_run!.Host.SessionTitles)
+        {
+            window.DecorateTitle(title => $"{title} — {name}");
+        }
     }
 
     private void OnHostReady(BasinCompositorHost host)
@@ -325,23 +334,7 @@ internal sealed class WayloniaApp : Application, ISessionHost
 
         BasinReport.Line(ReportLines.Socket(host.Socket));
         StartGlobalHotkeys();
-        if (_windows is { } windows
-            && CaptureChord.Parse(run.Host.CaptureChord, BasinLog.For("waylonia")) is { } chord)
-        {
-            _capture = new CaptureToggle(chord, windows, _view!, host, arm =>
-            {
-                _hotkeysDisarmed = !arm;
-                if (arm)
-                {
-                    StartGlobalHotkeys();
-                }
-                else
-                {
-                    _globalHotkeys?.Dispose();
-                    _globalHotkeys = null;
-                }
-            });
-        }
+        CreateCapture(host);
 
         if (WayloniaXWayland.DisplayName(host) is { } xdisplay)
         {
@@ -385,6 +378,10 @@ internal sealed class WayloniaApp : Application, ISessionHost
         }
 
         RebuildTray();
+        if (run.OpenSettings)
+        {
+            OpenSettings();
+        }
     }
 
     private bool LocalApplicationsWanted(BasinCompositorHost host) =>
@@ -549,7 +546,13 @@ internal sealed class WayloniaApp : Application, ISessionHost
         if (_manager is null)
         {
             _manager = new ManagerWindow(
-                new ManagerViewModel(_run!.Store, registry, Log, ConnectProfileAsync, DisconnectSessionAsync));
+                new ManagerViewModel(
+                    _run!.Store,
+                    registry,
+                    Log,
+                    ConnectProfileAsync,
+                    DisconnectSessionAsync,
+                    _run.Config.Path is null ? null : OpenSettings));
         }
         else
         {
@@ -558,6 +561,86 @@ internal sealed class WayloniaApp : Application, ISessionHost
 
         _manager.Show();
         _manager.Activate();
+    }
+
+    private void OpenSettings()
+    {
+        if (_shuttingDown || _run!.Config.Path is not { } path)
+        {
+            return;
+        }
+
+        if (_settings is null)
+        {
+            _settings = new SettingsWindow(new SettingsViewModel(path, _startup ?? _run.Config.Values, Log, ApplyConfig));
+        }
+        else
+        {
+            _settings.Model.Reload();
+        }
+
+        _settings.Show();
+        _settings.Activate();
+    }
+
+    private void ApplyConfig(Config config)
+    {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
+        _run = _run! with { Host = config.Host, Config = config };
+        foreach (var (window, name) in _sessionWindows)
+        {
+            window.DecorateTitle(config.Host.SessionTitles ? title => $"{title} — {name}" : null);
+        }
+
+        RestartGlobalHotkeys();
+        _capture?.Dispose();
+        _capture = null;
+        if (_host is { } host)
+        {
+            CreateCapture(host);
+            if (LocalApplicationsWanted(host))
+            {
+                LoadLocalApplications();
+                return;
+            }
+        }
+
+        _localApplications = null;
+        _localNotice = null;
+        RebuildTray();
+    }
+
+    private void CreateCapture(BasinCompositorHost host)
+    {
+        if (_windows is not { } windows
+            || CaptureChord.Parse(_run!.Host.CaptureChord, BasinLog.For("waylonia")) is not { } chord)
+        {
+            return;
+        }
+
+        _capture = new CaptureToggle(chord, windows, _view!, host, ArmHotkeys);
+        if (_screenWindow is { } window)
+        {
+            _capture.Attach(window, _screenTitle);
+        }
+    }
+
+    private void ArmHotkeys(bool arm)
+    {
+        _hotkeysDisarmed = !arm;
+        if (arm)
+        {
+            StartGlobalHotkeys();
+        }
+        else
+        {
+            _globalHotkeys?.Dispose();
+            _globalHotkeys = null;
+        }
     }
 
     private void LaunchHotkey(Hotkey hotkey)
@@ -731,7 +814,8 @@ internal sealed class WayloniaApp : Application, ISessionHost
             apps ? _localApplications : null,
             apps ? _localNotice : null,
             apps && _localApplications is not null || _localNotice is not null ? () => LoadLocalApplications() : null,
-            manager ? OpenManager : null));
+            manager ? OpenManager : null,
+            run.Config.Path is null ? null : OpenSettings));
 
         SessionMenuEntry Entry(string name, SshSession? session) => new(
             name,
@@ -759,6 +843,7 @@ internal sealed class WayloniaApp : Application, ISessionHost
     {
         if (window is null)
         {
+            _screenWindow = null;
             _capture?.Detach();
             UpdateStatus("the desktop window is gone");
             return;
@@ -776,6 +861,8 @@ internal sealed class WayloniaApp : Application, ISessionHost
             window.OverrideTitle(title);
         }
 
+        _screenWindow = window;
+        _screenTitle = title;
         _capture?.Attach(window, title);
         UpdateStatus($"the desktop window is up");
     }
@@ -891,6 +978,13 @@ internal sealed class WayloniaApp : Application, ISessionHost
             manager.AllowClose();
             manager.Close();
             _manager = null;
+        }
+
+        if (_settings is { } settings)
+        {
+            settings.AllowClose();
+            settings.Close();
+            _settings = null;
         }
 
         if (_run!.Screenshot is { } path && _host is { } aliveHost && _view is { } pump)

@@ -6,6 +6,8 @@ internal static class SessionMenu
 {
     public const string ManagerLabel = "Sessions…";
 
+    public const string SettingsLabel = "Settings…";
+
     public const string RefreshLabel = "Refresh applications";
 
     public static string Glyph(SessionStatus status) => status switch
@@ -22,13 +24,23 @@ internal static class SessionMenu
         IReadOnlyList<ApplicationMenuItem>? localApplications,
         string? localNotice,
         Action? localRefresh,
-        Action? openManager)
+        Action? openManager,
+        Action? openSettings = null)
     {
         ArgumentNullException.ThrowIfNull(sessions);
         var items = new List<ApplicationMenuItem>();
         if (openManager is not null)
         {
             items.Add(new ApplicationMenuItem(ManagerLabel, Invoke: openManager));
+        }
+
+        if (openSettings is not null)
+        {
+            items.Add(new ApplicationMenuItem(SettingsLabel, Invoke: openSettings));
+        }
+
+        if (openManager is not null || openSettings is not null)
+        {
             items.Add(Separator());
         }
 
