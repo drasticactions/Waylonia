@@ -12,6 +12,7 @@ internal sealed record HostSettings(
     bool GtkDpi = true,
     string CaptureChord = ConfigValues.DefaultCaptureChord,
     bool SessionTitles = true,
+    int SshTimeout = ConfigValues.DefaultSshTimeout,
     IReadOnlyList<Hotkey>? Hotkeys = null,
     string? Terminal = null,
     string? CurrentDesktop = null,

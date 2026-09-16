@@ -12,11 +12,6 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        if (AskPass.IsAskPassRun(args, Environment.GetEnvironmentVariable(AskPass.Variable)))
-        {
-            return AskPass.Run(AskPass.PromptOf(args));
-        }
-
         HostSession.Capture();
         var cli = new WayloniaCommand("Runs remote Wayland sessions on this desktop through waypipe over ssh.");
         var frames = cli.Add(CliOptions.Frames());

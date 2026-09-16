@@ -115,66 +115,7 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
             while (true)
             {
                 var accepted = await listener.AcceptAsync();
-                var channel = WaypipeChannel.AttachChannel(
-                    new NetworkStream(accepted, ownsSocket: true),
-                    _compression,
-                    options: new WaypipeChannelOptions
-                    {
-                        CarriesDmabuf = _gpu,
-                        AcceptsVideo = _video is not null,
-                        VideoDecoder = _decoder,
-                    });
-                int index;
-                lock (_channels)
-                {
-                    _channels.Add(channel);
-                    index = ++_attached;
-                }
-
-                channel.Ended += failure =>
-                {
-                    lock (_channels)
-                    {
-                        _channels.Remove(channel);
-                    }
-
-                    if (failure is null)
-                    {
-                        Log.Debug($"{Name}: channel {index} ended");
-                        _host.Status($"{Name}: channel {index} ended");
-                    }
-                    else
-                    {
-                        Log.Warn($"{Name}: channel {index} ended: {failure.Message}");
-                        _host.Status($"{Name}: channel {index} ended: {failure.Message}");
-                    }
-
-                    Changed?.Invoke();
-                };
-                var formats = channel.Globals.Formats;
-                _host.Post(() =>
-                {
-                    if (_disposed)
-                    {
-                        return;
-                    }
-
-                    var compositor = _host.Compositor;
-                    if (_gpu && _dmabuf is null)
-                    {
-                        _dmabuf = new LinuxDmabufGlobal(
-                            compositor.Display,
-                            compositor.Services.Require<ClientBufferRegistry>(),
-                            formats,
-                            WaypipeGlobals.SyntheticMainDevice,
-                            compositor: compositor.Services.Require<CompositorGlobal>());
-                    }
-
-                    var client = compositor.Display.CreateClient(channel.Transport);
-                    _host.Attach(this, client);
-                });
-                _host.Status($"{Name}: {index} channel client(s) attached");
-                Changed?.Invoke();
+                Adopt(new NetworkStream(accepted, ownsSocket: true));
             }
         }
         catch (ObjectDisposedException)
@@ -182,12 +123,89 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
         }
         catch (Exception error)
         {
-            if (!_disposed && !_host.ShuttingDown)
-            {
-                Log.Error($"{Name}: the channel listener failed: {error.Message}");
-                Failed?.Invoke(error);
-            }
+            Fail(error);
         }
+    }
+
+    public void Fail(Exception error)
+    {
+        ArgumentNullException.ThrowIfNull(error);
+        if (!_disposed && !_host.ShuttingDown)
+        {
+            Log.Error($"{Name}: the channel listener failed: {error.Message}");
+            Failed?.Invoke(error);
+        }
+    }
+
+    public void Adopt(Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        if (_disposed)
+        {
+            stream.Dispose();
+            return;
+        }
+
+        var channel = WaypipeChannel.AttachChannel(
+            stream,
+            _compression,
+            options: new WaypipeChannelOptions
+            {
+                CarriesDmabuf = _gpu,
+                AcceptsVideo = _video is not null,
+                VideoDecoder = _decoder,
+            });
+        int index;
+        lock (_channels)
+        {
+            _channels.Add(channel);
+            index = ++_attached;
+        }
+
+        channel.Ended += failure =>
+        {
+            lock (_channels)
+            {
+                _channels.Remove(channel);
+            }
+
+            if (failure is null)
+            {
+                Log.Debug($"{Name}: channel {index} ended");
+                _host.Status($"{Name}: channel {index} ended");
+            }
+            else
+            {
+                Log.Warn($"{Name}: channel {index} ended: {failure.Message}");
+                _host.Status($"{Name}: channel {index} ended: {failure.Message}");
+            }
+
+            Changed?.Invoke();
+        };
+        var formats = channel.Globals.Formats;
+        _host.Post(() =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            var compositor = _host.Compositor;
+            if (_gpu && _dmabuf is null)
+            {
+                _dmabuf = new LinuxDmabufGlobal(
+                    compositor.Display,
+                    compositor.Services.Require<ClientBufferRegistry>(),
+                    formats,
+                    WaypipeGlobals.SyntheticMainDevice,
+                    compositor: compositor.Services.Require<CompositorGlobal>());
+            }
+
+            var client = compositor.Display.CreateClient(channel.Transport);
+            _host.Attach(this, client);
+        });
+        _host.Status($"{Name}: {index} channel client(s) attached");
+        Changed?.Invoke();
     }
 
     public void CloseChannels()

@@ -95,6 +95,15 @@
               <TextBlock Classes="problem" Text="{Binding CaptureChordProblem}"
                          IsVisible="{Binding CaptureChordProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
             </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="ssh-timeout" />
+                <TextBox x:Name="SshTimeoutBox" Text="{Binding SshTimeout}" PlaceholderText="30" />
+              </DockPanel>
+              <TextBlock Classes="hint" Margin="120,0,0,0" Text="How long a session waits for its ssh server to answer, in seconds." />
+              <TextBlock Classes="problem" Text="{Binding SshTimeoutProblem}"
+                         IsVisible="{Binding SshTimeoutProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
           </StackPanel>
         </ScrollViewer>
       </TabItem>

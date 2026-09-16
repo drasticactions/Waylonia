@@ -69,6 +69,7 @@ internal static class ConfigWriter
         SetToggle(document, "follow-cursor", values.FollowCursor);
         SetToggle(document, "gtk-dpi", values.GtkDpi);
         SetToggle(document, "session-titles", values.SessionTitles);
+        SetOrDrop(document, HostTable, "ssh-timeout", Kept(values.SshTimeout, ConfigValues.DefaultSshTimeout));
         if (values.CaptureChord == ConfigValues.DefaultCaptureChord)
         {
             document.Table("host")?.Remove("capture-chord");

@@ -125,6 +125,7 @@ public sealed class SettingsWindowTests : IDisposable
         var model = Model("# mine\n", applied: applied);
         model.Form.Clipboard = false;
         model.Form.SessionTitles = false;
+        model.Form.SshTimeout = "10";
         model.Form.CompressIndex = 3;
         model.Form.Hotkeys = "ctrl+alt+t = foot";
         model.NewDesktop();
@@ -142,6 +143,7 @@ public sealed class SettingsWindowTests : IDisposable
             [host]
             clipboard = false
             session-titles = false
+            ssh-timeout = 10
 
             [hotkeys]
             "ctrl+alt+t" = "foot"
@@ -156,6 +158,7 @@ public sealed class SettingsWindowTests : IDisposable
         var config = Assert.Single(applied);
         Assert.False(config.Host.Clipboard);
         Assert.False(config.Host.SessionTitles);
+        Assert.Equal(10, config.Host.SshTimeout);
         Assert.Equal("none", config.Compress);
         Assert.Equal(_path, model.StatusText);
     }

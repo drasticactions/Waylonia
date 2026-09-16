@@ -1,5 +1,5 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Waylonia.Sessions;
 using static Waylonia.WayloniaLog;
 
 namespace Waylonia.Audio;
@@ -8,23 +8,28 @@ internal sealed class RemoteAudioSource : IDisposable
 {
     private const int ReadBytes = 16 * 1024;
 
-    private const int Attempts = 5;
+    public const int Attempts = 5;
+
+    public const int NoMonitorExit = 126;
+
+    public const int NoCaptureToolExit = 127;
 
     private const int SilenceMillis = 10_000;
 
     private readonly AudioRing _ring;
     private readonly string _sshHost;
-    private readonly string? _controlPath;
+    private readonly ISshLink _link;
     private readonly string _remote;
     private readonly int _bytesPerFrame;
     private readonly bool _sixteenBit;
-    private readonly CancellationTokenSource _stopping = new();
+    private readonly CancellationTokenSource _stopping;
     private readonly byte[] _bytes = new byte[ReadBytes];
     private readonly float[] _samples = new float[ReadBytes / 2];
     private readonly string _monitor;
+    private readonly int _initialBackoff;
 
-    private Process? _capture;
-    private Relay _relay = new("audio");
+    private ISshCommand? _capture;
+    private OutputTail _errors = new();
     private bool _complained;
     private bool _delivered;
     private int _attempts;
@@ -32,36 +37,47 @@ internal sealed class RemoteAudioSource : IDisposable
     public RemoteAudioSource(
         AudioRing ring,
         string sshHost,
-        string? controlPath,
+        ISshLink link,
         string sink,
         int rate,
         int channels,
-        bool sixteenBit)
+        bool sixteenBit,
+        int initialBackoff = 500)
     {
+        ArgumentNullException.ThrowIfNull(ring);
+        ArgumentNullException.ThrowIfNull(link);
         _ring = ring;
         _sshHost = sshHost;
-        _controlPath = controlPath;
+        _link = link;
         _sixteenBit = sixteenBit;
         _bytesPerFrame = channels * (sixteenBit ? 2 : 4);
         _monitor = $"{sink}.monitor";
+        _initialBackoff = initialBackoff;
+        _stopping = CancellationTokenSource.CreateLinkedTokenSource(link.Lost);
         var parecFormat = sixteenBit ? "s16le" : "float32le";
         var pipewireFormat = sixteenBit ? "s16" : "f32";
         _remote =
             "if command -v pactl >/dev/null 2>&1 && " +
             $"! pactl list short sources 2>/dev/null | cut -f2 | grep -qx {_monitor}; then " +
-            $"echo 'no {_monitor}' >&2; exit 126; fi; " +
+            $"echo 'no {_monitor}' >&2; exit {NoMonitorExit}; fi; " +
             "if command -v parec >/dev/null 2>&1; then " +
             $"exec parec --format={parecFormat} --rate={rate} --channels={channels} " +
             $"--latency-msec=50 -d {_monitor}; " +
             "elif command -v pw-record >/dev/null 2>&1; then " +
             $"exec pw-record --raw --format={pipewireFormat} --rate={rate} --channels={channels} " +
             $"--target={_monitor} -; " +
-            "else echo 'no parec and no pw-record' >&2; exit 127; fi";
+            $"else echo 'no parec and no pw-record' >&2; exit {NoCaptureToolExit}; fi";
     }
+
+    public string Script => _remote;
+
+    public bool Complained => _complained;
+
+    public Task Completed { get; private set; } = Task.CompletedTask;
 
     public void Start()
     {
-        _ = Task.Run(RunAsync);
+        Completed = Task.Run(RunAsync);
         _ = Task.Run(WatchSilenceAsync);
     }
 
@@ -84,51 +100,68 @@ internal sealed class RemoteAudioSource : IDisposable
 
     private async Task RunAsync()
     {
-        var backoff = 500;
+        var backoff = _initialBackoff;
         while (!_stopping.IsCancellationRequested)
         {
-            var relay = new Relay("audio");
-            _relay = relay;
-            Process? capture;
+            var errors = new OutputTail();
+            _errors = errors;
+            ISshCommand capture;
             try
             {
-                capture = Process.Start(Info());
+                capture = await _link.RunAsync(_remote, _stopping.Token);
             }
-            catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
+            catch (SshLinkException error)
             {
-                Complain($"the capture channel to {_sshHost} could not start: {error.Message}");
+                if (!_stopping.IsCancellationRequested)
+                {
+                    Complain($"the capture channel to {_sshHost} could not start: {error.Message}");
+                }
+
                 return;
             }
-
-            if (capture is null)
+            catch (OperationCanceledException)
             {
-                Complain($"the capture channel to {_sshHost} could not start");
                 return;
             }
 
             _capture = capture;
-            relay.Watch(capture.StandardError);
+            var complaints = Task.Run(async () =>
+            {
+                try
+                {
+                    await foreach (var line in capture.ErrorLines(CancellationToken.None))
+                    {
+                        errors.Add(line);
+                    }
+                }
+                catch (Exception error) when (error is OperationCanceledException or ObjectDisposedException)
+                {
+                }
+            });
             try
             {
-                await PumpAsync(capture.StandardOutput.BaseStream);
+                await PumpAsync(capture.Output);
             }
-            catch (Exception error) when (error is IOException or ObjectDisposedException)
+            catch (Exception error) when (error is IOException or ObjectDisposedException or OperationCanceledException or InvalidOperationException)
             {
             }
 
-            await capture.WaitForExitAsync();
+            var code = await capture.Exited;
+            await complaints;
+            capture.Dispose();
+            _capture = null;
             if (_stopping.IsCancellationRequested)
             {
                 return;
             }
 
-            if (capture.ExitCode == 127)
+            if (code == NoCaptureToolExit)
             {
                 Complain($"{_sshHost} has neither parec nor pw-record, so the session has no sound");
                 return;
             }
 
-            if (capture.ExitCode == 126 && _attempts >= Attempts - 1)
+            if (code == NoMonitorExit && _attempts >= Attempts - 1)
             {
                 Complain($"{_sshHost} never created {_monitor}, so the session has no sound");
                 return;
@@ -142,7 +175,7 @@ internal sealed class RemoteAudioSource : IDisposable
                 return;
             }
 
-            Log.Debug($"the capture channel to {_sshHost} ended with {capture.ExitCode}; opening it again");
+            Log.Debug($"the capture channel to {_sshHost} ended with {code}; opening it again");
             try
             {
                 await Task.Delay(backoff, _stopping.Token);
@@ -154,29 +187,6 @@ internal sealed class RemoteAudioSource : IDisposable
 
             backoff = Math.Min(backoff * 2, 4000);
         }
-    }
-
-    private ProcessStartInfo Info()
-    {
-        var info = new ProcessStartInfo("ssh")
-        {
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-        };
-        info.ArgumentList.Add("-o");
-        info.ArgumentList.Add("BatchMode=yes");
-        if (_controlPath is { } control)
-        {
-            info.ArgumentList.Add("-o");
-            info.ArgumentList.Add($"ControlPath={control}");
-            info.ArgumentList.Add("-o");
-            info.ArgumentList.Add("ControlMaster=no");
-        }
-
-        info.ArgumentList.Add(_sshHost);
-        info.ArgumentList.Add(_remote);
-        return info;
     }
 
     private async Task PumpAsync(Stream pcm)
@@ -232,25 +242,22 @@ internal sealed class RemoteAudioSource : IDisposable
 
         _complained = true;
         Log.Warn($"{message}");
-        _relay.Report();
+        foreach (var line in _errors.Lines())
+        {
+            Log.Error($"audio: {line}");
+        }
     }
 
     public void Dispose()
     {
-        _stopping.Cancel();
+        if (!_stopping.IsCancellationRequested)
+        {
+            _stopping.Cancel();
+        }
+
         if (_capture is { } capture)
         {
-            try
-            {
-                if (!capture.HasExited)
-                {
-                    capture.Kill(entireProcessTree: true);
-                }
-            }
-            catch (Exception error) when (error is InvalidOperationException or NotSupportedException)
-            {
-            }
-
+            capture.TrySignal("TERM");
             capture.Dispose();
             _capture = null;
         }

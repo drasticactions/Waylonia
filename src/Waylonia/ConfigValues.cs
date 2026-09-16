@@ -20,6 +20,7 @@ internal sealed record ConfigValues(
     bool FollowCursor = true,
     bool GtkDpi = true,
     bool SessionTitles = true,
+    int SshTimeout = ConfigValues.DefaultSshTimeout,
     string CaptureChord = ConfigValues.DefaultCaptureChord,
     IReadOnlyList<Hotkey>? Hotkeys = null,
     IReadOnlyList<DesktopProfile>? Desktops = null,
@@ -30,6 +31,10 @@ internal sealed record ConfigValues(
     public const string DefaultLang = "C.UTF-8";
 
     public const string DefaultCaptureChord = "double:RightControl";
+
+    public const int DefaultSshTimeout = 30;
+
+    public const int MaxSshTimeout = 3600;
 
     public IReadOnlyList<Hotkey> Hotkeys { get; init; } = Hotkeys ?? [];
 

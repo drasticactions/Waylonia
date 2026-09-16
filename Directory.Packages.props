@@ -34,6 +34,7 @@
     <PackageVersion Include="JAJ.Packages.MiniAudioEx" Version="3.3.6" />
     <PackageVersion Include="System.CommandLine" Version="2.0.10" />
     <PackageVersion Include="Tmds.DBus.Protocol" Version="0.95.1" />
+    <PackageVersion Include="Tmds.Ssh" Version="0.24.0" />
     <PackageVersion Include="Tomlyn" Version="0.19.0" />
     <PackageVersion Include="Svg.Skia" Version="3.0.4" />
     <PackageVersion Include="BluerCurve" Version="0.1.0-alpha6" />

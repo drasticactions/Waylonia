@@ -206,6 +206,32 @@ public sealed class ManagerWindowTests : IDisposable
     }
 
     [Fact]
+    public async Task A_failed_connect_shows_the_link_sentence_under_the_status()
+    {
+        var host = new StubSessionHost { Settings = new HostSettings(TrayApps: false) };
+        host.Links.ConnectOutcomes.Enqueue(new SshLinkException(
+            SshLinkReason.HostKeyChanged, SshLinkException.Sentence(SshLinkReason.HostKeyChanged, "user@devbox")));
+        var registry = new SessionRegistry(host);
+        new SessionStore(_directory).Save(new SessionProfile("dev", "user@devbox"));
+        var model = new ManagerViewModel(
+            new SessionStore(_directory),
+            registry,
+            BasinLogger.None,
+            _ => Task.FromResult<string?>(null),
+            _ => Task.CompletedTask);
+
+        Assert.False(await registry.ConnectAsync(StubSessionHost.For("dev") with { Ssh = "user@devbox" }));
+        model.Reload();
+        model.Select("dev");
+
+        Assert.Contains(
+            "the host key of devbox changed; remove the old one from ~/.ssh/known_hosts if that is expected",
+            model.StatusText,
+            StringComparison.Ordinal);
+        Assert.Contains("the host key of devbox changed", model.Rows.Single(row => row.Name == "dev").Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void The_settings_command_calls_through_when_the_app_offers_it()
     {
         var opened = 0;

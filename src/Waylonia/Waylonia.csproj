@@ -51,6 +51,7 @@
     <PackageReference Include="JAJ.Packages.MiniAudioEx" />
     <PackageReference Include="System.CommandLine" />
     <PackageReference Include="Tomlyn" />
+    <PackageReference Include="Tmds.Ssh" />
     <PackageReference Include="Svg.Skia" />
     <PackageReference Include="Avalonia.Wayland" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <PackageReference Include="Tmds.DBus.Protocol" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />

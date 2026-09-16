@@ -10,6 +10,8 @@ internal sealed partial class SettingsFormViewModel : FormViewModel
 {
     public const string CaptureChordField = "capture-chord";
 
+    public const string SshTimeoutField = "ssh-timeout";
+
     public const string VideoField = "video";
 
     public const string LangField = "lang";
@@ -86,6 +88,9 @@ internal sealed partial class SettingsFormViewModel : FormViewModel
 
     [ObservableProperty]
     private string _captureChord = string.Empty;
+
+    [ObservableProperty]
+    private string _sshTimeout = string.Empty;
 
     [ObservableProperty]
     private int _compressIndex;
@@ -203,6 +208,8 @@ internal sealed partial class SettingsFormViewModel : FormViewModel
 
     public string? CaptureChordProblem => ProblemFor(CaptureChordField);
 
+    public string? SshTimeoutProblem => ProblemFor(SshTimeoutField);
+
     public string? VideoProblem => ProblemFor(VideoField);
 
     public string? LangProblem => ProblemFor(LangField);
@@ -235,7 +242,7 @@ internal sealed partial class SettingsFormViewModel : FormViewModel
 
     protected override IReadOnlyList<string> ProblemProperties { get; } =
     [
-        nameof(CaptureChordProblem), nameof(VideoProblem), nameof(LangProblem), nameof(SocketProblem), nameof(HotkeysProblem),
+        nameof(CaptureChordProblem), nameof(SshTimeoutProblem), nameof(VideoProblem), nameof(LangProblem), nameof(SocketProblem), nameof(HotkeysProblem),
         nameof(ThemeProblem), nameof(ButtonLayoutProblem), nameof(FontSizeProblem), nameof(BackgroundProblem), nameof(WorkspacesProblem),
         nameof(WorkspaceRowsProblem), nameof(AutoRaiseDelayProblem), nameof(ShellKeysProblem), nameof(PanelSizeProblem),
         nameof(PanelTopProblem), nameof(PanelBottomProblem),
@@ -265,6 +272,7 @@ internal sealed partial class SettingsFormViewModel : FormViewModel
         GtkDpi = values.GtkDpi;
         SessionTitles = values.SessionTitles;
         CaptureChord = values.CaptureChord == ConfigValues.DefaultCaptureChord ? string.Empty : values.CaptureChord;
+        SshTimeout = Unless(values.SshTimeout, ConfigValues.DefaultSshTimeout);
         CompressIndex = Math.Max(0, values.Compress is null ? 0 : IndexOf(CompressChoices, values.Compress));
         Gpu = values.Gpu;
         Audio = values.Audio;
@@ -293,6 +301,8 @@ internal sealed partial class SettingsFormViewModel : FormViewModel
             Complain(CaptureChordField, "Use one modifier key, such as RightControl, or double:RightControl for a double tap.");
         }
 
+        var sshTimeout = Whole(SshTimeout, ConfigValues.DefaultSshTimeout, 1, ConfigValues.MaxSshTimeout, SshTimeoutField,
+            $"Use 1 to {ConfigValues.MaxSshTimeout}, in seconds.");
         var video = Blank(Video);
         if (video is not null && !VideoChoice.IsValid(video))
         {
@@ -343,6 +353,7 @@ internal sealed partial class SettingsFormViewModel : FormViewModel
             FollowCursor,
             GtkDpi,
             SessionTitles,
+            sshTimeout,
             chord,
             hotkeys,
             Shell: ShellModeIndex == 1 ? ShellMode.Nested : ShellMode.Windows,

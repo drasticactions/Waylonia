@@ -196,7 +196,7 @@ internal sealed class ShellChrome : IDisposable
             () => new SettingsView { DataContext = model }, slot => _settings = slot);
     }
 
-    public Task<string?> AskPass(string prompt)
+    public Task<string?> AskPass(string prompt, AskPassKind kind)
     {
         ArgumentNullException.ThrowIfNull(prompt);
         var answered = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -206,7 +206,7 @@ internal sealed class ShellChrome : IDisposable
             return answered.Task;
         }
 
-        var view = new AskPassView(prompt, Ui.AskPass.Classify(prompt));
+        var view = new AskPassView(prompt, kind);
         ChromeSlot? slot = null;
         view.Answered += answer =>
         {

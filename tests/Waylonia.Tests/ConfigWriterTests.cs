@@ -44,7 +44,7 @@ public sealed class ConfigWriterTests : IDisposable
         var path = PathOf(null);
         var values = new ConfigValues(
             "zstd", true, false, "h264,hw", "wayland-9", "foot", "foot -e", "KDE", "en_US.UTF-8",
-            false, false, false, false, false, false, false, false, "RightAlt",
+            false, false, false, false, false, false, false, false, 45, "RightAlt",
             [Hotkey.Parse("ctrl+alt+t", "foot", BasinLogger.None)!],
             [new DesktopProfile("lab", "sway", "devbox", "1920x1080", "sway --unsupported-gpu", ["A=1", "B=2"], false, "none")]);
 
@@ -68,6 +68,7 @@ public sealed class ConfigWriterTests : IDisposable
         Assert.False(config.FollowCursor);
         Assert.False(config.GtkDpi);
         Assert.False(config.SessionTitles);
+        Assert.Equal(45, config.SshTimeout);
         Assert.Equal("RightAlt", config.CaptureChord);
         var hotkey = Assert.Single(config.Hotkeys);
         Assert.Equal(("ctrl+alt+t", "foot"), (hotkey.Chord, hotkey.Command));

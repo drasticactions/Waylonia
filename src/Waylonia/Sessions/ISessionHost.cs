@@ -12,7 +12,9 @@ internal interface ISessionHost
 
     HostSettings Settings { get; }
 
-    string? AskPassSocket => null;
+    ISshLinkFactory Links { get; }
+
+    ISshPrompter Prompter { get; }
 
     IconCache? Icons => null;
 

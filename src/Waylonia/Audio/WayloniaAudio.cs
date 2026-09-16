@@ -1,3 +1,4 @@
+using Waylonia.Sessions;
 using static Waylonia.WayloniaLog;
 
 namespace Waylonia.Audio;
@@ -43,9 +44,10 @@ internal sealed class WayloniaAudio : IDisposable
         return true;
     }
 
-    public static WayloniaAudio? TryStart(AudioMixer mixer, string sshHost, string? controlPath, string sink, string format)
+    public static WayloniaAudio? TryStart(AudioMixer mixer, string sshHost, ISshLink link, string sink, string format)
     {
         ArgumentNullException.ThrowIfNull(mixer);
+        ArgumentNullException.ThrowIfNull(link);
         var ring = AudioRing.ForSession(Rate, Channels);
         if (!mixer.Add(ring))
         {
@@ -54,7 +56,7 @@ internal sealed class WayloniaAudio : IDisposable
             return null;
         }
 
-        var source = new RemoteAudioSource(ring, sshHost, controlPath, sink, Rate, Channels, format == "s16");
+        var source = new RemoteAudioSource(ring, sshHost, link, sink, Rate, Channels, format == "s16");
         source.Start();
         Log.Info($"playing {sshHost}'s sound on this host from {sink}.monitor as {format}");
         return new WayloniaAudio(ring, mixer, source);

@@ -1,7 +1,6 @@
-using System.Diagnostics;
+using System.Text;
 using Basin.Freedesktop;
 using Waylonia.Audio;
-using Waylonia.Ui;
 using static Waylonia.WayloniaLog;
 
 namespace Waylonia.Sessions;
@@ -16,6 +15,8 @@ internal sealed class SshSession : IDisposable
         "if [ ! -d \"$r\" ]; then r=/tmp/waylonia-run-$(id -u); mkdir -p \"$r\" && chmod 700 \"$r\"; fi; " +
         "XDG_RUNTIME_DIR=$r; export XDG_RUNTIME_DIR; fi; ";
 
+    private static readonly TimeSpan SocketRemovalLimit = TimeSpan.FromSeconds(2);
+
     private static int _counter;
 
     private readonly ISessionHost _host;
@@ -25,13 +26,13 @@ internal sealed class SshSession : IDisposable
     private readonly string? _configDir;
     private readonly string _sinkName;
     private readonly string _tag;
-    private readonly List<Process> _launched = [];
+    private readonly List<ISshCommand> _launched = [];
     private readonly object _gate = new();
-    private Process? _ssh;
-    private Relay? _relay;
-    private TaskCompletionSource? _loggedIn;
-    private string? _controlPath;
-    private string? _forwardTarget;
+    private readonly OutputTail _output = new();
+    private ISshLink? _link;
+    private ISshCommand? _master;
+    private ISshListener? _listener;
+    private TaskCompletionSource? _scriptStarted;
     private WaypipeAcceptor? _acceptor;
     private WayloniaAudio? _audio;
     private Task<bool>? _connecting;
@@ -70,6 +71,10 @@ internal sealed class SshSession : IDisposable
 
     public string RemoteDisplay => _displayName;
 
+    public string RemoteSocket => _remoteSocket;
+
+    internal TimeSpan ScriptStartLimit { get; set; } = TimeSpan.FromSeconds(20);
+
     public IReadOnlyList<ApplicationMenuItem>? Applications { get; private set; }
 
     private readonly Dictionary<string, string?> _icons = new(StringComparer.Ordinal);
@@ -87,7 +92,7 @@ internal sealed class SshSession : IDisposable
 
     public event Action<SshSession, int>? Ended;
 
-    public IReadOnlyList<string> RecentOutput => _relay?.Lines() ?? [];
+    public IReadOnlyList<string> RecentOutput => _output.Lines();
 
     public void Replace(SessionSettings settings)
     {
@@ -110,7 +115,7 @@ internal sealed class SshSession : IDisposable
                 return pending;
             }
 
-            if (Status == SessionStatus.Connected && _ssh is { HasExited: false })
+            if (Status == SessionStatus.Connected && _link is { IsConnected: true })
             {
                 return Task.FromResult(true);
             }
@@ -124,56 +129,87 @@ internal sealed class SshSession : IDisposable
     {
         _disconnecting = false;
         LastError = null;
+        _output.Clear();
         SetStatus(SessionStatus.Connecting, $"logging in to {Ssh}");
-        if (!StartForward())
+        var link = _host.Links.Create(Ssh, _host.Prompter);
+        _link = link;
+        try
         {
-            SetStatus(SessionStatus.Disconnected, LastError ?? "ssh could not start");
-            return false;
+            await link.ConnectAsync(CancellationToken.None);
+        }
+        catch (SshLinkException error)
+        {
+            return await FailAsync(link, error.Message, report: error.Reason != SshLinkReason.Cancelled);
         }
 
-        var ssh = _ssh!;
-        if (!await WaitForLoginAsync())
+        if (_disconnecting || _host.ShuttingDown)
         {
-            var exited = ssh.HasExited;
-            LastError = exited
-                ? $"ssh to {Ssh} exited with {ssh.ExitCode}" + Detail()
-                : "the login was interrupted";
-            if (exited)
-            {
-                Log.Error($"{LastError}");
-                _relay?.Report();
-            }
+            return await FailAsync(link, "the login was interrupted", report: false);
+        }
 
-            SetStatus(SessionStatus.Disconnected, LastError);
-            if (!_disconnecting && !_host.ShuttingDown)
-            {
-                Ended?.Invoke(this, 1);
-            }
+        var acceptor = EnsureAcceptor();
+        ISshListener listener;
+        try
+        {
+            listener = await link.ListenUnixAsync(_remoteSocket, CancellationToken.None);
+        }
+        catch (SshLinkException error)
+        {
+            return await FailAsync(link, error.Message, report: true);
+        }
 
-            return false;
+        _listener = listener;
+        _ = AcceptLoopAsync(link, listener, acceptor);
+
+        ISshCommand master;
+        try
+        {
+            master = await link.RunAsync(RemoteScript(), CancellationToken.None);
+        }
+        catch (SshLinkException error)
+        {
+            listener.Dispose();
+            return await FailAsync(link, error.Message, report: true);
+        }
+
+        _master = master;
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _scriptStarted = started;
+        _ = DrainAsync(master, _output, line => line == LoggedIn && started.TrySetResult());
+        if (!await WaitForScriptAsync(master, started))
+        {
+            var exited = master.Exited.IsCompleted;
+            var message = exited
+                ? $"the session script on {Ssh} exited with {master.Exited.Result}" + Detail()
+                : started.Task.IsCompleted
+                    ? "the login was interrupted"
+                    : $"the session script on {Ssh} did not start within {ScriptStartLimit.TotalSeconds:0} seconds" + Detail();
+            listener.Dispose();
+            master.Dispose();
+            return await FailAsync(link, message, report: !_disconnecting && !_host.ShuttingDown);
         }
 
         if (Settings.Audio && _audio is null)
         {
-            _audio = WayloniaAudio.TryStart(_host.Audio, Ssh, _controlPath, _sinkName, Settings.AudioFormat);
+            _audio = WayloniaAudio.TryStart(_host.Audio, Ssh, link, _sinkName, Settings.AudioFormat);
         }
 
         SetStatus(SessionStatus.Connected, $"connected to {Ssh}");
-        _ = WatchForwardAsync(ssh);
+        _ = WatchLinkAsync(link, master);
         if (Settings.Desktop is { } recipe)
         {
             var environment = DesktopSession.Environment(recipe, Settings.DesktopEnv, Settings.Gpu);
             var wrapper = DesktopSession.Wrapper(recipe, _displayName, recipe.Command, environment);
-            StartRemoteClient(wrapper, exportDisplay: false);
+            await StartRemoteClientAsync(wrapper, exportDisplay: false);
             SetStatus(SessionStatus.Connected, $"starting {recipe.Name} on {Ssh}");
-            _ = WatchArrivalAsync(ssh, recipe.Name);
+            _ = WatchArrivalAsync(link, master, recipe.Name);
         }
         else
         {
             if (Settings.Command is { } command)
             {
-                StartRemoteClient(command);
-                _ = WatchArrivalAsync(ssh, command);
+                await StartRemoteClientAsync(command);
+                _ = WatchArrivalAsync(link, master, command);
             }
             else if (Settings.Autostart.Count == 0)
             {
@@ -183,7 +219,7 @@ internal sealed class SshSession : IDisposable
 
             foreach (var autostart in Settings.Autostart)
             {
-                StartRemoteClient(autostart);
+                await StartRemoteClientAsync(autostart);
             }
 
             _ = LoadApplicationsAsync();
@@ -192,9 +228,135 @@ internal sealed class SshSession : IDisposable
         return true;
     }
 
-    private string Detail() => _relay?.LastLine() is { } line ? $": {line}" : string.Empty;
+    private async Task<bool> FailAsync(ISshLink link, string message, bool report)
+    {
+        LastError = message;
+        if (report)
+        {
+            Log.Error($"{message}");
+            Report(_output);
+        }
 
-    private async Task WatchArrivalAsync(Process ssh, string what)
+        if (ReferenceEquals(link, _link))
+        {
+            _link = null;
+            _master = null;
+            _listener = null;
+            _scriptStarted = null;
+        }
+
+        await link.DisposeAsync();
+        SetStatus(SessionStatus.Disconnected, message);
+        if (!_disconnecting && !_host.ShuttingDown)
+        {
+            Ended?.Invoke(this, 1);
+        }
+
+        return false;
+    }
+
+    private string Detail() => _output.LastLine() is { } line ? $": {line}" : string.Empty;
+
+    private WaypipeAcceptor EnsureAcceptor()
+    {
+        if (_acceptor is { } existing)
+        {
+            return existing;
+        }
+
+        var acceptor = new WaypipeAcceptor(
+            Name, _host, Settings.Compression, Settings.Gpu, Settings.Video, Settings.VideoDecoder, Settings);
+        acceptor.Changed += () => Changed?.Invoke(this);
+        acceptor.Failed += error =>
+        {
+            LastError = $"the channel listener failed: {error.Message}";
+            SetStatus(Status, LastError);
+        };
+        _acceptor = acceptor;
+        return acceptor;
+    }
+
+    private async Task AcceptLoopAsync(ISshLink link, ISshListener listener, WaypipeAcceptor acceptor)
+    {
+        try
+        {
+            while (await listener.AcceptAsync(CancellationToken.None) is { } stream)
+            {
+                if (!ReferenceEquals(link, _link) || _disposed)
+                {
+                    await stream.DisposeAsync();
+                    return;
+                }
+
+                acceptor.Adopt(stream);
+            }
+        }
+        catch (Exception error) when (error is IOException or ObjectDisposedException or InvalidOperationException)
+        {
+            if (ReferenceEquals(link, _link) && !_disconnecting)
+            {
+                acceptor.Fail(error);
+            }
+        }
+    }
+
+    private static async Task DrainAsync(ISshCommand command, OutputTail tail, Func<string, bool>? claim = null)
+    {
+        var errors = Task.Run(async () =>
+        {
+            try
+            {
+                await foreach (var line in command.ErrorLines(CancellationToken.None))
+                {
+                    tail.Add(line);
+                }
+            }
+            catch (Exception error) when (error is OperationCanceledException or ObjectDisposedException)
+            {
+            }
+        });
+        try
+        {
+            using var reader = new StreamReader(command.Output, new UTF8Encoding(false, false), false, 4096, leaveOpen: true);
+            while (await reader.ReadLineAsync() is { } line)
+            {
+                if (claim is not null && claim(line))
+                {
+                    continue;
+                }
+
+                tail.Add(line);
+            }
+        }
+        catch (Exception error) when (error is IOException or ObjectDisposedException or OperationCanceledException or InvalidOperationException)
+        {
+        }
+
+        await errors;
+    }
+
+    private static void Report(OutputTail tail)
+    {
+        foreach (var line in tail.Lines())
+        {
+            Log.Error($"ssh: {line}");
+        }
+    }
+
+    private async Task<bool> WaitForScriptAsync(ISshCommand master, TaskCompletionSource started)
+    {
+        await Task.WhenAny(started.Task, master.Exited, Task.Delay(ScriptStartLimit));
+        return started.Task.IsCompleted && !master.Exited.IsCompleted && !_host.ShuttingDown && !_disconnecting;
+    }
+
+    private static Task WhenLost(ISshLink link)
+    {
+        var lost = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        link.Lost.Register(() => lost.TrySetResult());
+        return lost.Task;
+    }
+
+    private async Task WatchArrivalAsync(ISshLink link, ISshCommand master, string what)
     {
         var acceptor = _acceptor!;
         var attachedTask = Task.Run(async () =>
@@ -204,20 +366,20 @@ internal sealed class SshSession : IDisposable
                 await Task.Delay(200);
             }
         });
-        await Task.WhenAny(attachedTask, ssh.WaitForExitAsync(), Task.Delay(TimeSpan.FromSeconds(30)));
-        if (acceptor.Attached > 0 || _disconnecting || _host.ShuttingDown || !ReferenceEquals(ssh, _ssh))
+        await Task.WhenAny(attachedTask, master.Exited, WhenLost(link), Task.Delay(TimeSpan.FromSeconds(30)));
+        if (acceptor.Attached > 0 || _disconnecting || _host.ShuttingDown || !ReferenceEquals(link, _link))
         {
             return;
         }
 
-        if (ssh.HasExited)
+        if (master.Exited.IsCompleted || link.Lost.IsCancellationRequested)
         {
             return;
         }
 
         LastError = $"no channel arrived from {Ssh} within 30 seconds of starting '{what}'";
         Log.Error($"{LastError}");
-        _relay?.Report();
+        Report(_output);
         SetStatus(SessionStatus.Connected, LastError);
         if (Settings.AdHoc)
         {
@@ -233,16 +395,9 @@ internal sealed class SshSession : IDisposable
             return false;
         }
 
-        try
+        if (await StartRemoteClientAsync(command) is null)
         {
-            if (StartRemoteClient(command) is null)
-            {
-                return false;
-            }
-        }
-        catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
-        {
-            Log.Warn($"{label}: '{command}' failed to start on {Ssh}: {error.Message}");
+            Log.Warn($"{label}: '{command}' failed to start on {Ssh}");
             return false;
         }
 
@@ -252,15 +407,28 @@ internal sealed class SshSession : IDisposable
 
     private async Task<bool> EnsureConnectedAsync()
     {
-        if (_ssh is not (null or { HasExited: true }))
+        Task<bool>? pending;
+        lock (_gate)
         {
-            return await WaitForLoginAsync();
+            pending = _connecting is { IsCompleted: false } connecting ? connecting : null;
+        }
+
+        if (pending is not null)
+        {
+            return await pending;
+        }
+
+        if (_link is { IsConnected: true } && Status == SessionStatus.Connected)
+        {
+            return true;
         }
 
         Log.Info($"the connection to {Ssh} is gone; opening it again");
         _host.Status($"reconnecting to {Ssh}");
         return await ConnectAsync();
     }
+
+    private ISshLink? LiveLink() => _link is { IsConnected: true } link && Status == SessionStatus.Connected ? link : null;
 
     public async Task LoadApplicationsAsync()
     {
@@ -277,7 +445,7 @@ internal sealed class SshSession : IDisposable
         IReadOnlyList<DesktopEntry> listable;
         try
         {
-            if (_ssh is null or { HasExited: true } || !await WaitForLoginAsync())
+            if (LiveLink() is null)
             {
                 Notice($"Disconnected from {Ssh}");
                 return;
@@ -291,7 +459,7 @@ internal sealed class SshSession : IDisposable
 
             listable = RemoteApplications.Parse(output, locale).Listable(currentDesktop);
         }
-        catch (Exception error) when (error is IOException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        catch (Exception error) when (error is IOException or InvalidOperationException)
         {
             Log.Warn($"{Name}: the application list could not be read: {error.Message}");
             Notice("The applications could not be read");
@@ -398,7 +566,7 @@ internal sealed class SshSession : IDisposable
 
     private async Task FetchIconsCoreAsync(IReadOnlyList<string> names)
     {
-        if (_host.Icons is not { } cache || _ssh is null or { HasExited: true } || Status != SessionStatus.Connected)
+        if (_host.Icons is not { } cache || LiveLink() is null)
         {
             return;
         }
@@ -408,7 +576,7 @@ internal sealed class SshSession : IDisposable
         {
             output = await ReadRemoteAsync("icons", RemoteIcons.Script(names), TimeSpan.FromSeconds(120));
         }
-        catch (Exception error) when (error is IOException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        catch (Exception error) when (error is IOException or InvalidOperationException)
         {
             Log.Warn($"{Name}: the icons could not be fetched: {error.Message}");
             return;
@@ -444,83 +612,67 @@ internal sealed class SshSession : IDisposable
         Changed?.Invoke(this);
     }
 
-    private ProcessStartInfo ControlledSsh(bool batch = false)
-    {
-        var info = new ProcessStartInfo("ssh")
-        {
-            UseShellExecute = false,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true,
-        };
-        if (batch)
-        {
-            info.ArgumentList.Add("-o");
-            info.ArgumentList.Add("BatchMode=yes");
-        }
-
-        if (_controlPath is { } control)
-        {
-            info.ArgumentList.Add("-o");
-            info.ArgumentList.Add($"ControlPath={control}");
-            info.ArgumentList.Add("-o");
-            info.ArgumentList.Add("ControlMaster=no");
-        }
-
-        info.ArgumentList.Add(Ssh);
-        return info;
-    }
-
     private Task<string?> ReadRemoteApplicationsAsync(DesktopLocale locale) =>
         ReadRemoteAsync("applications", RemoteApplications.Script(locale), TimeSpan.FromSeconds(90));
 
     private async Task<string?> ReadRemoteAsync(string what, string script, TimeSpan limit)
     {
-        var info = ControlledSsh();
-        info.StandardOutputEncoding = System.Text.Encoding.UTF8;
-        info.ArgumentList.Add(script);
-        using var listing = Process.Start(info);
-        if (listing is null)
+        if (LiveLink() is not { } link)
         {
             return null;
         }
 
-        var relay = new Relay(what);
-        relay.Watch(listing.StandardError);
-        var output = listing.StandardOutput.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(limit);
+        ISshCommand command;
         try
         {
-            await listing.WaitForExitAsync(timeout.Token);
+            command = await link.RunAsync(script, CancellationToken.None);
         }
-        catch (OperationCanceledException)
+        catch (SshLinkException error)
         {
-            Log.Warn($"reading the {what} on {Ssh} took over {limit.TotalSeconds:0} s; giving up");
-            listing.Kill();
+            Log.Warn($"reading the {what} on {Ssh} failed: {error.Message}");
             return null;
         }
 
-        if (listing.ExitCode != 0)
+        using (command)
         {
-            Log.Warn($"reading the {what} on {Ssh} exited with {listing.ExitCode}");
-            relay.Report();
-        }
+            var errors = new OutputTail();
+            var drain = Task.Run(async () =>
+            {
+                await foreach (var line in command.ErrorLines(CancellationToken.None))
+                {
+                    errors.Add(line);
+                    _output.Add(line);
+                }
+            });
+            using var timeout = new CancellationTokenSource(limit);
+            try
+            {
+                using var reader = new StreamReader(command.Output, new UTF8Encoding(false, false), false, 4096, leaveOpen: true);
+                var text = await reader.ReadToEndAsync(timeout.Token);
+                var code = await command.Exited.WaitAsync(timeout.Token);
+                if (code != 0)
+                {
+                    Log.Warn($"reading the {what} on {Ssh} exited with {code}");
+                    await drain;
+                    Report(errors);
+                }
 
-        return await output;
+                return text;
+            }
+            catch (OperationCanceledException)
+            {
+                Log.Warn($"reading the {what} on {Ssh} took over {limit.TotalSeconds:0} s; giving up");
+                return null;
+            }
+        }
     }
 
     private string RemoteLang =>
         Settings.Lang is { } lang ? $"if [ -z \"$LANG\" ]; then LANG={lang}; export LANG; fi; " : string.Empty;
 
-    private Process? StartRemoteClient(string command, bool exportDisplay = true)
+    internal string ClientScript(string command, bool exportDisplay = true)
     {
-        if (Status != SessionStatus.Connected)
-        {
-            Log.Warn($"'{command}' cannot start on {Ssh}: the remote session is not up");
-            return null;
-        }
-
         var quoted = command.Replace("'", "'\\''", StringComparison.Ordinal);
-        var info = ControlledSsh();
         var pulse = Settings.Audio
             ? $"PULSE_SINK={_sinkName} PIPEWIRE_NODE={_sinkName} "
             : string.Empty;
@@ -530,17 +682,32 @@ internal sealed class SshSession : IDisposable
         var display = exportDisplay
             ? $"if [ -s {_xDisplayFile} ]; then DISPLAY=$(cat {_xDisplayFile}); export DISPLAY; fi; "
             : string.Empty;
-        info.ArgumentList.Add(
+        return
             RemoteRuntimeDir +
             RemoteLang +
             $"d=\"$XDG_RUNTIME_DIR/{_displayName}\"; i=0; " +
             $"while [ ! -S \"$d\" ] && [ $i -lt 50 ]; do sleep 0.2; i=$((i+1)); done; " +
             display +
             gtkConfig +
-            $"{pulse}XDG_SESSION_TYPE=wayland WAYLAND_DISPLAY={_displayName} sh -c '{quoted}'");
-        var started = Process.Start(info);
-        if (started is null)
+            $"{pulse}XDG_SESSION_TYPE=wayland WAYLAND_DISPLAY={_displayName} sh -c '{quoted}'";
+    }
+
+    private async Task<ISshCommand?> StartRemoteClientAsync(string command, bool exportDisplay = true)
+    {
+        if (LiveLink() is not { } link)
         {
+            Log.Warn($"'{command}' cannot start on {Ssh}: the remote session is not up");
+            return null;
+        }
+
+        ISshCommand started;
+        try
+        {
+            started = await link.RunAsync(ClientScript(command, exportDisplay), CancellationToken.None);
+        }
+        catch (SshLinkException error)
+        {
+            Log.Warn($"'{command}' failed to start on {Ssh}: {error.Message}");
             return null;
         }
 
@@ -549,28 +716,32 @@ internal sealed class SshSession : IDisposable
             _launched.Add(started);
         }
 
-        var relay = new Relay(command);
-        relay.Watch(started.StandardOutput);
-        relay.Watch(started.StandardError);
-        _ = WatchClientAsync(started, relay, command);
+        _ = WatchClientAsync(started, command);
         return started;
     }
 
-    private async Task WatchClientAsync(Process client, Relay relay, string command)
+    private async Task WatchClientAsync(ISshCommand client, string command)
     {
-        await client.WaitForExitAsync();
+        var tail = new OutputTail();
+        var drained = DrainAsync(client, tail);
+        var code = await client.Exited;
+        await drained;
         lock (_launched)
         {
             _launched.Remove(client);
         }
 
-        if (_host.ShuttingDown || _disconnecting || client.ExitCode == 0)
+        client.Dispose();
+        if (_host.ShuttingDown || _disconnecting || code == 0)
         {
             return;
         }
 
-        Log.Warn($"'{command}' exited with {client.ExitCode}");
-        relay.Report();
+        Log.Warn($"'{command}' exited with {code}");
+        foreach (var line in tail.Lines())
+        {
+            Log.Error($"{command}: {line}");
+        }
     }
 
     internal string RemoteScript()
@@ -622,150 +793,47 @@ internal sealed class SshSession : IDisposable
             "exit $status";
     }
 
-    private bool StartForward()
+    internal string RemoveSocketScript()
     {
-        if (_acceptor is null)
-        {
-            var acceptor = new WaypipeAcceptor(
-                Name, _host, Settings.Compression, Settings.Gpu, Settings.Video, Settings.VideoDecoder, Settings);
-            acceptor.Changed += () => Changed?.Invoke(this);
-            acceptor.Failed += error =>
-            {
-                LastError = $"the channel listener failed: {error.Message}";
-                SetStatus(Status, LastError);
-            };
-            System.Net.Sockets.Socket listener;
-            try
-            {
-                if (OperatingSystem.IsWindows())
-                {
-                    listener = WaypipeAcceptor.Listen(new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 0));
-                    _forwardTarget = $"127.0.0.1:{((System.Net.IPEndPoint)listener.LocalEndPoint!).Port}";
-                }
-                else
-                {
-                    var runtimeDir = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") ?? Path.GetTempPath();
-                    var path = Path.Combine(runtimeDir, $"waylonia-ssh-{_tag}.sock");
-                    if (File.Exists(path))
-                    {
-                        File.Delete(path);
-                    }
-
-                    listener = WaypipeAcceptor.Listen(new System.Net.Sockets.UnixDomainSocketEndPoint(path));
-                    _forwardTarget = path;
-                }
-            }
-            catch (Exception error) when (error is System.Net.Sockets.SocketException or IOException or UnauthorizedAccessException)
-            {
-                LastError = $"the channel listener failed: {error.Message}";
-                Log.Error($"{Name}: {LastError}");
-                return false;
-            }
-
-            _acceptor = acceptor;
-            acceptor.Accept(listener);
-        }
-
-        var info = new ProcessStartInfo("ssh")
-        {
-            UseShellExecute = false,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true,
-            RedirectStandardInput = true,
-        };
-        AskPass.Configure(info.Environment, _host.AskPassSocket);
-        info.ArgumentList.Add("-o");
-        info.ArgumentList.Add("StreamLocalBindUnlink=yes");
-        info.ArgumentList.Add("-o");
-        info.ArgumentList.Add("ExitOnForwardFailure=yes");
-        if (!OperatingSystem.IsWindows())
-        {
-            var controlDir = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") ?? Path.GetTempPath();
-            _controlPath = Path.Combine(controlDir, $"waylonia-ssh-{_tag}.ctl");
-            try
-            {
-                File.Delete(_controlPath);
-            }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-            {
-            }
-
-            info.ArgumentList.Add("-o");
-            info.ArgumentList.Add("ControlMaster=auto");
-            info.ArgumentList.Add("-o");
-            info.ArgumentList.Add($"ControlPath={_controlPath}");
-            info.ArgumentList.Add("-o");
-            info.ArgumentList.Add("ControlPersist=no");
-        }
-
-        info.ArgumentList.Add("-R");
-        info.ArgumentList.Add($"{_remoteSocket}:{_forwardTarget}");
-        info.ArgumentList.Add(Ssh);
-        info.ArgumentList.Add(RemoteScript());
-        Process? ssh;
-        try
-        {
-            ssh = Process.Start(info);
-        }
-        catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
-        {
-            LastError = $"ssh could not start: {error.Message}";
-            Log.Error($"{LastError}");
-            return false;
-        }
-
-        if (ssh is null)
-        {
-            LastError = "ssh could not start";
-            Log.Error($"{LastError}");
-            return false;
-        }
-
-        var loggedIn = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        _loggedIn = loggedIn;
-        _relay = new Relay("ssh");
-        _relay.Watch(ssh.StandardOutput, line => line == LoggedIn && loggedIn.TrySetResult());
-        _relay.Watch(ssh.StandardError);
-        _ssh = ssh;
-        return true;
+        var removeConfig = _configDir is { } configDir ? $"; rm -rf {configDir}" : string.Empty;
+        return RemoteRuntimeDir + $"rm -f {_remoteSocket} {_xDisplayFile} \"$XDG_RUNTIME_DIR/{_displayName}\"{removeConfig}";
     }
 
-    private async Task<bool> WaitForLoginAsync()
+    private async Task WatchLinkAsync(ISshLink link, ISshCommand master)
     {
-        if (_ssh is not { } ssh || _loggedIn is not { } loggedIn)
-        {
-            return false;
-        }
-
-        await Task.WhenAny(loggedIn.Task, ssh.WaitForExitAsync());
-        return loggedIn.Task.IsCompleted && !ssh.HasExited && !_host.ShuttingDown && !_disconnecting;
-    }
-
-    private async Task WatchForwardAsync(Process ssh)
-    {
-        await ssh.WaitForExitAsync();
-        if (_host.ShuttingDown || _disconnecting || !ReferenceEquals(ssh, _ssh))
+        await Task.WhenAny(WhenLost(link), master.Exited);
+        if (_host.ShuttingDown || _disconnecting || !ReferenceEquals(link, _link))
         {
             return;
         }
 
         var hadClients = HadClients;
-        LastError = ssh.ExitCode == 0
-            ? $"the connection to {Ssh} ended"
-            : $"ssh to {Ssh} exited with {ssh.ExitCode}" + Detail();
-        if (hadClients)
+        var code = master.Exited.IsCompleted ? master.Exited.Result : -1;
+        var clean = code == 0;
+        LastError = code > 0
+            ? $"the session script on {Ssh} exited with {code}" + Detail()
+            : $"the connection to {Ssh} ended";
+        if (hadClients || clean)
         {
             Log.Info($"the connection to {Ssh} ended");
         }
         else
         {
             Log.Error($"{LastError}");
-            _relay?.Report();
+            Report(_output);
         }
 
+        StopClients();
+        _listener?.Dispose();
+        master.Dispose();
+        await link.DisposeAsync();
         ReleaseLocal();
+        _link = null;
+        _master = null;
+        _listener = null;
+        _scriptStarted = null;
         SetStatus(SessionStatus.Disconnected, $"disconnected from {Ssh}");
-        Ended?.Invoke(this, ssh.ExitCode == 0 ? 0 : 1);
+        Ended?.Invoke(this, clean ? 0 : 1);
     }
 
     private void ReleaseLocal()
@@ -773,21 +841,11 @@ internal sealed class SshSession : IDisposable
         _audio?.Dispose();
         _audio = null;
         _acceptor?.CloseChannels();
-        if (_controlPath is { } control)
-        {
-            try
-            {
-                File.Delete(control);
-            }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-            {
-            }
-        }
     }
 
     public bool StopClients()
     {
-        Process[] launched;
+        ISshCommand[] launched;
         lock (_launched)
         {
             launched = [.. _launched];
@@ -796,7 +854,8 @@ internal sealed class SshSession : IDisposable
 
         foreach (var client in launched)
         {
-            Basin.Diagnostics.BasinDiagnostics.StopClient(client);
+            client.TrySignal("TERM");
+            client.Dispose();
         }
 
         return launched.Length > 0;
@@ -804,7 +863,7 @@ internal sealed class SshSession : IDisposable
 
     public async Task DisconnectAsync()
     {
-        if (_ssh is null && Status == SessionStatus.Disconnected)
+        if (_link is null && Status == SessionStatus.Disconnected)
         {
             return;
         }
@@ -817,58 +876,46 @@ internal sealed class SshSession : IDisposable
 
         _audio?.Dispose();
         _audio = null;
-        if (_ssh is { } ssh)
+        if (_link is { } link)
         {
-            await Task.Run(RemoveRemoteSocket);
-            if (!ssh.HasExited)
-            {
-                try
-                {
-                    ssh.Kill(entireProcessTree: true);
-                }
-                catch (InvalidOperationException)
-                {
-                }
-            }
+            await RemoveRemoteSocketAsync(link);
+            _listener?.Dispose();
+            _master?.Dispose();
+            await link.DisposeAsync();
         }
 
         ReleaseLocal();
-        _ssh = null;
-        _loggedIn = null;
+        _link = null;
+        _master = null;
+        _listener = null;
+        _scriptStarted = null;
         Applications = null;
         ApplicationsNotice = null;
         SetStatus(SessionStatus.Disconnected, $"disconnected from {Ssh}");
     }
 
-    private void RemoveRemoteSocket()
+    private async Task RemoveRemoteSocketAsync(ISshLink link)
     {
-        if (_ssh is null or { HasExited: true })
+        if (!link.IsConnected)
         {
             return;
         }
 
-        var info = ControlledSsh(batch: true);
-        var removeConfig = _configDir is { } configDir ? $"; rm -rf {configDir}" : string.Empty;
-        info.ArgumentList.Add(
-            RemoteRuntimeDir +
-            $"rm -f {_remoteSocket} {_xDisplayFile} \"$XDG_RUNTIME_DIR/{_displayName}\"{removeConfig}");
         try
         {
-            using var remove = Process.Start(info);
-            if (remove is null)
+            using var remove = await link.RunAsync(RemoveSocketScript(), CancellationToken.None).WaitAsync(SocketRemovalLimit);
+            var complaints = new OutputTail();
+            var drain = DrainAsync(remove, complaints);
+            var code = await remove.Exited.WaitAsync(SocketRemovalLimit);
+            if (code != 0)
             {
-                return;
-            }
-
-            var complaint = remove.StandardError.ReadToEndAsync();
-            if (remove.WaitForExit(2000) && remove.ExitCode != 0)
-            {
-                Log.Debug($"{_remoteSocket} may still exist on {Ssh}: {SshVis.Unescape(complaint.Result.Trim())}");
+                await drain.WaitAsync(SocketRemovalLimit);
+                Log.Debug($"{_remoteSocket} may still exist on {Ssh}: {complaints.LastLine()}");
             }
         }
-        catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
+        catch (Exception error) when (error is SshLinkException or TimeoutException or IOException)
         {
-            Log.Warn($"{_remoteSocket} could not be removed from {Ssh}: {error.Message}");
+            Log.Debug($"{_remoteSocket} could not be removed from {Ssh}: {error.Message}");
         }
     }
 
@@ -892,44 +939,25 @@ internal sealed class SshSession : IDisposable
         StopClients();
         _audio?.Dispose();
         _audio = null;
-        if (_ssh is { } ssh)
-        {
-            RemoveRemoteSocket();
-            if (!ssh.HasExited)
-            {
-                try
-                {
-                    ssh.Kill(entireProcessTree: true);
-                }
-                catch (InvalidOperationException)
-                {
-                }
-            }
-        }
-
-        if (_controlPath is { } control)
+        if (_link is { } link)
         {
             try
             {
-                File.Delete(control);
+                RemoveRemoteSocketAsync(link).Wait(SocketRemovalLimit + SocketRemovalLimit);
             }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            catch (AggregateException)
             {
             }
+
+            _listener?.Dispose();
+            _master?.Dispose();
+            link.DisposeAsync().AsTask().Wait();
+            _link = null;
+            _master = null;
+            _listener = null;
         }
 
         _acceptor?.Dispose();
-        if (!OperatingSystem.IsWindows() && _forwardTarget is { } forward)
-        {
-            try
-            {
-                File.Delete(forward);
-            }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-            {
-            }
-        }
-
         Status = SessionStatus.Disconnected;
     }
 }

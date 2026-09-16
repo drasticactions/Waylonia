@@ -111,6 +111,18 @@ public sealed class ConfigTests : IDisposable
     }
 
     [Fact]
+    public void Ssh_timeout_defaults_to_thirty_seconds_and_refuses_nonsense()
+    {
+        using var capture = new LogCapture();
+        Assert.Equal(30, Load(Write("compress = \"none\"")).SshTimeout);
+        Assert.Equal(30, Load(Write("compress = \"none\"")).Host.SshTimeout);
+        Assert.Equal(5, Load(Write("[host]\nssh-timeout = 5")).SshTimeout);
+        Assert.Equal(30, Load(Write("[host]\nssh-timeout = 0")).SshTimeout);
+        Assert.Equal(30, Config.Load(false, Write("[host]\nssh-timeout = \"soon\""), BasinLog.For("test")).SshTimeout);
+        Assert.Contains(capture.Lines, line => line.Contains("ssh-timeout takes 1 to 3600 seconds", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void The_sessions_directory_sits_beside_the_config_file()
     {
         var config = Load(Write("compress = \"none\""));

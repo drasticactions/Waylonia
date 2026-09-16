@@ -18,7 +18,7 @@ using static Waylonia.WayloniaLog;
 
 namespace Waylonia;
 
-internal sealed class WayloniaApp : Application, ISessionHost
+internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
 {
     private static WayloniaRun? _run;
     private static ConfigValues? _startup;
@@ -66,7 +66,7 @@ internal sealed class WayloniaApp : Application, ISessionHost
     private bool _shellStarted;
     private bool _dragUnsupportedReported;
 
-    private AskPassServer? _askPass;
+    private readonly TmdsSshLinkFactory _links = new(static () => TimeSpan.FromSeconds(_run!.Host.SshTimeout), Log);
     private readonly HostIcons _hostIcons = new();
     private readonly IconCache _iconCache = new(IconCache.DefaultRoot());
 
@@ -139,7 +139,9 @@ internal sealed class WayloniaApp : Application, ISessionHost
 
     private bool Nested => _run!.Host.Shell == ShellMode.Nested;
 
-    string? ISessionHost.AskPassSocket => _askPass?.Path;
+    ISshLinkFactory ISessionHost.Links => _links;
+
+    ISshPrompter ISessionHost.Prompter => this;
 
     public static long Rendered => Interlocked.Read(ref _rendered);
 
@@ -499,11 +501,6 @@ internal sealed class WayloniaApp : Application, ISessionHost
         }
 
         window.ActualThemeVariantChanged += (_, _) => _chrome?.ApplyThemeVariant();
-        if (_chrome is not null)
-        {
-            _askPass ??= AskPassServer.TryStart(AskPassServer.DefaultPath(), AskInShellAsync, Log);
-        }
-
         CreateCapture(host);
         RefreshPanelSessions();
         RefreshPanelApplications();
@@ -519,21 +516,42 @@ internal sealed class WayloniaApp : Application, ISessionHost
         }
     }
 
-    private Task<string?> AskInShellAsync(string prompt)
+    Task<string?> ISshPrompter.AskSecretAsync(SshSecretPrompt prompt, CancellationToken cancellation)
+    {
+        ArgumentNullException.ThrowIfNull(prompt);
+        return AskAsync(SshPromptText.For(prompt), AskPassKind.Password, cancellation);
+    }
+
+    async Task<bool> ISshPrompter.ConfirmHostKeyAsync(SshHostKeyPrompt prompt, CancellationToken cancellation)
+    {
+        ArgumentNullException.ThrowIfNull(prompt);
+        return await AskAsync(SshPromptText.For(prompt), AskPassKind.YesNo, cancellation) is "yes";
+    }
+
+    private Task<string?> AskAsync(string prompt, AskPassKind kind, CancellationToken cancellation)
     {
         var answered = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        cancellation.Register(() => answered.TrySetResult(null));
         Dispatcher.UIThread.Post(() =>
         {
-            if (_chrome is { } chrome && !_shuttingDown)
-            {
-                _ = chrome.AskPass(prompt).ContinueWith(
-                    task => answered.TrySetResult(task.IsCompletedSuccessfully ? task.Result : null),
-                    TaskScheduler.Default);
-            }
-            else
+            if (_shuttingDown)
             {
                 answered.TrySetResult(null);
+                return;
             }
+
+            if (_chrome is { } chrome)
+            {
+                _ = chrome.AskPass(prompt, kind).ContinueWith(
+                    task => answered.TrySetResult(task.IsCompletedSuccessfully ? task.Result : null),
+                    TaskScheduler.Default);
+                return;
+            }
+
+            var window = new AskPassWindow(prompt, kind);
+            window.Closed += (_, _) => answered.TrySetResult(window.Answer);
+            window.Show();
+            window.Activate();
         });
         return answered.Task;
     }
@@ -1429,8 +1447,6 @@ internal sealed class WayloniaApp : Application, ISessionHost
         _exitStatus = status;
         _capture?.Dispose();
         _capture = null;
-        _askPass?.Dispose();
-        _askPass = null;
         _globalHotkeys?.Dispose();
         _globalHotkeys = null;
         HostCursor.Close();

@@ -37,6 +37,8 @@ internal sealed class Config
 
     public bool SessionTitles { get; private set; } = true;
 
+    public int SshTimeout { get; private set; } = ConfigValues.DefaultSshTimeout;
+
     public string CaptureChord { get; private set; } = ConfigValues.DefaultCaptureChord;
 
     public ShellMode Shell { get; private set; }
@@ -63,12 +65,12 @@ internal sealed class Config
     public IReadOnlyList<Hotkey> Hotkeys { get; private set; } = [];
 
     public HostSettings Host => new(
-        XWayland, Tray, TrayApps, Clipboard, Drag, FollowCursor, GtkDpi, CaptureChord, SessionTitles,
+        XWayland, Tray, TrayApps, Clipboard, Drag, FollowCursor, GtkDpi, CaptureChord, SessionTitles, SshTimeout,
         Hotkeys, Terminal, CurrentDesktop, Shell);
 
     public ConfigValues Values => new(
         Compress, Gpu, Audio, Video, Socket, Command, Terminal, CurrentDesktop, Lang,
-        XWayland, Tray, TrayApps, Clipboard, Drag, FollowCursor, GtkDpi, SessionTitles, CaptureChord,
+        XWayland, Tray, TrayApps, Clipboard, Drag, FollowCursor, GtkDpi, SessionTitles, SshTimeout, CaptureChord,
         Hotkeys, Desktops.Values.ToArray(), Shell, ShellSettings, Panel);
 
     public static Config Load(bool skipFile, string? path, BasinLogger log)
@@ -137,6 +139,18 @@ internal sealed class Config
             config.FollowCursor = Toggle(hostTable, "follow-cursor", config.FollowCursor);
             config.GtkDpi = Toggle(hostTable, "gtk-dpi", config.GtkDpi);
             config.SessionTitles = Toggle(hostTable, "session-titles", config.SessionTitles);
+            if (hostTable.TryGetValue("ssh-timeout", out var timeout))
+            {
+                if (timeout is long seconds && seconds >= 1 && seconds <= ConfigValues.MaxSshTimeout)
+                {
+                    config.SshTimeout = (int)seconds;
+                }
+                else
+                {
+                    log.Warn($"[host] ssh-timeout takes 1 to {ConfigValues.MaxSshTimeout} seconds, ignoring '{timeout}'");
+                }
+            }
+
             if (hostTable.TryGetValue("capture-chord", out var chord)
                 && chord is string chordText
                 && chordText.Trim().Length > 0)
@@ -300,6 +314,8 @@ internal sealed class Config
             #gtk-dpi = true
             # End every window title with " — NAME", the session it belongs to.
             #session-titles = true
+            # How long a session waits for its ssh server to answer, in seconds.
+            #ssh-timeout = 30
             # One host window per client window ("windows"), or one window
             # holding a Waylonia-managed desktop with frames and a panel
             # ("nested"). Takes effect when waylonia restarts.
@@ -316,6 +332,16 @@ internal sealed class Config
             # like this:
             #
             #   ssh = "user@devbox"
+            #
+            # ssh is a destination, user@host or host[:port] or a Host alias,
+            # resolved through ~/.ssh/config the way OpenSSH does it (Host,
+            # Match, HostName, User, Port, IdentityFile, ProxyJump...). The
+            # login runs inside waylonia, with default keys and the agent; a
+            # password or a passphrase for a default key is asked in a dialog.
+            # An encrypted key that only IdentityFile names, a FIDO key and a
+            # PKCS#11 token need an agent. keyboard-interactive (PAM one-time
+            # codes) and ProxyCommand are not supported.
+            #
             #   command = "tmux new -A -s main"
             #   autostart = ["foot", "firefox"]
             #   compress = "none"
