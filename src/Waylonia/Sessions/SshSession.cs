@@ -170,7 +170,7 @@ internal sealed class SshSession : IDisposable
             }
             else if (Settings.Autostart.Count == 0)
             {
-                Log.Info($"holding the channel to {Ssh} open; clients attach as they start");
+                Log.Info($"{Ssh} is open, waiting for client");
                 SetStatus(SessionStatus.Connected, $"connected to {Ssh}, waiting for a client");
             }
 
@@ -618,7 +618,7 @@ internal sealed class SshSession : IDisposable
             : $"ssh to {Ssh} exited with {ssh.ExitCode}" + Detail();
         if (hadClients)
         {
-            Log.Info($"the connection to {Ssh} ended; a hotkey or the tray opens it again");
+            Log.Info($"the connection to {Ssh} ended");
         }
         else
         {

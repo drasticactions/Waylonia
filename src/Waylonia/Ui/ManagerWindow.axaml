@@ -28,15 +28,24 @@
     <Menu DockPanel.Dock="Top" x:Name="MenuBar">
       <MenuItem Header="Session">
         <MenuItem Header="New" Command="{Binding NewSessionCommand}" />
-        <MenuItem Header="Save" Command="{Binding SaveSessionCommand}" />
-        <MenuItem Header="Delete" Command="{Binding DeleteSessionCommand}" />
-        <Separator />
-        <MenuItem Header="{Binding ConnectLabel}" Command="{Binding ToggleConnectionCommand}" />
       </MenuItem>
       <MenuItem Header="Settings" Command="{Binding OpenSettingsCommand}" />
     </Menu>
+    <StackPanel DockPanel.Dock="Top" x:Name="Toolbar" Orientation="Horizontal" Spacing="6" Margin="12,6,12,0">
+      <Button x:Name="NewButton" Content="New" Command="{Binding NewSessionCommand}" />
+      <Button x:Name="SaveButton" Content="Save" Command="{Binding SaveSessionCommand}" />
+      <Button x:Name="DeleteButton" Content="Delete" Command="{Binding DeleteSessionCommand}" />
+      <Button x:Name="ConnectButton" Content="{Binding ConnectLabel}" Command="{Binding ToggleConnectionCommand}" />
+    </StackPanel>
     <Grid ColumnDefinitions="240,*">
-      <ListBox Grid.Column="0" Margin="12" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}">
+      <ListBox x:Name="SessionList" Grid.Column="0" Margin="12" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}">
+        <ListBox.ContextMenu>
+          <ContextMenu x:Name="RowMenu">
+            <MenuItem Header="{Binding ConnectLabel}" Command="{Binding ToggleConnectionCommand}" />
+            <MenuItem Header="Save" Command="{Binding SaveSessionCommand}" />
+            <MenuItem Header="Delete" Command="{Binding DeleteSessionCommand}" />
+          </ContextMenu>
+        </ListBox.ContextMenu>
         <ListBox.ItemTemplate>
           <DataTemplate x:DataType="ui:SessionRowViewModel">
             <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="2" />

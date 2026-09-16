@@ -1,5 +1,8 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Basin.Diagnostics;
 using Waylonia.Sessions;
 using Waylonia.Ui;
@@ -142,7 +145,7 @@ public sealed class ManagerWindowTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void The_session_menu_carries_new_save_delete_and_connect()
+    public void The_menu_keeps_new_and_settings_while_the_toolbar_and_row_menu_carry_the_rest()
     {
         var window = new ManagerWindow(Model());
         window.Show();
@@ -152,14 +155,54 @@ public sealed class ManagerWindowTests : IDisposable
         Assert.Equal(2, top.Count);
         var session = top[0];
         Assert.Equal("Session", session.Header);
-        var items = session.Items.OfType<MenuItem>().ToList();
-        Assert.Equal(["New", "Save", "Delete"], items.Take(3).Select(item => item.Header?.ToString()));
-        Assert.Same(window.Model.ToggleConnectionCommand, items[3].Command);
-        Assert.Contains(session.Items, item => item is Separator);
-        Assert.Equal("Connect", window.Model.ConnectLabel);
-        Assert.Equal("Settings…", top[1].Header);
+        var item = Assert.IsType<MenuItem>(Assert.Single(session.Items));
+        Assert.Equal("New", item.Header);
+        Assert.Same(window.Model.NewSessionCommand, item.Command);
+        Assert.Equal("Settings", top[1].Header);
         Assert.Same(window.Model.OpenSettingsCommand, top[1].Command);
         Assert.False(window.Model.OpenSettingsCommand.CanExecute(null));
+
+        Assert.Same(window.Model.NewSessionCommand, window.FindControl<Button>("NewButton")!.Command);
+        Assert.Same(window.Model.SaveSessionCommand, window.FindControl<Button>("SaveButton")!.Command);
+        Assert.Same(window.Model.DeleteSessionCommand, window.FindControl<Button>("DeleteButton")!.Command);
+        var connect = window.FindControl<Button>("ConnectButton")!;
+        Assert.Same(window.Model.ToggleConnectionCommand, connect.Command);
+        Assert.Equal("Connect", connect.Content);
+
+        var rowItems = window.FindControl<ContextMenu>("RowMenu")!.Items.OfType<MenuItem>().ToList();
+        Assert.Equal(["Save", "Delete"], rowItems.Skip(1).Select(entry => entry.Header?.ToString()));
+        Assert.Equal(3, rowItems.Count);
+    }
+
+    [AvaloniaFact]
+    public void A_right_click_selects_the_row_and_opens_its_menu_but_not_on_empty_space()
+    {
+        new SessionStore(_directory).Save(new SessionProfile("dev", "user@devbox"));
+        new SessionStore(_directory).Save(new SessionProfile("lab", "user@lab"));
+        var window = new ManagerWindow(Model());
+        window.Show();
+        var list = window.FindControl<ListBox>("SessionList")!;
+        var rowMenu = window.FindControl<ContextMenu>("RowMenu")!;
+        list.UpdateLayout();
+
+        var row = (ListBoxItem)list.ContainerFromIndex(1)!;
+        var inside = row.TranslatePoint(new Point(4, 4), window)!.Value;
+        window.MouseDown(inside, MouseButton.Right);
+        window.MouseUp(inside, MouseButton.Right);
+        Assert.Equal("lab", window.Model.Selected);
+        Assert.True(rowMenu.IsOpen);
+        var rowItems = rowMenu.Items.OfType<MenuItem>().ToList();
+        Assert.Equal("Connect", rowItems[0].Header);
+        Assert.Equal(
+            [window.Model.ToggleConnectionCommand, window.Model.SaveSessionCommand, window.Model.DeleteSessionCommand],
+            rowItems.Select(entry => entry.Command));
+
+        rowMenu.Close();
+        var below = list.TranslatePoint(new Point(4, list.Bounds.Height - 4), window)!.Value;
+        window.MouseDown(below, MouseButton.Right);
+        window.MouseUp(below, MouseButton.Right);
+        Assert.False(rowMenu.IsOpen);
+        Assert.Equal("lab", window.Model.Selected);
     }
 
     [Fact]

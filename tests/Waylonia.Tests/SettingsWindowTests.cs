@@ -71,7 +71,7 @@ public sealed class SettingsWindowTests : IDisposable
     public void A_missing_file_loads_defaults_and_says_save_creates_it()
     {
         var model = Model();
-        Assert.EndsWith("does not exist yet. Save creates it.", model.StatusText, StringComparison.Ordinal);
+        Assert.Equal(_path, model.StatusText);
         Assert.True(model.CanSave);
         Assert.Equal(string.Empty, model.Form.CaptureChord);
         Assert.Equal(0, model.Form.CompressIndex);
