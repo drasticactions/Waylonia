@@ -26,7 +26,7 @@ public sealed class NestedShellChromeTests
         var client = harness.MapToplevel(title: "client", serverDecorated: true);
         var clientWindow = Assert.Single(shell.Windows);
 
-        using var ui = global::Basin.UI.Avalonia.BasinPlatform.Attach(new BasinPlatformOptions
+        using var ui = BasinPlatform.Attach(new BasinPlatformOptions
         {
             Screens = new ShellScreenSource(shell.Output, shell.Scale),
             CompositorAffinity = harness.Host.Affinity,

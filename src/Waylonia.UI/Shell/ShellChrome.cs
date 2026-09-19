@@ -66,7 +66,7 @@ internal sealed class ShellChrome : IDisposable
         _post = post;
         _log = log;
         _screens = new ShellScreenSource(shell.Output, shell.Scale);
-        _ui = global::Basin.UI.Avalonia.BasinPlatform.Attach(new BasinPlatformOptions
+        _ui = BasinPlatform.Attach(new BasinPlatformOptions
         {
             Screens = _screens,
             CompositorAffinity = shell.Host.Affinity,
