@@ -15,6 +15,8 @@ internal sealed partial class ManagerViewModel : ObservableObject
     private readonly Func<SessionProfile, Task<string?>> _connect;
     private readonly Func<string, Task> _disconnect;
     private readonly Action? _openSettings;
+    private readonly Func<Task<IReadOnlyList<PickedKey>>>? _pickKeys;
+    private readonly string? _sshDirectory;
     private SessionCatalog _catalog = SessionCatalog.Empty;
     private string? _editing;
     private bool _loading;
@@ -46,7 +48,9 @@ internal sealed partial class ManagerViewModel : ObservableObject
         BasinLogger log,
         Func<SessionProfile, Task<string?>> connect,
         Func<string, Task> disconnect,
-        Action? openSettings = null)
+        Action? openSettings = null,
+        Func<Task<IReadOnlyList<PickedKey>>>? pickKeys = null,
+        string? sshDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(registry);
@@ -58,6 +62,8 @@ internal sealed partial class ManagerViewModel : ObservableObject
         _connect = connect;
         _disconnect = disconnect;
         _openSettings = openSettings;
+        _pickKeys = pickKeys;
+        _sshDirectory = sshDirectory is { Length: > 0 } ? sshDirectory : null;
         _registry.Changed += OnRegistryChanged;
         Reload();
     }
@@ -129,6 +135,39 @@ internal sealed partial class ManagerViewModel : ObservableObject
     private void OpenSettings() => _openSettings?.Invoke();
 
     public bool CanOpenSettings => _openSettings is not null;
+
+    public bool CanImportKey => _pickKeys is not null && _sshDirectory is not null;
+
+    [RelayCommand(CanExecute = nameof(CanImportKey))]
+    public async Task ImportKeyAsync()
+    {
+        if (_pickKeys is not { } pick || _sshDirectory is not { } directory)
+        {
+            return;
+        }
+
+        IReadOnlyList<PickedKey> picked;
+        try
+        {
+            picked = await pick();
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or NotSupportedException)
+        {
+            Problem = $"No key was picked: {error.Message}";
+            return;
+        }
+
+        var results = new List<string>();
+        foreach (var key in picked)
+        {
+            using (key.Content)
+            {
+                results.Add(KeyImport.Import(directory, key.Name, key.Content) ?? $"Imported {key.Name}; the next connection offers it.");
+            }
+        }
+
+        Problem = results.Count == 0 ? null : string.Join('\n', results);
+    }
 
     public bool Save()
     {

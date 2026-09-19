@@ -4,7 +4,7 @@ namespace Waylonia.Shell;
 
 internal static class PanelApplets
 {
-    public const string AppletNames = "menu-bar, window-list, workspace-switcher, clock, show-desktop, launcher:NAME and spacer";
+    public const string AppletNames = "menu-bar, window-list, workspace-switcher, clock, show-desktop, launcher:NAME, spacer and keyboard";
 
     public static IReadOnlyList<PanelApplet> Parse(IReadOnlyList<string> names, string panel, BasinLogger log)
     {
@@ -43,6 +43,7 @@ internal static class PanelApplets
             "clock" => new PanelApplet(PanelAppletKind.Clock),
             "show-desktop" => new PanelApplet(PanelAppletKind.ShowDesktop),
             "spacer" => new PanelApplet(PanelAppletKind.Spacer),
+            "keyboard" => new PanelApplet(PanelAppletKind.Keyboard),
             _ => null,
         };
     }

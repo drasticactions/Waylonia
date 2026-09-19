@@ -50,6 +50,14 @@
     <Style Selector="Border.miniature.focused">
       <Setter Property="Background" Value="{DynamicResource PanelHighlightBrush}" />
     </Style>
+    <Style Selector="ToggleButton.keyboard">
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="Margin" Value="1,2" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
   </UserControl.Styles>
   <Border x:Name="Strip" Background="{DynamicResource PanelBackgroundBrush}" Padding="2,0">
     <DockPanel LastChildFill="True">
@@ -140,6 +148,14 @@
           </DataTemplate>
           <DataTemplate DataType="uiapplets:ClockViewModel">
             <TextBlock Classes="clock" Text="{Binding Text}" VerticalAlignment="Center" Margin="6,0" />
+          </DataTemplate>
+          <DataTemplate DataType="applets:KeyboardViewModel">
+            <ToggleButton Classes="keyboard"
+                          IsChecked="{Binding Open, Mode=OneWay}"
+                          Command="{Binding ToggleCommand}"
+                          ToolTip.Tip="Keyboard">
+              <Image Source="{Binding IconPath, Converter={x:Static uiapplets:IconImageConverter.Instance}}" Width="16" Height="16" />
+            </ToggleButton>
           </DataTemplate>
           <DataTemplate DataType="applets:SpacerViewModel">
             <Border Classes="spacer" HorizontalAlignment="Stretch" />

@@ -11,11 +11,13 @@ internal static partial class DesktopHead
 
     public static WayloniaPaths Paths() => PlatformPaths();
 
+    public static IVideoDecoders Video { get; } = new FFmpegVideoDecoders();
+
     public static int Run(WayloniaRun run)
     {
         ArgumentNullException.ThrowIfNull(run);
         var links = new TmdsSshLinkFactory(() => TimeSpan.FromSeconds(run.Host.SshTimeout), Log, run.Paths);
-        return WayloniaApp.Run(run, Compose(run.Capabilities, run.Paths, links, OpenAudio));
+        return DesktopWayloniaApp.Run(run, Compose(run.Capabilities, run.Paths, links, OpenAudio));
     }
 
     private static IAudioSink? OpenAudio(AudioFill fill, int rate, int channels)
@@ -44,7 +46,7 @@ internal static partial class DesktopHead
 
     private static partial WayloniaPaths PlatformPaths();
 
-    private static partial HostPlatform Compose(
+    private static partial DesktopPlatform Compose(
         HostCapabilities capabilities,
         WayloniaPaths paths,
         ISshLinkFactory links,

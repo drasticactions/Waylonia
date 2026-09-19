@@ -33,6 +33,9 @@ internal sealed partial class PanelModel : ObservableObject
     [ObservableProperty]
     private PanelIcons _icons = PanelIcons.None;
 
+    [ObservableProperty]
+    private bool _softKeyboardOpen;
+
     public PanelModel(IPanelCommands commands)
     {
         ArgumentNullException.ThrowIfNull(commands);

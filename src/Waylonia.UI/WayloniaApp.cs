@@ -5,10 +5,9 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using Basin;
 using Basin.Avalonia;
-using Basin.Hosted;
 using Basin.Diagnostics;
 using Basin.Freedesktop;
-using Basin.Scene;
+using Basin.Hosted;
 using Basin.Shell.Nested;
 using Wayland.Server;
 using Waylonia.Audio;
@@ -20,7 +19,7 @@ using static Waylonia.WayloniaLog;
 
 namespace Waylonia;
 
-internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
+internal class WayloniaApp : Application, ISessionHost, ISshPrompter
 {
     private static WayloniaRun? _run;
     private static HostPlatform? _platform;
@@ -28,56 +27,84 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
     private static int _exitStatus;
     private static long _rendered;
 
+    private static readonly TimeSpan ResumeWindow = TimeSpan.FromSeconds(30);
+
     private readonly ChannelClients _channelClients = new();
-    private readonly List<System.Runtime.InteropServices.PosixSignalRegistration> _signals = [];
     private readonly AudioMixer _mixer = new(static fill => _platform!.OpenAudio(fill, AudioMixer.Rate, AudioMixer.Channels));
+    private readonly HostIcons _hostIcons = new();
+    private readonly IconCache _iconCache = new(_platform!.Paths.IconCacheRoot);
+    private readonly List<string> _resumePlan = [];
     private BasinOutputView? _view;
     private BasinCompositorHost? _host;
-    private ToplevelWindows? _windows;
     private HostClipboard? _clipboard;
-    private HostDrag? _hostDrag;
     private AvaloniaTextInput? _textInput;
-    private Process? _localClient;
-    private Window? _window;
-    private TrayIcon? _tray;
-    private TrayMenu? _trayMenu;
-    private IDisposable? _globalHotkeys;
-    private string _hotkeySignature = string.Empty;
-    private bool _hotkeysDisarmed;
-    private DesktopShellPolicy? _desktop;
-    private CaptureToggle? _capture;
-    private Basin.IProtocolModule? _xwayland;
     private WireClockClients? _wireClock;
     private DispatcherTimer? _channelPump;
     private int _attachedClients;
-    private WaypipeAcceptor? _listen;
+    private bool _suspended;
     private SessionRegistry? _registry;
     private SessionCatalog _catalog = SessionCatalog.Empty;
-    private ManagerWindow? _manager;
-    private SettingsWindow? _settings;
-    private readonly Dictionary<ToplevelWindow, string> _sessionWindows = [];
-    private ToplevelWindow? _screenWindow;
-    private string _screenTitle = string.Empty;
-    private IReadOnlyList<ApplicationMenuItem>? _localApplications;
-    private string? _localNotice;
     private bool _shuttingDown;
     private NestedShell? _shell;
     private PanelArrangement? _panelArrangement;
-    private ShellWindow? _shellWindow;
+    private IShellHost? _shellHost;
     private ShellChrome? _chrome;
     private PanelModel? _panelModel;
-    private string? _shellStatePath;
     private bool _shellStarted;
     private bool _dragUnsupportedReported;
-
-    private readonly HostIcons _hostIcons = new();
-    private readonly IconCache _iconCache = new(_platform!.Paths.IconCacheRoot);
+    private BluecurveIconSource? _bluecurve;
+    private ManagerViewModel? _managerModel;
+    private SettingsViewModel? _settingsModel;
 
     IconCache? ISessionHost.Icons => _iconCache;
 
-    private BluecurveIconSource? _bluecurve;
+    protected static WayloniaRun RunSettings => _run!;
 
-    private BluecurveIconSource Bluecurve => _bluecurve ??= new BluecurveIconSource(_iconCache, Log);
+    protected static HostPlatform Platform => _platform!;
+
+    protected static ConfigValues? Startup => _startup;
+
+    protected static int ExitStatus
+    {
+        get => _exitStatus;
+        set => _exitStatus = value;
+    }
+
+    protected BasinOutputView? OutputView => _view;
+
+    protected BasinCompositorHost? Host => _host;
+
+    protected AvaloniaTextInput? TextInput => _textInput;
+
+    protected ChannelClients ChannelClients => _channelClients;
+
+    protected SessionRegistry? Registry => _registry;
+
+    protected SessionCatalog Catalog => _catalog;
+
+    protected NestedShell? Shell => _shell;
+
+    protected IShellHost? ShellHost => _shellHost;
+
+    protected ShellChrome? Chrome => _chrome;
+
+    protected PanelModel? PanelModel => _panelModel;
+
+    protected ManagerViewModel? ManagerModel => _managerModel;
+
+    protected SettingsViewModel? SettingsModel => _settingsModel;
+
+    protected HostIcons HostIcons => _hostIcons;
+
+    protected IconCache IconCache => _iconCache;
+
+    protected bool ShuttingDown => _shuttingDown;
+
+    protected IReadOnlyList<ApplicationMenuItem>? LocalApplications { get; set; }
+
+    protected string? LocalNotice { get; set; }
+
+    protected BluecurveIconSource Bluecurve => _bluecurve ??= new BluecurveIconSource(_iconCache, Log);
 
     string? ISessionHost.ThemeIconFor(DesktopEntry entry) => Nested ? Bluecurve.ForEntry(entry) : null;
 
@@ -90,7 +117,8 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         Bluecurve.Path(BluecurveIconSource.DisconnectIcon),
         Bluecurve.Path(BluecurveIconSource.QuitIcon),
         Bluecurve.Path("icon-computer"),
-        path => Bluecurve.Path(BluecurveIconSource.PlaceIcon(path)));
+        path => Bluecurve.Path(BluecurveIconSource.PlaceIcon(path)),
+        Bluecurve.Path(BluecurveIconSource.KeyboardIcon));
 
     private void ResolveIcon(string? session, string appId, string? clientIcon, Action<string?> resolved)
     {
@@ -140,9 +168,7 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
             TaskScheduler.Default);
     }
 
-    private bool Nested => _run!.Host.Shell == ShellMode.Nested;
-
-    private static bool TrayWanted => _run!.Host.Tray && _run.Capabilities.Tray;
+    protected bool Nested => _run!.Host.Shell == ShellMode.Nested;
 
     ISshLinkFactory ISessionHost.Links => _platform!.Links;
 
@@ -152,7 +178,7 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
 
     public override void Initialize() => Styles.Add(new global::BluerCurve.BluerCurveTheme());
 
-    public static int Run(WayloniaRun run, HostPlatform platform)
+    public static void Prepare(WayloniaRun run, HostPlatform platform)
     {
         ArgumentNullException.ThrowIfNull(run);
         ArgumentNullException.ThrowIfNull(platform);
@@ -160,10 +186,8 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         _platform = platform;
         _startup = run.Config.Values;
         _exitStatus = 0;
+        SessionSettings.CreateDecoder = platform.Video.Create;
         global::Avalonia.Logging.Logger.Sink ??= new AvaloniaLogSink();
-        var builder = platform.Windowing.Configure(AppBuilder.Configure<WayloniaApp>());
-        var status = builder.StartWithClassicDesktopLifetime([]);
-        return status != 0 ? status : _exitStatus;
     }
 
     BasinCompositorHost ISessionHost.Compositor => _host!;
@@ -182,22 +206,32 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
     {
         _channelClients.Add(client, owner);
         _wireClock?.Add(client);
-        if (owner.Session is { IsDesktop: true } && _desktop is { HasClaimed: false } desktop)
-        {
-            desktop.Declare(client);
-        }
-
+        OnChannelAttached(owner, client);
         Dispatcher.UIThread.Post(() =>
         {
             _attachedClients++;
-            if (_channelPump is null && !_shuttingDown)
-            {
-                _channelPump = new DispatcherTimer(
-                    TimeSpan.FromMilliseconds(16), DispatcherPriority.Background, (_, _) => _view?.RequestFrame());
-                _channelPump.Start();
-            }
+            EnsurePump();
         });
         Protocol($"CHANNEL {owner.Name} {owner.Attached} attached");
+    }
+
+    protected virtual void OnChannelAttached(WaypipeAcceptor owner, WlClient client)
+    {
+    }
+
+    private void EnsurePump()
+    {
+        if (_attachedClients <= 0 || _suspended || _shuttingDown)
+        {
+            return;
+        }
+
+        _channelPump ??= new DispatcherTimer(
+            TimeSpan.FromMilliseconds(16), DispatcherPriority.Background, (_, _) => _view?.RequestFrame());
+        if (!_channelPump.IsEnabled)
+        {
+            _channelPump.Start();
+        }
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -209,28 +243,6 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
             Log.Error($"the compositor host could not start: {error.Message}");
             _ = ShutdownAsync(1);
         };
-        _window = new Window
-        {
-            Width = 1,
-            Height = 1,
-            Title = "Waylonia",
-            Content = _view,
-            WindowDecorations = WindowDecorations.None,
-            ShowInTaskbar = false,
-            ShowActivated = false,
-            CanResize = false,
-            Background = global::Avalonia.Media.Brushes.Transparent,
-            TransparencyLevelHint = [WindowTransparencyLevel.Transparent],
-        };
-        _window.Closing += (_, e) =>
-        {
-            if (!_shuttingDown)
-            {
-                e.Cancel = true;
-                _ = ShutdownAsync(0);
-            }
-        };
-
         _channelClients.Removed += _ => Dispatcher.UIThread.Post(() =>
         {
             if (--_attachedClients == 0 && _channelPump is { } pump)
@@ -245,118 +257,112 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         _run!.Store.Changed += () => Dispatcher.UIThread.Post(RefreshCatalog);
         _catalog = _run.Store.Load(Log);
 
-        if (TrayWanted)
+        if (ApplicationLifetime is ISingleViewApplicationLifetime single)
         {
-            _trayMenu = new TrayMenu(LaunchFromTray, () => _ = ShutdownAsync(0));
-            _trayMenu.ShowQuitOnly();
-            _tray = new TrayIcon
-            {
-                Icon = new WindowIcon(typeof(WayloniaApp).Assembly.GetManifestResourceStream("Waylonia.Waylonia_Logo.png")!),
-                ToolTipText = "Waylonia — starting…",
-                Menu = _trayMenu.Menu,
-            };
-            TrayIcon.SetIcons(this, [_tray]);
+            single.MainView = new ShellView(_view);
         }
 
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        if (ApplicationLifetime is ISingleViewApplicationLifetime && this.TryGetFeature<IActivatableLifetime>() is { } activatable)
         {
-            desktop.MainWindow = _window;
-            desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            activatable.Deactivated += (_, e) => OnActivation(e.Kind, active: false);
+            activatable.Activated += (_, e) => OnActivation(e.Kind, active: true);
         }
 
-        _signals.Add(System.Runtime.InteropServices.PosixSignalRegistration.Create(
-            System.Runtime.InteropServices.PosixSignal.SIGINT, OnPosixSignal));
-        _signals.Add(System.Runtime.InteropServices.PosixSignalRegistration.Create(
-            System.Runtime.InteropServices.PosixSignal.SIGTERM, OnPosixSignal));
-
+        OnLifetimeReady();
         base.OnFrameworkInitializationCompleted();
     }
 
-    private void OnPosixSignal(System.Runtime.InteropServices.PosixSignalContext context)
+    protected virtual void OnLifetimeReady()
     {
-        context.Cancel = true;
-        Dispatcher.UIThread.Post(() => _ = ShutdownAsync(0));
+    }
+
+    private void OnActivation(ActivationKind kind, bool active)
+    {
+        if (kind != ActivationKind.Background || _shuttingDown)
+        {
+            return;
+        }
+
+        if (active)
+        {
+            Resume();
+        }
+        else
+        {
+            Suspend();
+        }
+    }
+
+    private void Suspend()
+    {
+        if (_suspended)
+        {
+            return;
+        }
+
+        _suspended = true;
+        _channelPump?.Stop();
+        _view?.Post(() => _host?.Suspend());
+        _resumePlan.Clear();
+        if (_run!.Capabilities.Reconnects && _registry is { } registry)
+        {
+            _resumePlan.AddRange(ResumePolicy.Plan(registry.Live.Select(static session => session.Name), _catalog));
+        }
+
+        Log.Debug($"the host went to the background, {_resumePlan.Count} session(s) will reconnect on return");
+    }
+
+    private void Resume()
+    {
+        if (!_suspended)
+        {
+            return;
+        }
+
+        _suspended = false;
+        _view?.Post(() => _host?.Resume());
+        EnsurePump();
+        foreach (var name in _resumePlan.ToArray())
+        {
+            if (_registry?.Get(name) is { IsLive: true })
+            {
+                continue;
+            }
+
+            _resumePlan.Remove(name);
+            if (_catalog.Find(name) is { } profile)
+            {
+                _ = ConnectProfileAsync(profile);
+            }
+        }
+
+        if (_resumePlan.Count > 0)
+        {
+            DispatcherTimer.RunOnce(_resumePlan.Clear, ResumeWindow);
+        }
     }
 
     private BasinCompositorHost CreateHost()
     {
         var run = _run!;
         _textInput = new AvaloniaTextInput(action => _view!.Post(action));
-        _xwayland = run.Capabilities.XWayland && run.Host.XWayland && run.WaypipeListen is null
-            ? _platform!.XWayland.TryCreateModule()
-            : null;
         var host = new BasinCompositorHost(new BasinCompositorOptions
         {
             AppName = "waylonia",
             SocketName = run.SocketName,
             ManagedTransport = run.ManagedTransport,
             TextInput = _textInput,
-            ExtraModules = _xwayland is { } xwayland ? [xwayland] : null,
+            ExtraModules = ExtraModules(),
         });
-        if (Nested)
-        {
-            return CreateNestedHost(host, run);
-        }
-
-        _windows = new ToplevelWindows(host, action => _view!.Post(action), requestFrame: () => _view?.RequestFrame());
-        _desktop = new DesktopShellPolicy(
-            run.Host.FollowCursor ? new CursorScreenPolicy(_platform!.Cursor) : new AvaloniaShellPolicy(),
-            _platform!.Cursor)
-        {
-            Size = run.LocalDesktop?.Size,
-        };
-        if (host.Services.Find<Basin.Desktop.FullscreenShellGlobal>() is { } fullscreenShell)
-        {
-            _desktop.BoundClients = () => fullscreenShell.BoundClients;
-        }
-
-        WireTransport(host, run);
-        {
-            _wireClock = new WireClockClients();
-            if (host.Services.Find<PresentationTimeGlobal>() is { } presentation)
-            {
-                presentation.WireClock = _wireClock;
-            }
-
-            if (host.Services.Find<Basin.Desktop.CommitTimingManager>() is { } timing)
-            {
-                timing.WireClock = _wireClock;
-            }
-
-            host.Display.SetGlobalFilter(_channelClients.Filter);
-        }
-
-        _windows.Policy = _desktop;
-        _windows.ScreenWindowChanged += OnScreenWindowChanged;
-        _windows.WindowOpened += OnWindowOpened;
-        _windows.CountChanged += count => UpdateStatus($"{count} client window(s) on {host.Socket}");
-        if (run.Host.Drag)
-        {
-            _hostDrag = new HostDrag(host);
-            _windows.AttachDrag(_hostDrag);
-        }
-
-        _windows.AttachTextInput(_textInput);
-        if (_xwayland is { } attachXwayland)
-        {
-            _platform!.XWayland.Attach(attachXwayland, host, _windows);
-        }
-
-        if (run.Host.Clipboard)
-        {
-            _clipboard = new HostClipboard(
-                host,
-                () => _window is { } window ? global::Avalonia.Controls.TopLevel.GetTopLevel(window)?.Clipboard : null,
-                action => _view!.Post(action));
-            _windows.WindowActivatedOnHost += () => _ = _clipboard!.PushFromHostAsync();
-        }
-
-        host.Composited += OnComposited;
-        _host = host;
-        return host;
+        return Nested ? CreateNestedHost(host, run) : CreateWindowsHost(host, run);
     }
 
-    private void WireTransport(BasinCompositorHost host, WayloniaRun run)
+    protected virtual IReadOnlyList<IProtocolModule>? ExtraModules() => null;
+
+    protected virtual BasinCompositorHost CreateWindowsHost(BasinCompositorHost host, WayloniaRun run) =>
+        throw new InvalidOperationException("windows mode needs a desktop host; this host runs the nested shell only");
+
+    protected void WireTransport(BasinCompositorHost host, WayloniaRun run)
     {
         if (!run.ManagedTransport)
         {
@@ -377,6 +383,15 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         host.Display.SetGlobalFilter(_channelClients.Filter);
     }
 
+    protected void AdoptHost(BasinCompositorHost host)
+    {
+        host.Composited += OnComposited;
+        _host = host;
+    }
+
+    protected HostClipboard CreateClipboard(BasinCompositorHost host, Func<global::Avalonia.Input.Platform.IClipboard?> clipboard) =>
+        _clipboard = new HostClipboard(host, clipboard, action => _view!.Post(action));
+
     private BasinCompositorHost CreateNestedHost(BasinCompositorHost host, WayloniaRun run)
     {
         WireTransport(host, run);
@@ -388,14 +403,10 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
 
         if (run.Host.Clipboard)
         {
-            _clipboard = new HostClipboard(
-                host,
-                () => _shellWindow is { } shell ? global::Avalonia.Controls.TopLevel.GetTopLevel(shell)?.Clipboard : null,
-                action => _view!.Post(action));
+            CreateClipboard(host, () => _shellHost?.TopLevel?.Clipboard);
         }
 
-        host.Composited += OnComposited;
-        _host = host;
+        AdoptHost(host);
         return host;
     }
 
@@ -404,7 +415,7 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         var run = _run!;
         var view = host.CreateViewOutput(Math.Max(1, width), Math.Max(1, height), scale, NestedShell.OutputKey);
         var keys = KeyTable.Build(run.Config.ShellSettings.Keys, Hotkey.Reserved(run.Host.Hotkeys));
-        _panelArrangement = PanelArrangement.From(run.Config.Panel, Log);
+        _panelArrangement = PanelArrangement.From(run.Config.Panel, run.Capabilities, Log);
         var shell = new NestedShell(
             host,
             view,
@@ -417,18 +428,14 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
             WindowSuffix = run.Host.SessionTitles ? SessionNameOf : null,
             ResolveIcon = ResolveIcon,
         };
-        if (_xwayland is { } xwayland)
-        {
-            _platform!.XWayland.AttachShell(xwayland, shell, _iconCache, Log);
-        }
-
+        AttachShell(shell);
         shell.Changed += PublishPanelModel;
-        shell.CursorChanged += name => Dispatcher.UIThread.Post(() => _shellWindow?.ApplyCursor(CursorNames.For(name)));
+        shell.CursorChanged += name => Dispatcher.UIThread.Post(() => _shellHost?.View.ApplyCursor(CursorNames.For(name)));
         shell.ClientCursorChanged += cursor =>
         {
             if (ShellCursors.TryToAvalonia(cursor, out var avalonia))
             {
-                Dispatcher.UIThread.Post(() => _shellWindow?.ApplyCursor(avalonia));
+                Dispatcher.UIThread.Post(() => _shellHost?.View.ApplyCursor(avalonia));
             }
         };
         shell.SwitcherShown += (order, index) => Dispatcher.UIThread.Post(() => _chrome?.ShowSwitcher(order, index));
@@ -443,51 +450,60 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         return view;
     }
 
-    private void OpenShellWindow(BasinCompositorHost host)
+    protected virtual void AttachShell(NestedShell shell)
     {
-        _shellStatePath = _run!.Paths.StateFile;
-        var state = ShellStateFile.Load(_shellStatePath, Log);
-        var window = new ShellWindow(host, state, h =>
+    }
+
+    protected void OpenShell(BasinCompositorHost host)
+    {
+        var state = ShellStateFile.Load(_run!.Paths.StateFile, Log);
+        var shellHost = HostShell(host, state, h =>
         {
-            var scale = _shellWindow?.RenderScaling is > 0 and var known ? known : 1.0;
-            var width = (int)Math.Round((_shellWindow?.View.Bounds.Width is > 0 and var w ? w : state.Width) * scale);
-            var height = (int)Math.Round((_shellWindow?.View.Bounds.Height is > 0 and var hh ? hh : state.Height) * scale);
+            var (width, height, scale) = _shellHost?.View.OutputSize(state.Width, state.Height) ?? (state.Width, state.Height, 1.0);
             return CreateShellView(h, width, height, scale);
         });
-        _shellWindow = window;
-        window.OutputResized += (width, height, scale) => _view?.Post(() => _shell?.Resize(width, height, scale));
-        window.CloseRequested += () =>
+        _shellHost = shellHost;
+        var view = shellHost.View;
+        view.OutputResized += (width, height, scale) => _view?.Post(() => _shell?.Resize(width, height, scale));
+        view.SoftKeyboardChanged += open =>
         {
-            if (TrayWanted && _tray is not null)
+            if (_panelModel is { } model)
             {
-                window.Hide();
-            }
-            else
-            {
-                _ = ShutdownAsync(0);
+                model.SoftKeyboardOpen = open;
             }
         };
-        window.StateChanged += persisted =>
+        view.SoftKeyboard = show => _textInput?.ShowSoftKeyboard(show);
+        shellHost.ActivatedOnHost += () =>
         {
-            if (_shellStatePath is { } path)
+            if (_clipboard is { } clipboard)
             {
-                ShellStateFile.Save(path, persisted, Log);
+                _ = clipboard.PushFromHostAsync();
             }
         };
-        if (_clipboard is { } clipboard)
+        if (view.Toplevel is { } toplevel)
         {
-            window.ActivatedOnHost += () => _ = clipboard.PushFromHostAsync();
+            toplevel.InputSink = input => _shell?.HandleInput(input);
+            _textInput?.AttachView(toplevel);
         }
 
-        window.View.InputSink = input => _shell?.HandleInput(input);
-        _textInput?.AttachView(window.View);
-        window.Show();
+        shellHost.Present();
         UpdateShellTitle();
+    }
+
+    protected virtual IShellHost HostShell(BasinCompositorHost host, ShellWindowState state, Func<BasinCompositorHost, BasinViewOutput> createView)
+    {
+        if (ApplicationLifetime is not ISingleViewApplicationLifetime { MainView: ShellView view })
+        {
+            throw new InvalidOperationException("the nested shell needs a single view or a host window to live in");
+        }
+
+        view.AttachHost(host, createView);
+        return new SingleViewShellHost(view, this.TryGetFeature<IActivatableLifetime>());
     }
 
     private void OnShellCreated()
     {
-        if (_shuttingDown || _shell is not { } shell || _shellWindow is not { } window || _host is not { } host)
+        if (_shuttingDown || _shell is not { } shell || _shellHost is not { } shellHost || _host is not { } host)
         {
             return;
         }
@@ -495,26 +511,28 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         _panelModel ??= new PanelModel(new PanelCommands(
             () => _shell,
             action => _view!.Post(action),
-            LaunchFromTray,
+            Launch,
             OpenManager,
             OpenSettings,
             name => _ = DisconnectSessionAsync(name),
-            () => _ = ShutdownAsync(0)))
+            Quit,
+            () => _shellHost?.View.ToggleSoftKeyboard()))
         {
             SettingsAvailable = _run!.Config.Path is not null,
             Icons = PanelIconsFor(),
+            SoftKeyboardOpen = shellHost.View.SoftKeyboardOpen,
         };
         try
         {
-            _chrome = new ShellChrome(shell, window, _panelModel, _panelArrangement!, action => _view!.Post(action), Log);
+            _chrome = new ShellChrome(shell, shellHost, _panelModel, _panelArrangement!, action => _view!.Post(action), Log);
         }
         catch (Exception error) when (error is InvalidOperationException or NotSupportedException)
         {
             Log.Error($"the shell panels could not be created: {error.Message}");
         }
 
-        window.ActualThemeVariantChanged += (_, _) => _chrome?.ApplyThemeVariant();
-        CreateCapture(host);
+        shellHost.View.ActualThemeVariantChanged += (_, _) => _chrome?.ApplyThemeVariant();
+        OnShellReady(host);
         RefreshPanelSessions();
         RefreshPanelApplications();
         _view?.Post(shell.Publish);
@@ -527,6 +545,10 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
                 OpenSettings();
             }
         }
+    }
+
+    protected virtual void OnShellReady(BasinCompositorHost host)
+    {
     }
 
     Task<string?> ISshPrompter.AskSecretAsync(SshSecretPrompt prompt, CancellationToken cancellation)
@@ -553,20 +575,18 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
                 return;
             }
 
-            if (_chrome is { } chrome)
-            {
-                _ = chrome.AskPass(prompt, kind).ContinueWith(
-                    task => answered.TrySetResult(task.IsCompletedSuccessfully ? task.Result : null),
-                    TaskScheduler.Default);
-                return;
-            }
-
-            var window = new AskPassWindow(prompt, kind);
-            window.Closed += (_, _) => answered.TrySetResult(window.Answer);
-            window.Show();
-            window.Activate();
+            var asked = _chrome is { } chrome ? chrome.AskPass(prompt, kind) : AskOutsideShellAsync(prompt, kind, cancellation);
+            _ = asked.ContinueWith(
+                task => answered.TrySetResult(task.IsCompletedSuccessfully ? task.Result : null),
+                TaskScheduler.Default);
         });
         return answered.Task;
+    }
+
+    protected virtual Task<string?> AskOutsideShellAsync(string prompt, AskPassKind kind, CancellationToken cancellation)
+    {
+        Log.Warn($"an ssh prompt arrived before the shell was up, cancelling the login");
+        return Task.FromResult<string?>(null);
     }
 
     private void PublishPanelModel()
@@ -597,7 +617,7 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         });
     }
 
-    private void RefreshPanelSessions()
+    protected void RefreshPanelSessions()
     {
         if (_panelModel is not { } model || _registry is not { } registry)
         {
@@ -624,7 +644,7 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         UpdateShellTitle();
     }
 
-    private void RefreshPanelApplications()
+    protected void RefreshPanelApplications()
     {
         if (_panelModel is not { } model || _registry is not { } registry)
         {
@@ -644,241 +664,48 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
                 () => _ = session.LoadApplicationsAsync()));
         }
 
-        model.Applications = SessionMenu.Build(entries, _localApplications, _localNotice, null, null);
+        model.Applications = SessionMenu.Build(entries, LocalApplications, LocalNotice, null, null);
     }
 
     private void UpdateShellTitle()
     {
-        if (_shellWindow is not { } window || _registry is not { } registry)
+        if (_shellHost is not { } shellHost || _registry is not { } registry)
         {
             return;
         }
 
         var live = registry.Live.ToList();
-        window.SetTitle(live.Count == 1 ? $"Waylonia — {live[0].Name}" : "Waylonia");
+        shellHost.SetTitle(live.Count == 1 ? $"Waylonia — {live[0].Name}" : "Waylonia");
     }
 
-    private void ShowShellWindow()
+    protected void ShowShell() => _shellHost?.Present();
+
+    private void ToggleShellFullScreen()
     {
-        if (_shellWindow is not { } window)
+        if (_shellHost is { CanFullScreen: true } shellHost)
         {
-            return;
-        }
-
-        if (!window.IsVisible)
-        {
-            window.Show();
-        }
-
-        window.Activate();
-    }
-
-    private void ToggleShellFullScreen() => _shellWindow?.ToggleFullScreen();
-
-    private void OnWindowOpened(ToplevelWindow window, WlClient? client)
-    {
-        if (client is null || _channelClients.OwnerOf(client) is not WaypipeAcceptor { Session: not null } owner)
-        {
-            return;
-        }
-
-        var name = owner.Name;
-        _sessionWindows[window] = name;
-        window.Closed += (_, _) => _sessionWindows.Remove(window);
-        if (_run!.Host.SessionTitles)
-        {
-            window.DecorateTitle(title => $"{title} — {name}");
+            shellHost.ToggleFullScreen();
         }
     }
 
     private void OnHostReady(BasinCompositorHost host)
     {
-        var run = _run!;
-        if (_window is { } window && !Nested)
-        {
-            var screens = window.Screens;
-            var scaleSettled = false;
-            void Publish()
-            {
-                var snapshot = AvaloniaScreens.Capture(screens);
-                var key = AvaloniaScreens.KeyFor(screens, screens.ScreenFromWindow(window) ?? screens.Primary);
-                var scale = window.RenderScaling;
-                var noteScale = scale > 0 && (scaleSettled || scale != 1.0);
-                _view?.Post(() =>
-                {
-                    host.Screens.Apply(snapshot);
-                    foreach (var info in snapshot)
-                    {
-                        if (_platform!.ScreenScales.TryGetScale(info) is { } known)
-                        {
-                            host.Screens.NoteWindowScale(info.Key, known);
-                        }
-                    }
-
-                    if (key is not null && noteScale)
-                    {
-                        host.Screens.NoteWindowScale(key, scale);
-                    }
-                });
-            }
-
-            var probeDone = false;
-            void HideProbe()
-            {
-                if (!probeDone)
-                {
-                    probeDone = true;
-                    window.Hide();
-                }
-            }
-
-            screens.Changed += (_, _) => Publish();
-            window.ScalingChanged += (_, _) =>
-            {
-                scaleSettled = true;
-                Publish();
-                HideProbe();
-            };
-            Publish();
-            if (window.RenderScaling != 1.0)
-            {
-                HideProbe();
-            }
-            else
-            {
-                DispatcherTimer.RunOnce(HideProbe, TimeSpan.FromMilliseconds(1500));
-            }
-        }
-
         BasinReport.Line(ReportLines.Socket(host.Socket));
-        StartGlobalHotkeys();
-        if (!Nested)
-        {
-            CreateCapture(host);
-        }
-
-        if (_platform!.XWayland.DisplayName(host) is { } xdisplay)
-        {
-            BasinReport.Line($"XWAYLAND {xdisplay}");
-            Environment.SetEnvironmentVariable("DISPLAY", xdisplay);
-        }
-
-        UpdateStatus(run.ManagedTransport ? "ready" : $"waiting for clients on {host.Socket}");
-        if (LocalApplicationsWanted(host))
-        {
-            LoadLocalApplications();
-        }
-
-        if (Nested)
-        {
-            OpenShellWindow(host);
-            RebuildTray();
-            return;
-        }
-
-        StartInitialWork(host);
-        RebuildTray();
-        if (run.OpenSettings)
-        {
-            OpenSettings();
-        }
+        UpdateStatus(_run!.ManagedTransport ? "ready" : $"waiting for clients on {host.Socket}");
+        OnHostReadyCore(host);
     }
 
-    private void StartInitialWork(BasinCompositorHost host)
+    protected virtual void OnHostReadyCore(BasinCompositorHost host) => OpenShell(host);
+
+    protected virtual void StartInitialWork(BasinCompositorHost host)
     {
-        var run = _run!;
-        if (run.LocalDesktop is { } local)
-        {
-            if (_desktop is not null)
-            {
-                _desktop.Size = local.Size ?? DesktopSize();
-            }
-
-            LaunchLocalDesktop(host, local);
-        }
-        else if (run.WaypipeListen is { } listen)
-        {
-            StartListening(listen);
-        }
-
-        foreach (var settings in run.Initial)
+        foreach (var settings in _run!.Initial)
         {
             _ = ConnectSessionAsync(settings);
         }
-
-        if (run.LocalCommand is { } command)
-        {
-            _localClient = BasinDiagnostics.StartClient(command, host.Socket);
-            if (_localClient is null)
-            {
-                Log.Error($"failed to start '{command}'");
-                _ = ShutdownAsync(1);
-            }
-        }
     }
 
-    private bool LocalApplicationsWanted(BasinCompositorHost host) =>
-        (Nested || (TrayWanted && _run!.Host.TrayApps)) && _run!.Capabilities.LocalApplications && host.Socket.Length > 0
-        && _run!.WaypipeListen is null && _run.LocalDesktop is null;
-
-    private (int Width, int Height) DesktopSize()
-    {
-        var screen = _platform!.Cursor.TryGetPixelPoint() is { } cursor && _window?.Screens is { } screens
-            ? screens.ScreenFromPoint(cursor) ?? screens.Primary
-            : _window?.Screens?.Primary;
-        var scaling = screen?.Scaling is > 0 ? screen.Scaling : 1.0;
-        return DesktopShellPolicy.DefaultSize(screen, scaling);
-    }
-
-    private void StartListening(ListenSettings listen)
-    {
-        var acceptor = new WaypipeAcceptor(
-            listen.Endpoint, this, listen.Compression, listen.Gpu, listen.Video, listen.VideoDecoder, session: null);
-        acceptor.Failed += failure => Dispatcher.UIThread.Post(() => _ = ShutdownAsync(1));
-        _listen = acceptor;
-        UpdateStatus($"waiting for a waypipe channel on {listen.Endpoint}");
-        try
-        {
-            var endpoint = WaypipeAcceptor.ParseEndpoint(listen.Endpoint, out var error);
-            if (endpoint is null)
-            {
-                Log.Error($"{error}");
-                _ = ShutdownAsync(1);
-                return;
-            }
-
-            acceptor.Accept(WaypipeAcceptor.Listen(endpoint));
-        }
-        catch (Exception error) when (error is System.Net.Sockets.SocketException or IOException or FormatException or UnauthorizedAccessException)
-        {
-            Log.Error($"the channel listener failed: {error.Message}");
-            _ = ShutdownAsync(1);
-        }
-    }
-
-    private void LaunchLocalDesktop(BasinCompositorHost host, LocalDesktop local)
-    {
-        var recipe = local.Recipe;
-        var environment = DesktopSession.Environment(recipe, local.Env, local.Gpu);
-        var wrapper = DesktopSession.Wrapper(recipe, host.Socket, recipe.Command, environment);
-        Log.Debug($"starting the {recipe.Name} session on this machine");
-        _localClient = BasinDiagnostics.StartClient(wrapper, host.Socket, [("DISPLAY", null)]);
-        if (_localClient is null)
-        {
-            Log.Error($"the {recipe.Name} session failed to start");
-            _ = ShutdownAsync(1);
-            return;
-        }
-
-        if (_desktop is not null)
-        {
-            _desktop.DeclaredPid = _localClient.Id;
-        }
-
-        UpdateStatus($"starting {recipe.Name}");
-    }
-
-    private async Task<string?> ConnectSessionAsync(SessionSettings settings)
+    protected async Task<string?> ConnectSessionAsync(SessionSettings settings)
     {
         if (_shuttingDown || _registry is not { } registry)
         {
@@ -900,16 +727,20 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
             return refused;
         }
 
-        if (settings.IsDesktop && _desktop is { } desktop)
+        if (settings.IsDesktop)
         {
-            desktop.Size = settings.DesktopSize ?? DesktopSize();
+            PrepareDesktopSession(settings);
         }
 
         var session = registry.Add(settings);
         return await session.ConnectAsync() ? null : session.LastError ?? $"{settings.Name} could not connect";
     }
 
-    private Task<string?> ConnectProfileAsync(SessionProfile profile)
+    protected virtual void PrepareDesktopSession(SessionSettings settings)
+    {
+    }
+
+    protected Task<string?> ConnectProfileAsync(SessionProfile profile)
     {
         var resolved = SessionSettings.Resolve(
             profile, new SessionOverrides(AudioFormat: _run!.AudioFormat), _run.Config, Log);
@@ -922,7 +753,7 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         return ConnectSessionAsync(settings);
     }
 
-    private async Task DisconnectSessionAsync(string name)
+    protected async Task DisconnectSessionAsync(string name)
     {
         if (_registry is { } registry)
         {
@@ -937,24 +768,26 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
             return;
         }
 
-        if (_desktop is { HasClaimed: true } desktop
-            && _registry is { } registry
-            && !registry.Live.Any(static session => session.Settings.IsDesktop)
-            && _run!.LocalDesktop is null)
-        {
-            desktop.Release();
-        }
-
-        RestartGlobalHotkeys();
-        RebuildTray();
+        OnRegistryChanged();
         RefreshPanelSessions();
         RefreshPanelApplications();
     });
+
+    protected virtual void OnRegistryChanged()
+    {
+    }
 
     private void OnSessionEnded(SshSession session, int code) => Dispatcher.UIThread.Post(() =>
     {
         if (_shuttingDown || _registry is not { } registry)
         {
+            return;
+        }
+
+        if (_resumePlan.Remove(session.Name) && !_suspended && _catalog.Find(session.Name) is { } profile)
+        {
+            Log.Info($"reconnecting {session.Name} after the host came back");
+            _ = ConnectProfileAsync(profile);
             return;
         }
 
@@ -968,13 +801,14 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
     private void RefreshCatalog()
     {
         _catalog = _run!.Store.Load(Log);
-        RebuildTray();
+        OnCatalogChanged();
     }
 
-    private ManagerViewModel? _managerModel;
-    private SettingsViewModel? _settingsModel;
+    protected virtual void OnCatalogChanged()
+    {
+    }
 
-    private void OpenManager()
+    protected void OpenManager()
     {
         if (_shuttingDown || _registry is not { } registry)
         {
@@ -983,13 +817,16 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
 
         if (_managerModel is null)
         {
+            var run = _run!;
             _managerModel = new ManagerViewModel(
-                _run!.Store,
+                run.Store,
                 registry,
                 Log,
                 ConnectProfileAsync,
                 DisconnectSessionAsync,
-                _run.Config.Path is null ? null : OpenSettings);
+                run.Config.Path is null ? null : OpenSettings,
+                run.Capabilities.KeyImport ? PickKeysAsync : null,
+                run.Paths.SshDirectory);
         }
         else
         {
@@ -1002,12 +839,15 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
             return;
         }
 
-        _manager ??= new ManagerWindow(_managerModel);
-        _manager.Show();
-        _manager.Activate();
+        OpenManagerOutsideShell(_managerModel);
     }
 
-    private void OpenSettings()
+    private Task<IReadOnlyList<PickedKey>> PickKeysAsync() => _platform!.Keys.PickAsync(_shellHost?.TopLevel);
+
+    protected virtual void OpenManagerOutsideShell(ManagerViewModel model) =>
+        Log.Warn($"the session manager needs the nested shell on this host");
+
+    protected void OpenSettings()
     {
         if (_shuttingDown || _run!.Config.Path is not { } path)
         {
@@ -1029,10 +869,11 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
             return;
         }
 
-        _settings ??= new SettingsWindow(_settingsModel);
-        _settings.Show();
-        _settings.Activate();
+        OpenSettingsOutsideShell(_settingsModel);
     }
+
+    protected virtual void OpenSettingsOutsideShell(SettingsViewModel model) =>
+        Log.Warn($"the settings window needs the nested shell on this host");
 
     private void ApplyConfig(Config config)
     {
@@ -1042,15 +883,10 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         }
 
         _run = _run! with { Host = config.Host with { Shell = _run.Host.Shell }, Config = config };
-        foreach (var (window, name) in _sessionWindows)
-        {
-            window.DecorateTitle(config.Host.SessionTitles ? title => $"{title} — {name}" : null);
-        }
-
         if (_shell is { } shell)
         {
             var settings = config.ShellSettings;
-            var panels = PanelArrangement.From(config.Panel, Log);
+            var panels = PanelArrangement.From(config.Panel, _run.Capabilities, Log);
             var keys = KeyTable.Build(settings.Keys, Hotkey.Reserved(config.Host.Hotkeys));
             var sessionTitles = config.Host.SessionTitles;
             var panelsChanged = _panelArrangement is null || !_panelArrangement.SameAs(panels);
@@ -1071,78 +907,17 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
             model.SettingsAvailable = config.Path is not null;
         }
 
-        RestartGlobalHotkeys();
-        _capture?.Dispose();
-        _capture = null;
-        if (_host is { } host)
-        {
-            CreateCapture(host);
-            if (LocalApplicationsWanted(host))
-            {
-                LoadLocalApplications();
-                return;
-            }
-        }
-
-        _localApplications = null;
-        _localNotice = null;
-        RebuildTray();
+        OnConfigApplied(config);
     }
 
-    private string? SessionNameOf(Wayland.Server.WlClient client) =>
+    protected virtual void OnConfigApplied(Config config)
+    {
+    }
+
+    protected string? SessionNameOf(WlClient client) =>
         _channelClients.OwnerOf(client) is WaypipeAcceptor { Session: not null } owner ? owner.Name : null;
 
-    private void CreateCapture(BasinCompositorHost host)
-    {
-        if (!_run!.Capabilities.KeyboardCapture
-            || CaptureChord.Parse(_run!.Host.CaptureChord, BasinLog.For("waylonia")) is not { } chord)
-        {
-            return;
-        }
-
-        _capture = new CaptureToggle(chord, _view!, host, _platform!.Capture, ArmHotkeys);
-        if (_shellWindow is { } shell)
-        {
-            _capture.Attach(shell.View, shell, "Waylonia", title => shell.SetTitle(title));
-        }
-        else if (_screenWindow is { } window)
-        {
-            _capture.Attach(window, _screenTitle);
-        }
-    }
-
-    private void ArmHotkeys(bool arm)
-    {
-        _hotkeysDisarmed = !arm;
-        if (arm)
-        {
-            StartGlobalHotkeys();
-        }
-        else
-        {
-            _globalHotkeys?.Dispose();
-            _globalHotkeys = null;
-        }
-    }
-
-    private void LaunchHotkey(Hotkey hotkey)
-    {
-        var label = $"hotkey '{hotkey.Chord}'";
-        if (hotkey.Session is { } name)
-        {
-            LaunchInSession(name, label, hotkey.Command);
-        }
-        else if (_registry?.AdHoc is { } adHoc)
-        {
-            _ = adHoc.LaunchAsync(hotkey.Command, label);
-        }
-        else
-        {
-            LaunchLocal(hotkey.Command, label);
-        }
-    }
-
-    private void LaunchFromTray(string? session, string label, string command)
+    protected void Launch(string? session, string label, string command)
     {
         if (session is { } name)
         {
@@ -1154,7 +929,7 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         }
     }
 
-    private void LaunchInSession(string name, string label, string command)
+    protected void LaunchInSession(string name, string label, string command)
     {
         if (_shuttingDown || _registry is not { } registry)
         {
@@ -1183,144 +958,10 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         }
     }
 
-    private void LaunchLocal(string command, string label)
-    {
-        if (_shuttingDown || _host is not { } host)
-        {
-            return;
-        }
+    protected virtual void LaunchLocal(string command, string label) =>
+        Log.Warn($"{label}: '{command}' runs a local client, which this host cannot start");
 
-        if (host.Socket.Length == 0)
-        {
-            Log.Warn($"{label}: '{command}' has no local socket to start on");
-            return;
-        }
-
-        try
-        {
-            if (BasinDiagnostics.StartClient(command, host.Socket) is null)
-            {
-                return;
-            }
-        }
-        catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
-        {
-            Log.Warn($"{label}: '{command}' failed to start: {error.Message}");
-            return;
-        }
-
-        UpdateStatus($"started '{command}'");
-    }
-
-    private void LoadLocalApplications()
-    {
-        if (_trayMenu is null || _shuttingDown)
-        {
-            return;
-        }
-
-        _localNotice = "Loading applications…";
-        RebuildTray();
-        _ = LoadLocalApplicationsAsync();
-    }
-
-    private async Task LoadLocalApplicationsAsync()
-    {
-        var locale = DesktopLocale.FromEnvironment();
-        var currentDesktop = ApplicationMenu.CurrentDesktop(_run!.Host.CurrentDesktop);
-        var terminal = ApplicationMenu.Terminal(_run.Host.Terminal);
-        IReadOnlyList<DesktopEntry> listable;
-        try
-        {
-            listable = await Task.Run(() => new DesktopEntries(locale).Listable(currentDesktop));
-        }
-        catch (Exception error) when (error is IOException or System.ComponentModel.Win32Exception or InvalidOperationException)
-        {
-            Log.Warn($"the application list could not be read: {error.Message}");
-            Dispatcher.UIThread.Post(() =>
-            {
-                _localNotice = "The applications could not be read";
-                RebuildTray();
-            });
-            return;
-        }
-
-        var items = ApplicationMenu.Build(
-            listable,
-            terminal,
-            entry => _hostIcons.ForName(entry.Icon) ?? (Nested ? Bluecurve.ForEntry(entry) : null),
-            Nested ? category => Bluecurve.Path(BluecurveIconSource.CategoryIcon(category)) : null);
-        if (terminal is null && listable.Any(static entry => entry.Terminal))
-        {
-            Log.Info($"set terminal in the config to list terminal applications");
-        }
-
-        Log.Debug($"{listable.Count} application(s) in {items.Count} categor(ies) for the tray menu");
-        Dispatcher.UIThread.Post(() =>
-        {
-            _localApplications = items;
-            _localNotice = null;
-            RebuildTray();
-            RefreshPanelApplications();
-        });
-    }
-
-    private void RebuildTray()
-    {
-        if (_trayMenu is not { } menu || _shuttingDown || _registry is not { } registry)
-        {
-            return;
-        }
-
-        if (Nested)
-        {
-            menu.Show(SessionMenu.BuildNested(ShowShellWindow));
-            return;
-        }
-
-        var run = _run!;
-        var apps = run.Host.TrayApps;
-        var entries = new List<SessionMenuEntry>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var session in registry.Sessions)
-        {
-            seen.Add(session.Name);
-            entries.Add(Entry(session.Name, session));
-        }
-
-        foreach (var profile in _catalog.Profiles)
-        {
-            if (seen.Add(profile.Name))
-            {
-                entries.Add(Entry(profile.Name, null));
-            }
-        }
-
-        if (run.WaypipeListen is not null || run.LocalDesktop is not null)
-        {
-            entries.Clear();
-        }
-
-        var manager = run.ManagedTransport && run.WaypipeListen is null;
-        menu.Show(SessionMenu.Build(
-            entries,
-            apps ? _localApplications : null,
-            apps ? _localNotice : null,
-            apps && _localApplications is not null || _localNotice is not null ? () => LoadLocalApplications() : null,
-            manager ? OpenManager : null,
-            run.Config.Path is null ? null : OpenSettings));
-
-        SessionMenuEntry Entry(string name, SshSession? session) => new(
-            name,
-            session?.Status ?? SessionStatus.Disconnected,
-            apps ? session?.Applications : null,
-            apps ? session?.ApplicationsNotice : null,
-            () => ConnectByName(name),
-            () => _ = DisconnectSessionAsync(name),
-            () => _ = session?.LoadApplicationsAsync() ?? Task.CompletedTask);
-    }
-
-    private void ConnectByName(string name)
+    protected void ConnectByName(string name)
     {
         if (_catalog.Find(name) is { } profile)
         {
@@ -1332,88 +973,25 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         }
     }
 
-    private void OnScreenWindowChanged(ToplevelWindow? window)
+    protected virtual void Quit()
     {
-        if (window is null)
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime)
         {
-            _screenWindow = null;
-            _capture?.Detach();
-            UpdateStatus("the desktop window is gone");
+            _ = ShutdownAsync(0);
             return;
         }
 
-        var title = window.Title ?? "desktop";
-        if (_registry?.Live.FirstOrDefault(static session => session.Settings.IsDesktop) is { } desktopSession)
+        if (_registry is { } registry)
         {
-            title = $"{desktopSession.Settings.Desktop!.Name} @ {desktopSession.Ssh}";
-            window.OverrideTitle(title);
-        }
-        else if (_run!.LocalDesktop is { } local)
-        {
-            title = local.Recipe.Name;
-            window.OverrideTitle(title);
-        }
-
-        _screenWindow = window;
-        _screenTitle = title;
-        _capture?.Attach(window, title);
-        UpdateStatus($"the desktop window is up");
-    }
-
-    private void StartGlobalHotkeys()
-    {
-        if (_globalHotkeys is not null || _hotkeysDisarmed || _shuttingDown || !_run!.Capabilities.GlobalHotkeys
-            || _window is not { } anchor || _host is not { } host || _registry is not { } registry)
-        {
-            return;
-        }
-
-        var hotkeys = registry.Hotkeys(_run!.Host.Hotkeys);
-        _hotkeySignature = Signature(hotkeys);
-        if (hotkeys.Count == 0)
-        {
-            return;
-        }
-
-        if (host.Socket.Length == 0 && !registry.AnyLive)
-        {
-            Log.Warn($"this session has no local socket and no connected session, global hotkeys wait");
-            return;
-        }
-
-        _globalHotkeys = _platform!.Hotkeys.TryStart(hotkeys, anchor, _view!, host, LaunchHotkey);
-    }
-
-    private void RestartGlobalHotkeys()
-    {
-        if (_registry is not { } registry || _hotkeysDisarmed)
-        {
-            return;
-        }
-
-        var signature = Signature(registry.Hotkeys(_run!.Host.Hotkeys, quiet: true));
-        if (signature == _hotkeySignature && (_globalHotkeys is not null || signature.Length == 0))
-        {
-            return;
-        }
-
-        _globalHotkeys?.Dispose();
-        _globalHotkeys = null;
-        StartGlobalHotkeys();
-    }
-
-    private static string Signature(IReadOnlyList<Hotkey> hotkeys) =>
-        string.Join('\n', hotkeys.Select(static hotkey => $"{hotkey.Modifiers}+{hotkey.Key}={hotkey.Session}:{hotkey.Command}"));
-
-    private void UpdateStatus(string text)
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (_tray is not null)
+            foreach (var session in registry.Live.ToList())
             {
-                _tray.ToolTipText = $"Waylonia — {text}";
+                _ = session.DisconnectAsync();
             }
-        });
+        }
+    }
+
+    protected virtual void UpdateStatus(string text)
+    {
     }
 
     private void OnComposited(long composited)
@@ -1427,32 +1005,9 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
     }
 
     [Conditional("DEBUG")]
-    private static void Protocol(string line) => BasinReport.Line(line);
+    protected static void Protocol(string line) => BasinReport.Line(line);
 
-    private static void WriteScreenshot(BasinCompositorHost host, string path)
-    {
-        using var renderer = new Basin.Render.Skia.SkiaRenderer();
-        var view = host.Session.Outputs.Count > 0 ? host.Session.Outputs[0] : null;
-        var width = view?.Output.CurrentMode.Width ?? 1024;
-        var height = view?.Output.CurrentMode.Height ?? 768;
-        var shot = new MemoryBuffer(width, height, DrmFormat.Xrgb8888);
-        var origin = view?.Position ?? default;
-        host.Scene.Root.SetPosition(-origin.X, -origin.Y);
-        try
-        {
-            host.Scene.Render(renderer, shot, new RenderColor(0.06f, 0.06f, 0.08f, 1f), view?.Output.Scale ?? 1.0);
-        }
-        finally
-        {
-            host.Scene.Root.SetPosition(0, 0);
-        }
-
-        BufferCapture.WritePng(shot, path);
-        shot.Destroy();
-        BasinReport.Line($"SCREENSHOT {path}");
-    }
-
-    private async Task ShutdownAsync(int status)
+    protected async Task ShutdownAsync(int status)
     {
         if (_shuttingDown)
         {
@@ -1461,53 +1016,9 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
 
         _shuttingDown = true;
         _exitStatus = status;
-        _capture?.Dispose();
-        _capture = null;
-        _globalHotkeys?.Dispose();
-        _globalHotkeys = null;
         _platform!.Cursor.Close();
-        if (_manager is { } manager)
-        {
-            manager.AllowClose();
-            manager.Close();
-            _manager = null;
-        }
-        else
-        {
-            _managerModel?.Detach();
-        }
-
-        if (_settings is { } settings)
-        {
-            settings.AllowClose();
-            settings.Close();
-            _settings = null;
-        }
-
-        if (_run!.Screenshot is { } path && _host is { } aliveHost && _view is { } pump)
-        {
-            var written = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            if (_shellWindow is { } shotWindow)
-            {
-                pump.Post(() => aliveHost.RequestScreenshot(path, ok =>
-                {
-                    BasinReport.Line(ok ? $"SCREENSHOT {path}" : $"SCREENSHOT failed");
-                    written.TrySetResult();
-                }));
-                shotWindow.View.RequestRender();
-            }
-            else
-            {
-                pump.Post(() =>
-                {
-                    WriteScreenshot(aliveHost, path);
-                    written.TrySetResult();
-                });
-                pump.RequestFrame();
-            }
-
-            await Task.WhenAny(written.Task, Task.Delay(3000));
-        }
+        await OnShuttingDownAsync();
+        _managerModel?.Detach();
 
         var stopped = false;
         if (_registry is { } registry)
@@ -1518,12 +1029,7 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
             }
         }
 
-        if (_localClient is { } client)
-        {
-            BasinDiagnostics.StopClient(client);
-            stopped = true;
-        }
-
+        stopped |= StopLocalClients();
         if (stopped)
         {
             for (var i = 0; i < 20 && _host is { Display.Clients.Count: > 0 }; i++)
@@ -1536,34 +1042,15 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         _channelPump?.Stop();
         _channelPump = null;
         await Task.Run(() => _registry?.DisposeAll());
-        _listen?.Dispose();
         _mixer.Dispose();
-
-        if (_view is { } integrationPump)
+        if (_view is { } integrationPump && _clipboard is { } clipboard)
         {
-            if (_clipboard is { } clipboard)
-            {
-                integrationPump.Post(clipboard.Dispose);
-            }
-
-            if (_hostDrag is { } hostDrag)
-            {
-                integrationPump.Post(hostDrag.Dispose);
-            }
+            integrationPump.Post(clipboard.Dispose);
         }
 
-        if (_windows is { } windows)
+        await CloseHostWindowsAsync();
+        if (_shellHost is { } shellHost)
         {
-            await windows.CloseAllAsync();
-        }
-
-        if (_shellWindow is { } shellWindow)
-        {
-            if (_shellStatePath is { } statePath && shellWindow.IsVisible)
-            {
-                ShellStateFile.Save(statePath, shellWindow.CurrentState(), Log);
-            }
-
             _chrome?.Dispose();
             _chrome = null;
             if (_shell is { } shell && _view is { } shellPump)
@@ -1571,10 +1058,8 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
                 shellPump.Post(shell.Dispose);
             }
 
-            await shellWindow.View.ShutdownAsync();
-            shellWindow.AllowClose();
-            shellWindow.Close();
-            _shellWindow = null;
+            await shellHost.CloseAsync();
+            _shellHost = null;
         }
 
         if (_view is { } view)
@@ -1591,10 +1076,16 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
             _exitStatus = 1;
         }
 
-        _window?.Close();
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-        {
-            desktop.Shutdown();
-        }
+        ExitProcess(_exitStatus);
+    }
+
+    protected virtual Task OnShuttingDownAsync() => Task.CompletedTask;
+
+    protected virtual bool StopLocalClients() => false;
+
+    protected virtual Task CloseHostWindowsAsync() => Task.CompletedTask;
+
+    protected virtual void ExitProcess(int status)
+    {
     }
 }

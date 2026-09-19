@@ -2,9 +2,13 @@
   <Folder Name="/src/">
     <Project Path="src/Waylonia.Core/Waylonia.Core.csproj" />
     <Project Path="src/Waylonia.Ssh.Tmds/Waylonia.Ssh.Tmds.csproj" />
+    <Project Path="src/Waylonia.Audio.MiniAudio/Waylonia.Audio.MiniAudio.csproj" />
+    <Project Path="src/Waylonia.UI/Waylonia.UI.csproj" />
+    <Project Path="src/Waylonia.UI.Desktop/Waylonia.UI.Desktop.csproj" />
     <Project Path="src/Waylonia.Desktop/Waylonia.Desktop.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Waylonia.Core.Tests/Waylonia.Core.Tests.csproj" />
+    <Project Path="tests/Waylonia.UI.Tests/Waylonia.UI.Tests.csproj" />
   </Folder>
 </Solution>

@@ -1,0 +1,3 @@
+[submodule "external/Tmds.Ssh"]
+	path = external/Tmds.Ssh
+	url = https://github.com/drasticactions/Tmds.Ssh.git

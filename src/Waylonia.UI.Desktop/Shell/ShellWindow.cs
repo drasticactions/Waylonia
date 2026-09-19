@@ -1,6 +1,5 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Threading;
 using Basin.Avalonia;
 using Basin.Hosted;
@@ -8,13 +7,13 @@ using BluerCurve.Chrome;
 
 namespace Waylonia.Shell;
 
-internal sealed class ShellWindow : BluerCurveWindow
+internal sealed class ShellWindow : BluerCurveWindow, IShellHost
 {
     private readonly ShellWindowState _initial;
     private string _title = "Waylonia";
     private bool _allowClose;
-    private bool _scaleSettled;
     private DispatcherTimer? _saveTimer;
+    private ShellWindowState _lastNormal = ShellWindowState.Default;
 
     public ShellWindow(BasinCompositorHost host, ShellWindowState state, Func<BasinCompositorHost, BasinViewOutput> createView)
     {
@@ -22,7 +21,8 @@ internal sealed class ShellWindow : BluerCurveWindow
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(createView);
         _initial = state;
-        View = new BasinToplevelView(host, createView);
+        View = new ShellView();
+        View.AttachHost(host, createView);
         Title = _title;
         Width = state.Width;
         Height = state.Height;
@@ -40,15 +40,9 @@ internal sealed class ShellWindow : BluerCurveWindow
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
         }
 
-        View.SizeChanged += (_, _) => ReportSize();
-        ScalingChanged += (_, _) =>
-        {
-            _scaleSettled = true;
-            ReportSize();
-        };
         Opened += (_, _) =>
         {
-            View.Focus();
+            View.FocusShell();
             if (!FitsAScreen())
             {
                 WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -65,16 +59,18 @@ internal sealed class ShellWindow : BluerCurveWindow
             {
                 WindowState = WindowState.FullScreen;
             }
-
-            ReportSize();
         };
         Activated += (_, _) =>
         {
-            View.Focus();
+            View.FocusShell();
             View.NotifyActivated(true);
             ActivatedOnHost?.Invoke();
         };
-        Deactivated += (_, _) => View.NotifyActivated(false);
+        Deactivated += (_, _) =>
+        {
+            View.NotifyActivated(false);
+            DeactivatedOnHost?.Invoke();
+        };
         PositionChanged += (_, _) => ScheduleSave();
         SizeChanged += (_, _) => ScheduleSave();
         Closing += (_, e) =>
@@ -87,13 +83,17 @@ internal sealed class ShellWindow : BluerCurveWindow
         };
     }
 
-    public BasinToplevelView View { get; }
+    public ShellView View { get; }
 
-    public event Action<int, int, double>? OutputResized;
+    public TopLevel? TopLevel => this;
+
+    public bool CanFullScreen => true;
 
     public event Action? CloseRequested;
 
     public event Action? ActivatedOnHost;
+
+    public event Action? DeactivatedOnHost;
 
     public event Action<ShellWindowState>? StateChanged;
 
@@ -108,9 +108,33 @@ internal sealed class ShellWindow : BluerCurveWindow
         Title = title;
     }
 
-    public void ApplyCursor(Cursor? cursor) => View.Cursor = cursor ?? new Cursor(StandardCursorType.Arrow);
+    public void Present()
+    {
+        if (!IsVisible)
+        {
+            Show();
+        }
+
+        Activate();
+    }
 
     public void AllowClose() => _allowClose = true;
+
+    public async Task CloseAsync()
+    {
+        if (IsVisible)
+        {
+            StateChanged?.Invoke(CurrentState());
+        }
+
+        if (View.Toplevel is { } toplevel)
+        {
+            await toplevel.ShutdownAsync();
+        }
+
+        AllowClose();
+        Close();
+    }
 
     public ShellWindowState CurrentState()
     {
@@ -128,8 +152,6 @@ internal sealed class ShellWindow : BluerCurveWindow
             false);
         return _lastNormal;
     }
-
-    private ShellWindowState _lastNormal = ShellWindowState.Default;
 
     private bool FitsAScreen()
     {
@@ -149,21 +171,6 @@ internal sealed class ShellWindow : BluerCurveWindow
         }
 
         return false;
-    }
-
-    private void ReportSize()
-    {
-        var bounds = View.Bounds;
-        if (bounds.Width <= 0 || bounds.Height <= 0)
-        {
-            return;
-        }
-
-        var scale = RenderScaling > 0 && (_scaleSettled || RenderScaling != 1.0) ? RenderScaling : 1.0;
-        OutputResized?.Invoke(
-            Math.Max(1, (int)Math.Round(bounds.Width * scale)),
-            Math.Max(1, (int)Math.Round(bounds.Height * scale)),
-            scale);
     }
 
     private void ScheduleSave()

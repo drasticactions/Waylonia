@@ -5,6 +5,7 @@ using Xunit;
 
 namespace Waylonia.Tests;
 
+[Collection(LogCaptureCollection.Name)]
 public sealed class TmdsSshLinkTests
 {
     public const string DestinationVariable = "WAYLONIA_SSH_TEST";
@@ -146,6 +147,48 @@ public sealed class TmdsSshLinkTests
         var denied = await Assert.ThrowsAsync<SshLinkException>(() => nobody.ConnectAsync(Ct));
         Assert.Equal(SshLinkReason.AuthenticationFailed, denied.Reason);
         Assert.Contains("refused every credential", denied.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Every_key_in_an_imported_directory_is_offered_in_name_order()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "waylonia-keys-" + Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            File.WriteAllText(Path.Combine(directory, "work"), "not a key");
+            File.WriteAllText(Path.Combine(directory, "work.pub"), "not a key either");
+            File.WriteAllText(Path.Combine(directory, "home"), "not a key");
+            File.WriteAllText(Path.Combine(directory, "config"), "Host *\n");
+            File.WriteAllText(Path.Combine(directory, "known_hosts"), string.Empty);
+            var paths = WayloniaPaths.Xdg() with { SshDirectory = directory };
+            var link = new TmdsSshLink("user@devbox", new EnvironmentPrompter(), new SemaphoreSlim(1, 1), TimeSpan.FromSeconds(1), BasinLogger.None, directory, enumerateKeys: true);
+            Assert.Equal([Path.Combine(directory, "home"), Path.Combine(directory, "work")], link.KeyFiles());
+            await link.DisposeAsync();
+
+            Assert.SkipUnless(Destination is { Length: > 0 }, $"set {DestinationVariable} to an ssh destination to run the rest of this test");
+            using var capture = new LogCapture();
+            var factory = new TmdsSshLinkFactory(static () => TimeSpan.FromSeconds(30), BasinLog.For("test"), paths, enumerateKeys: true);
+            var user = Destination!.Contains('@') ? Destination[..Destination.IndexOf('@')] : Environment.UserName;
+            await using var offered = factory.Create($"{user}@{SshPromptText.HostOf(Destination)}", new EnvironmentPrompter());
+            try
+            {
+                await offered.ConnectAsync(Ct);
+            }
+            catch (SshLinkException error)
+            {
+                Assert.Equal(SshLinkReason.AuthenticationFailed, error.Reason);
+                Assert.EndsWith(SshLinkException.ImportHint, error.Message, StringComparison.Ordinal);
+            }
+
+            Assert.Contains(capture.Lines, line => line.Contains(Path.Combine(directory, "home"), StringComparison.Ordinal));
+            Assert.Contains(capture.Lines, line => line.Contains(Path.Combine(directory, "work"), StringComparison.Ordinal));
+            Assert.DoesNotContain(capture.Lines, line => line.Contains("work.pub", StringComparison.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     [Fact]

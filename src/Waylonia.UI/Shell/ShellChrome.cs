@@ -17,7 +17,8 @@ namespace Waylonia.Shell;
 internal sealed class ShellChrome : IDisposable
 {
     private readonly NestedShell _shell;
-    private readonly Window _window;
+    private readonly IShellHost _host;
+    private readonly Interactive _pressSource;
     private readonly PanelModel _model;
     private PanelArrangement _arrangement;
     private readonly Action<Action> _post;
@@ -52,15 +53,16 @@ internal sealed class ShellChrome : IDisposable
         public bool Closing { get; set; }
     }
 
-    public ShellChrome(NestedShell shell, Window window, PanelModel model, PanelArrangement panels, Action<Action> post, BasinLogger log)
+    public ShellChrome(NestedShell shell, IShellHost host, PanelModel model, PanelArrangement panels, Action<Action> post, BasinLogger log)
     {
         ArgumentNullException.ThrowIfNull(shell);
-        ArgumentNullException.ThrowIfNull(window);
+        ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(model);
         ArgumentNullException.ThrowIfNull(panels);
         ArgumentNullException.ThrowIfNull(post);
         _shell = shell;
-        _window = window;
+        _host = host;
+        _pressSource = host.TopLevel ?? (Interactive)host.View;
         _model = model;
         _arrangement = panels;
         _post = post;
@@ -70,14 +72,14 @@ internal sealed class ShellChrome : IDisposable
         {
             Screens = _screens,
             CompositorAffinity = shell.Host.Affinity,
-            Features = type => type == typeof(IClipboard) ? TopLevel.GetTopLevel(window)?.Clipboard : null,
+            Features = type => type == typeof(IClipboard) ? host.TopLevel?.Clipboard : null,
         });
         _ui.SurfaceDamaged += OnSurfaceDamaged;
         _ui.PopupAppeared += OnPopupAppeared;
         _ui.PopupDismissed += OnPopupDismissed;
         _shell.PopupDismissRequested += OnPopupDismissRequested;
-        _window.Deactivated += OnWindowDeactivated;
-        _window.AddHandler(InputElement.PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        _host.DeactivatedOnHost += DismissPopups;
+        _pressSource.AddHandler(InputElement.PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
         BuildPanels();
     }
 
@@ -117,7 +119,7 @@ internal sealed class ShellChrome : IDisposable
         surface.Content = view;
         if (surface.Root is { } root)
         {
-            root.RequestedThemeVariant = _window.ActualThemeVariant;
+            root.RequestedThemeVariant = _host.View.ActualThemeVariant;
         }
 
         surface.SetPosition(strip.X, strip.Y);
@@ -182,7 +184,7 @@ internal sealed class ShellChrome : IDisposable
         {
             if (panel.Surface.Root is { } root)
             {
-                root.RequestedThemeVariant = _window.ActualThemeVariant;
+                root.RequestedThemeVariant = _host.View.ActualThemeVariant;
             }
         }
     }
@@ -273,7 +275,7 @@ internal sealed class ShellChrome : IDisposable
         surface.Content = view();
         if (surface.Root is { } root)
         {
-            root.RequestedThemeVariant = _window.ActualThemeVariant;
+            root.RequestedThemeVariant = _host.View.ActualThemeVariant;
         }
 
         ChromeSlot? created = null;
@@ -567,11 +569,9 @@ internal sealed class ShellChrome : IDisposable
 
     private void OnPopupDismissRequested() => Dispatcher.UIThread.Post(DismissPopups);
 
-    private void OnWindowDeactivated(object? sender, EventArgs e) => DismissPopups();
-
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (_window.Content is global::Avalonia.Visual view && e.Source is global::Avalonia.Visual pressed
+        if (_host.View.Toplevel is { } view && e.Source is global::Avalonia.Visual pressed
             && !ReferenceEquals(pressed, view) && !view.IsVisualAncestorOf(pressed))
         {
             DismissPopups();
@@ -595,8 +595,8 @@ internal sealed class ShellChrome : IDisposable
 
         _disposed = true;
         _shell.PopupDismissRequested -= OnPopupDismissRequested;
-        _window.Deactivated -= OnWindowDeactivated;
-        _window.RemoveHandler(InputElement.PointerPressedEvent, OnWindowPointerPressed);
+        _host.DeactivatedOnHost -= DismissPopups;
+        _pressSource.RemoveHandler(InputElement.PointerPressedEvent, OnWindowPointerPressed);
         _ui.SurfaceDamaged -= OnSurfaceDamaged;
         _ui.PopupAppeared -= OnPopupAppeared;
         _ui.PopupDismissed -= OnPopupDismissed;

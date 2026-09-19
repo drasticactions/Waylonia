@@ -1,3 +1,4 @@
+using Basin.Diagnostics;
 using Waylonia.Sessions;
 using Waylonia.Shell;
 
@@ -102,6 +103,41 @@ internal static class RunRules
         return listen is not null
             ? "--shell nested manages the windows itself and --waypipe-listen hands them to whoever started the channel"
             : null;
+    }
+
+    internal static IReadOnlyList<SessionSettings> Autoconnect(
+        SessionCatalog catalog, IReadOnlyList<SessionSettings> already, Config config, string audioFormat, BasinLogger log)
+    {
+        ArgumentNullException.ThrowIfNull(catalog);
+        ArgumentNullException.ThrowIfNull(already);
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(audioFormat);
+        var initial = new List<SessionSettings>(already);
+        foreach (var profile in catalog.Profiles)
+        {
+            if (!profile.Autoconnect || initial.Any(settings => settings.Name == profile.Name))
+            {
+                continue;
+            }
+
+            var resolved = SessionSettings.Resolve(profile, new SessionOverrides(AudioFormat: audioFormat), config, log);
+            if (resolved.Settings is { } settings)
+            {
+                if (initial.Any(static other => other.IsDesktop) && settings.IsDesktop)
+                {
+                    log.Warn($"session {profile.Name} autoconnects a desktop and another desktop is already starting, skipping it");
+                    continue;
+                }
+
+                initial.Add(settings);
+            }
+            else
+            {
+                log.Warn($"session {profile.Name} cannot autoconnect: {resolved.Error}");
+            }
+        }
+
+        return initial;
     }
 
     internal static string? LocalDesktopProblem(HostCapabilities capabilities)

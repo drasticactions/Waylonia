@@ -64,27 +64,27 @@ internal sealed class X11GlobalHotkeys : IDisposable
         _grabber = null;
     });
 
-    private static X11ShellModifiers Modifiers(ShellModifiers modifiers)
+    private static X11HotkeyModifiers Modifiers(ShellModifiers modifiers)
     {
-        var value = X11ShellModifiers.None;
+        var value = X11HotkeyModifiers.None;
         if ((modifiers & ShellModifiers.Shift) != 0)
         {
-            value |= X11ShellModifiers.Shift;
+            value |= X11HotkeyModifiers.Shift;
         }
 
         if ((modifiers & ShellModifiers.Ctrl) != 0)
         {
-            value |= X11ShellModifiers.Ctrl;
+            value |= X11HotkeyModifiers.Ctrl;
         }
 
         if ((modifiers & ShellModifiers.Alt) != 0)
         {
-            value |= X11ShellModifiers.Alt;
+            value |= X11HotkeyModifiers.Alt;
         }
 
         if ((modifiers & ShellModifiers.Super) != 0)
         {
-            value |= X11ShellModifiers.Super;
+            value |= X11HotkeyModifiers.Super;
         }
 
         return value;

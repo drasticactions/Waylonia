@@ -17,10 +17,6 @@
     <Version>0.1.0</Version>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <WayloniaPlatforms Condition="'$(WayloniaPlatforms)' == ''">linux;macos;windows</WayloniaPlatforms>
-  </PropertyGroup>
-
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatformAttribute"
                        Condition="$(WayloniaPlatforms.Contains('linux'))">
@@ -33,6 +29,22 @@
     <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatformAttribute"
                        Condition="$(WayloniaPlatforms.Contains('windows'))">
       <_Parameter1>windows</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatformAttribute"
+                       Condition="$(WayloniaPlatforms.Contains('ios'))">
+      <_Parameter1>ios</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatformAttribute"
+                       Condition="$(WayloniaPlatforms.Contains('maccatalyst'))">
+      <_Parameter1>maccatalyst</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatformAttribute"
+                       Condition="$(WayloniaPlatforms.Contains('android'))">
+      <_Parameter1>android</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatformAttribute"
+                       Condition="$(WayloniaPlatforms.Contains('browser'))">
+      <_Parameter1>browser</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
 

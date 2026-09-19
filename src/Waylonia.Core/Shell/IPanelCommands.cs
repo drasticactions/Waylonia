@@ -25,4 +25,6 @@ internal interface IPanelCommands
     void Disconnect(string session);
 
     void Quit();
+
+    void ToggleSoftKeyboard();
 }

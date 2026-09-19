@@ -1,5 +1,11 @@
 <Project>
 
+  <PropertyGroup>
+    <WayloniaPlatforms Condition="'$(WayloniaPlatforms)' == '' and '$(TargetPlatformIdentifier)' != ''">none</WayloniaPlatforms>
+    <WayloniaPlatforms Condition="'$(WayloniaPlatforms)' == ''">linux;macos;windows</WayloniaPlatforms>
+    <WayloniaPlatforms Condition="'$(WayloniaPlatforms)' == 'portable'">linux;macos;windows;ios;maccatalyst;android;browser</WayloniaPlatforms>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(BasinRepo)' != ''">
     <_BasinRepoInput>$(BasinRepo)</_BasinRepoInput>
     <_BasinRepoInput Condition="'$(_BasinRepoInput)' == '1' or '$(_BasinRepoInput)' == 'true'">$(RepoRoot)../basin</_BasinRepoInput>

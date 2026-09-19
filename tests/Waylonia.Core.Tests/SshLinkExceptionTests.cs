@@ -14,6 +14,7 @@ public sealed class SshLinkExceptionTests
     [InlineData("AuthenticationFailed", "user@devbox", "password,publickey", false, "user@devbox refused every credential (password, publickey)")]
     [InlineData("AuthenticationFailed", "user@devbox", "keyboard-interactive", false, "user@devbox refused every credential; the server offers keyboard-interactive, which waylonia cannot do")]
     [InlineData("AuthenticationFailed", "user@devbox", "publickey", true, "user@devbox refused every credential (publickey); an encrypted key named in ~/.ssh/config needs an agent")]
+    [InlineData("HostKeyChanged", "user@devbox", "/data/Documents/ssh/known_hosts", false, "the host key of devbox changed; remove the old one from /data/Documents/ssh/known_hosts if that is expected")]
     [InlineData("Cancelled", "user@devbox", null, false, "the login to user@devbox was cancelled")]
     [InlineData("ConfigUnsupported", "user@devbox", "ProxyCommand", false, "the ssh config for devbox uses ProxyCommand, which waylonia cannot honour; use ProxyJump")]
     [InlineData("ConfigUnsupported", "devbox", "SetEnv", false, "the ssh config for devbox uses SetEnv, which waylonia cannot honour")]
@@ -22,6 +23,17 @@ public sealed class SshLinkExceptionTests
     public void The_sentence_table_speaks_in_lowercase_user_terms(string reason, string destination, string? detail, bool hint, string expected)
     {
         Assert.Equal(expected, SshLinkException.Sentence(Enum.Parse<SshLinkReason>(reason), destination, detail, hint));
+    }
+
+    [Fact]
+    public void A_host_that_imports_keys_hints_at_the_import_instead_of_an_agent()
+    {
+        Assert.Equal(
+            "user@devbox refused every credential (publickey); import the key in the session manager",
+            SshLinkException.Sentence(SshLinkReason.AuthenticationFailed, "user@devbox", "publickey", true, SshLinkException.ImportHint));
+        Assert.Equal(
+            "user@devbox refused every credential (publickey)",
+            SshLinkException.Sentence(SshLinkReason.AuthenticationFailed, "user@devbox", "publickey", false, SshLinkException.ImportHint));
     }
 
     [Theory]

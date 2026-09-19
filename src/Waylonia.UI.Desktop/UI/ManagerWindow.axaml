@@ -1,6 +1,6 @@
 <chrome:BluerCurveWindow xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:ui="clr-namespace:Waylonia.UI"
+        xmlns:ui="clr-namespace:Waylonia.UI;assembly=Waylonia.UI"
         xmlns:chrome="clr-namespace:BluerCurve.Chrome;assembly=BluerCurve.Theme"
         x:Class="Waylonia.UI.ManagerWindow"
         x:DataType="ui:ManagerViewModel"

@@ -138,8 +138,9 @@ public sealed class NestedShellChromeTests
     {
         using var harness = new WayloniaHostHarness(nested: new WayloniaHostHarness.NestedShellOptions());
         var shell = harness.Shell!;
-        var host = new Window { Width = 800, Height = 600 };
-        host.Show();
+        var hostWindow = new Window { Width = 800, Height = 600 };
+        var host = new TestShellHost(hostWindow);
+        hostWindow.Show();
         var model = new PanelModel(new FakePanelCommands());
         using var chrome = new ShellChrome(shell, host, model, PanelArrangement.From(new PanelSettings(), BasinLogger.None), action => action(), BasinLogger.None);
         var directory = Path.Combine(Path.GetTempPath(), $"waylonia-chrome-{Guid.NewGuid():N}");
@@ -224,7 +225,7 @@ public sealed class NestedShellChromeTests
         }
         finally
         {
-            host.Close();
+            hostWindow.Close();
             Directory.Delete(directory, recursive: true);
         }
     }

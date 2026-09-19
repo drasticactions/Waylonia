@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Waylonia.UI/Waylonia.UI.csproj" />
+    <ProjectReference Include="../../src/Waylonia.UI.Desktop/Waylonia.UI.Desktop.csproj" />
     <ProjectReference Include="../../src/Waylonia.Desktop/Waylonia.Desktop.csproj" />
   </ItemGroup>
 

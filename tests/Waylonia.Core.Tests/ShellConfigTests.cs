@@ -235,7 +235,7 @@ public sealed class ShellConfigTests : IDisposable
     [InlineData("size = 4", "[panel] size takes 8 to 128, ignoring '4'")]
     [InlineData("size = 129", "[panel] size takes 8 to 128, ignoring '129'")]
     [InlineData("size = \"tall\"", "[panel] size takes 8 to 128, ignoring 'tall'")]
-    [InlineData("top = \"menu-bar\"", "[panel] top takes an array of applet names, ignoring it; the applets are menu-bar, window-list, workspace-switcher, clock, show-desktop, launcher:NAME and spacer")]
+    [InlineData("top = \"menu-bar\"", "[panel] top takes an array of applet names, ignoring it; the applets are menu-bar, window-list, workspace-switcher, clock, show-desktop, launcher:NAME, spacer and keyboard")]
     [InlineData("bottom = [1]", "[panel] bottom takes an array of applet names, ignoring it")]
     public void A_bad_panel_value_warns_and_keeps_the_default(string line, string warning)
     {

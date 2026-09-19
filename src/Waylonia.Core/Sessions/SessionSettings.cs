@@ -27,11 +27,9 @@ internal sealed record SessionSettings(
 {
     public bool IsDesktop => Desktop is not null;
 
-    public static Func<bool, (IVideoDecoder? Decoder, string WhyNot)> CreateDecoder { get; set; } = hardware =>
-    {
-        var decoder = Basin.Video.FFmpeg.FFmpegVideoDecoder.TryCreate(hardware, out var whyNot);
-        return (decoder, whyNot ?? string.Empty);
-    };
+    public const string NoDecoder = "the host registered no video decoder";
+
+    public static Func<bool, (IVideoDecoder? Decoder, string WhyNot)> CreateDecoder { get; set; } = static _ => (null, NoDecoder);
 
     public static SessionResolution Resolve(
         SessionProfile profile, SessionOverrides overrides, Config config, BasinLogger log, bool adHoc = false)

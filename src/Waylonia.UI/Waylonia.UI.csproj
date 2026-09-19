@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <WayloniaPlatforms>portable</WayloniaPlatforms>
     <RootNamespace>Waylonia</RootNamespace>
     <IsPackable>false</IsPackable>
     <InvariantGlobalization>true</InvariantGlobalization>
@@ -10,6 +11,8 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="waylonia" />
+    <InternalsVisibleTo Include="Waylonia" />
+    <InternalsVisibleTo Include="Waylonia.UI.Desktop" />
     <InternalsVisibleTo Include="Waylonia.UI.Tests" />
   </ItemGroup>
 
@@ -19,7 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Waylonia.Core/Waylonia.Core.csproj" />
-    <PackageReference Include="Basin.Avalonia" />
+    <PackageReference Include="Basin.Avalonia.View" />
     <PackageReference Include="Basin.UI.Avalonia" />
     <PackageReference Include="BluerCurve" />
     <PackageReference Include="BluerCurve.Icons" />

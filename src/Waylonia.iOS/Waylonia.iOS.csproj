@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net11.0-ios</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Waylonia</RootNamespace>
+    <AssemblyName>Waylonia</AssemblyName>
+    <SupportedOSPlatformVersion>17.0</SupportedOSPlatformVersion>
+    <ApplicationId>dev.drasticactions.waylonia</ApplicationId>
+    <ApplicationTitle>Waylonia</ApplicationTitle>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">iossimulator-arm64</RuntimeIdentifier>
+    <PublishAot>true</PublishAot>
+    <ILLinkTreatWarningsAsErrors>false</ILLinkTreatWarningsAsErrors>
+    <IsPackable>false</IsPackable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Waylonia.UI/Waylonia.UI.csproj" />
+    <ProjectReference Include="../Waylonia.Ssh.Tmds/Waylonia.Ssh.Tmds.csproj" />
+    <PackageReference Include="Avalonia.iOS" />
+    <PackageReference Include="Basin.Video.VideoToolbox" />
+  </ItemGroup>
+
+</Project>

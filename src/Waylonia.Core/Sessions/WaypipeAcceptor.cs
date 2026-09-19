@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.Versioning;
 using Basin;
 using Basin.Capabilities;
 using Basin.Transport.Waypipe;
@@ -16,7 +17,7 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
     private readonly string? _video;
     private readonly IVideoDecoder? _decoder;
     private readonly List<WaypipeChannel> _channels = [];
-    private Socket? _listener;
+    private IDisposable? _listener;
     private LinuxDmabufGlobal? _dmabuf;
     private int _attached;
     private bool _disposed;
@@ -65,6 +66,7 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
 
     public bool OwnsDmabuf(WlGlobal global) => _dmabuf is { } dmabuf && dmabuf.Owns(global);
 
+    [UnsupportedOSPlatform("browser")]
     public static EndPoint? ParseEndpoint(string text, out string? error)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -89,6 +91,7 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
         return new UnixDomainSocketEndPoint(text);
     }
 
+    [UnsupportedOSPlatform("browser")]
     public static Socket Listen(EndPoint endpoint)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
@@ -101,6 +104,7 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
         return listener;
     }
 
+    [UnsupportedOSPlatform("browser")]
     public void Accept(Socket listener)
     {
         ArgumentNullException.ThrowIfNull(listener);
@@ -108,6 +112,7 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
         _ = AcceptLoopAsync(listener);
     }
 
+    [UnsupportedOSPlatform("browser")]
     private async Task AcceptLoopAsync(Socket listener)
     {
         try

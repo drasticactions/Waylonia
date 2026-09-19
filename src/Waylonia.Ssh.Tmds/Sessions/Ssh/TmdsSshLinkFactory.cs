@@ -2,7 +2,7 @@ using Basin.Diagnostics;
 
 namespace Waylonia.Sessions;
 
-internal sealed class TmdsSshLinkFactory(Func<TimeSpan> connectTimeout, BasinLogger log, WayloniaPaths paths) : ISshLinkFactory
+internal sealed class TmdsSshLinkFactory(Func<TimeSpan> connectTimeout, BasinLogger log, WayloniaPaths paths, bool enumerateKeys = false) : ISshLinkFactory
 {
     private readonly SemaphoreSlim _prompts = new(1, 1);
 
@@ -10,6 +10,6 @@ internal sealed class TmdsSshLinkFactory(Func<TimeSpan> connectTimeout, BasinLog
     {
         ArgumentNullException.ThrowIfNull(destination);
         ArgumentNullException.ThrowIfNull(prompter);
-        return new TmdsSshLink(destination, prompter, _prompts, connectTimeout(), log, paths.SshDirectory);
+        return new TmdsSshLink(destination, prompter, _prompts, connectTimeout(), log, paths.SshDirectory, enumerateKeys);
     }
 }

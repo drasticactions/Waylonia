@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <WayloniaPlatforms>portable</WayloniaPlatforms>
     <RootNamespace>Waylonia</RootNamespace>
     <IsPackable>false</IsPackable>
     <InvariantGlobalization>true</InvariantGlobalization>
@@ -9,8 +10,11 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Waylonia.Ssh.Tmds" />
+    <InternalsVisibleTo Include="Waylonia.Audio.MiniAudio" />
     <InternalsVisibleTo Include="Waylonia.UI" />
+    <InternalsVisibleTo Include="Waylonia.UI.Desktop" />
     <InternalsVisibleTo Include="waylonia" />
+    <InternalsVisibleTo Include="Waylonia" />
     <InternalsVisibleTo Include="Waylonia.Core.Tests" />
     <InternalsVisibleTo Include="Waylonia.UI.Tests" />
   </ItemGroup>
@@ -27,7 +31,6 @@
     <PackageReference Include="Basin.Shell.Nested" />
     <PackageReference Include="Basin.Transport.Waypipe" />
     <PackageReference Include="Basin.UI.Skia" />
-    <PackageReference Include="Basin.Video.FFmpeg" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Tomlyn" />
   </ItemGroup>

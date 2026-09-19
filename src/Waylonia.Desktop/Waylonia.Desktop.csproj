@@ -26,10 +26,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Waylonia.UI/Waylonia.UI.csproj" />
+    <ProjectReference Include="../Waylonia.UI.Desktop/Waylonia.UI.Desktop.csproj" />
     <ProjectReference Include="../Waylonia.Ssh.Tmds/Waylonia.Ssh.Tmds.csproj" />
+    <ProjectReference Include="../Waylonia.Audio.MiniAudio/Waylonia.Audio.MiniAudio.csproj" />
     <PackageReference Include="Avalonia.Desktop" />
-    <PackageReference Include="JAJ.Packages.MiniAudioEx" />
+    <PackageReference Include="Basin.Video.FFmpeg" />
     <PackageReference Include="System.CommandLine" />
     <PackageReference Include="Basin.XWayland" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <PackageReference Include="Avalonia.Wayland" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />

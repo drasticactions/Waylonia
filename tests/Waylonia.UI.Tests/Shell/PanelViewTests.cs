@@ -232,6 +232,24 @@ public sealed class PanelViewTests
         Assert.Same(expected, strip.Background);
     }
 
+    [AvaloniaFact]
+    public void The_keyboard_applet_is_a_button_that_toggles_the_soft_keyboard()
+    {
+        var commands = new FakePanelCommands();
+        var model = Model(commands);
+        var panel = Panel(model, [new PanelApplet(PanelAppletKind.WindowList), new PanelApplet(PanelAppletKind.Keyboard)]);
+
+        var button = Find<ToggleButton>(panel, candidate => candidate.Classes.Contains("keyboard"));
+        Assert.False(button.IsChecked);
+        Assert.Equal("Keyboard", ToolTip.GetTip(button));
+
+        button.Command!.Execute(null);
+        Assert.Equal(["ToggleSoftKeyboard"], commands.Calls);
+
+        model.SoftKeyboardOpen = true;
+        Assert.True(button.IsChecked);
+    }
+
     private static T Find<T>(Control root, Func<T, bool> predicate)
         where T : Control =>
         root.GetVisualDescendants().OfType<T>().First(predicate);

@@ -22,6 +22,7 @@ internal sealed class PanelViewModel
         PanelAppletKind.WindowList => new WindowListViewModel(model),
         PanelAppletKind.WorkspaceSwitcher => new WorkspaceSwitcherViewModel(model),
         PanelAppletKind.Clock => new ClockViewModel(),
+        PanelAppletKind.Keyboard => new KeyboardViewModel(model),
         _ => new SpacerViewModel(applet),
     };
 }

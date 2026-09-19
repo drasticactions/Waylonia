@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <WayloniaPlatforms>portable</WayloniaPlatforms>
+    <RootNamespace>Waylonia</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="waylonia" />
+    <InternalsVisibleTo Include="Waylonia" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Waylonia.Core/Waylonia.Core.csproj" />
+    <PackageReference Include="JAJ.Packages.MiniAudioEx" />
+  </ItemGroup>
+
+</Project>

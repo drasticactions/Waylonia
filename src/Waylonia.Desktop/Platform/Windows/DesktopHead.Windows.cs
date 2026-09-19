@@ -17,19 +17,22 @@ internal static partial class DesktopHead
 
     private static partial WayloniaPaths PlatformPaths() => LocalApplicationDataPaths();
 
-    private static partial HostPlatform Compose(
+    private static partial DesktopPlatform Compose(
         HostCapabilities capabilities,
         WayloniaPaths paths,
         ISshLinkFactory links,
         Func<AudioFill, int, int, IAudioSink?> audio) => new(
-            capabilities,
-            paths,
-            links,
-            audio,
-            new WindowsHostCursor(),
-            NullHostScreenScales.Instance,
+            new HostPlatform(
+                capabilities,
+                paths,
+                links,
+                audio,
+                Video,
+                new WindowsHostCursor(),
+                NullHostScreenScales.Instance,
+                new WindowsHostWindowing(),
+                NullKeyPicker.Instance),
             new WindowsGlobalHotkeys(),
             new WindowsHostCapture(),
-            new WindowsHostWindowing(),
             NullXWaylandHost.Instance);
 }

@@ -9,4 +9,5 @@ internal enum PanelAppletKind
     ShowDesktop,
     Launcher,
     Spacer,
+    Keyboard,
 }

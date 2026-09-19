@@ -231,6 +231,69 @@ public sealed class ManagerWindowTests : IDisposable
         Assert.Contains("the host key of devbox changed", model.Rows.Single(row => row.Name == "dev").Detail, StringComparison.Ordinal);
     }
 
+    [AvaloniaFact]
+    public void Import_key_is_absent_on_a_desktop_and_offered_in_the_session_menu_where_keys_are_imported()
+    {
+        var plain = new ManagerWindow(Model());
+        plain.Show();
+        var session = plain.View.FindControl<Menu>("MenuBar")!.Items.OfType<MenuItem>().First();
+        Assert.False(plain.Model.CanImportKey);
+        Assert.Equal(["New"], session.Items.OfType<MenuItem>().Select(item => item.Header?.ToString()));
+        plain.Close();
+
+        var picked = new List<PickedKey>();
+        var model = new ManagerViewModel(
+            new SessionStore(_directory),
+            new SessionRegistry(new StubSessionHost()),
+            BasinLogger.None,
+            _ => Task.FromResult<string?>(null),
+            _ => Task.CompletedTask,
+            null,
+            () => Task.FromResult<IReadOnlyList<PickedKey>>(picked),
+            Path.Combine(_directory, "ssh"));
+        var importing = new ManagerWindow(model);
+        importing.Show();
+        session = importing.View.FindControl<Menu>("MenuBar")!.Items.OfType<MenuItem>().First();
+        Assert.True(model.CanImportKey);
+        var item = Assert.Single(session.Items.OfType<MenuItem>(), entry => entry.Header?.ToString() == ManagerView.ImportKeyLabel);
+        Assert.Same(model.ImportKeyCommand, item.Command);
+        importing.Close();
+    }
+
+    [Fact]
+    public async Task Importing_keys_copies_each_picked_file_and_reports_every_result()
+    {
+        var ssh = Path.Combine(_directory, "ssh");
+        var picked = new List<PickedKey>
+        {
+            new("id_ed25519", new MemoryStream("key one"u8.ToArray())),
+            new("id_ed25519.pub", new MemoryStream("key one pub"u8.ToArray())),
+        };
+        var model = new ManagerViewModel(
+            new SessionStore(_directory),
+            new SessionRegistry(new StubSessionHost()),
+            BasinLogger.None,
+            _ => Task.FromResult<string?>(null),
+            _ => Task.CompletedTask,
+            null,
+            () => Task.FromResult<IReadOnlyList<PickedKey>>(picked),
+            ssh);
+
+        await model.ImportKeyAsync();
+
+        Assert.Equal("key one", File.ReadAllText(Path.Combine(ssh, "id_ed25519")));
+        Assert.Equal("key one pub", File.ReadAllText(Path.Combine(ssh, "id_ed25519.pub")));
+        Assert.Equal(
+            "Imported id_ed25519; the next connection offers it.\nImported id_ed25519.pub; the next connection offers it.",
+            model.Problem);
+
+        picked.Clear();
+        picked.Add(new PickedKey("id_ed25519", new MemoryStream("again"u8.ToArray())));
+        await model.ImportKeyAsync();
+        Assert.Equal("a key named id_ed25519 is already imported; remove it in Files first", model.Problem);
+        Assert.Equal("key one", File.ReadAllText(Path.Combine(ssh, "id_ed25519")));
+    }
+
     [Fact]
     public void The_settings_command_calls_through_when_the_app_offers_it()
     {

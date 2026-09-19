@@ -100,6 +100,7 @@ internal static class Program
         {
             cli.ConfigureLogging(result);
             var log = BasinLog.For("waylonia");
+            SessionSettings.CreateDecoder = DesktopHead.Video.Create;
             var configValue = result.GetValue(configOption);
             var capabilities = DesktopHead.Capabilities;
             var paths = configValue is null ? DesktopHead.Paths() : DesktopHead.Paths().WithConfig(configValue == "false" ? null : configValue);
@@ -267,39 +268,17 @@ internal static class Program
             }
 
             var manager = commandText is null && listen is null && localDesktop is null && adHoc is null;
+            IReadOnlyList<SessionSettings> starting = initial;
             if (commandText is null && listen is null && localDesktop is null)
             {
-                foreach (var profile in catalog.Profiles)
-                {
-                    if (!profile.Autoconnect || initial.Any(settings => settings.Name == profile.Name))
-                    {
-                        continue;
-                    }
-
-                    var resolved = SessionSettings.Resolve(
-                        profile, new SessionOverrides(AudioFormat: audioFormat), config, log);
-                    if (resolved.Settings is { } settings)
-                    {
-                        if (initial.Any(static other => other.IsDesktop) && settings.IsDesktop)
-                        {
-                            log.Warn($"session {profile.Name} autoconnects a desktop and another desktop is already starting, skipping it");
-                            continue;
-                        }
-
-                        initial.Add(settings);
-                    }
-                    else
-                    {
-                        log.Warn($"session {profile.Name} cannot autoconnect: {resolved.Error}");
-                    }
-                }
+                starting = RunRules.Autoconnect(catalog, initial, config, audioFormat, log);
             }
 
             var status = DesktopHead.Run(new WayloniaRun(
                 capabilities,
                 paths,
                 host,
-                initial,
+                starting,
                 manager,
                 commandText,
                 localDesktop,

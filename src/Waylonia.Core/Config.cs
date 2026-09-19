@@ -260,7 +260,8 @@ internal sealed class Config
             #gpu = true
 
             # Ask the remote waypipe to encode buffer updates as video, and
-            # decode them here with the system FFmpeg. Implies gpu. Append
+            # decode them here with the host's video decoder (FFmpeg on the
+            # desktop, VideoToolbox on iOS). Implies gpu. Append
             # ",hw" to decode on this host's GPU when it has a device, and
             # ",hwenc", ",swenc", ",hwdec", ",swdec" or ",bpf=B" to say where
             # the remote encodes and decodes, and at how many bits per frame.

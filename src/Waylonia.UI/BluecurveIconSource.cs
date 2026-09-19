@@ -61,6 +61,8 @@ internal sealed class BluecurveIconSource
 
     public const string LauncherIcon = "icon-launcher";
 
+    public const string KeyboardIcon = "icon-keyboard";
+
     public string? Path(string? name, string? context = null)
     {
         if (name is not { Length: > 0 })

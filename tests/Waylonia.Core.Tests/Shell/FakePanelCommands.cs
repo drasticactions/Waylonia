@@ -29,4 +29,6 @@ internal sealed class FakePanelCommands : IPanelCommands
     public void Disconnect(string session) => Calls.Add($"Disconnect {session}");
 
     public void Quit() => Calls.Add("Quit");
+
+    public void ToggleSoftKeyboard() => Calls.Add("ToggleSoftKeyboard");
 }

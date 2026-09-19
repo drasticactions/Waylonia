@@ -10,6 +10,7 @@ internal sealed class PanelCommands : IPanelCommands
     private readonly Action _openSettings;
     private readonly Action<string> _disconnect;
     private readonly Action _quit;
+    private readonly Action _toggleSoftKeyboard;
 
     public PanelCommands(
         Func<NestedShell?> shell,
@@ -18,7 +19,8 @@ internal sealed class PanelCommands : IPanelCommands
         Action openManager,
         Action openSettings,
         Action<string> disconnect,
-        Action quit)
+        Action quit,
+        Action toggleSoftKeyboard)
     {
         _shell = shell;
         _post = post;
@@ -27,6 +29,7 @@ internal sealed class PanelCommands : IPanelCommands
         _openSettings = openSettings;
         _disconnect = disconnect;
         _quit = quit;
+        _toggleSoftKeyboard = toggleSoftKeyboard;
     }
 
     public void FocusWindow(long id) => WithWindow(id, static (shell, window) => shell.ActivateWindow(window));
@@ -53,6 +56,8 @@ internal sealed class PanelCommands : IPanelCommands
     public void Disconnect(string session) => _disconnect(session);
 
     public void Quit() => _quit();
+
+    public void ToggleSoftKeyboard() => _toggleSoftKeyboard();
 
     private void WithWindow(long id, Action<NestedShell, ManagedWindow> action) => _post(() =>
     {

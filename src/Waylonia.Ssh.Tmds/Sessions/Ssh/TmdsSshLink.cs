@@ -10,6 +10,8 @@ internal sealed class TmdsSshLink : ISshLink
 
     private static readonly string[] DefaultKeys = ["id_ed25519", "id_ecdsa", "id_rsa"];
 
+    private static readonly string[] NotKeys = ["config", "known_hosts", "known_hosts.old", "authorized_keys", "environment", "rc"];
+
     private static readonly TimeSpan LoginLimit = TimeSpan.FromDays(1);
 
     private readonly ISshPrompter _prompter;
@@ -20,17 +22,20 @@ internal sealed class TmdsSshLink : ISshLink
     private readonly CancellationTokenSource _lost = new();
     private readonly TimeSpan _timeout;
     private readonly string _sshDirectory;
+    private readonly bool _enumerateKeys;
     private bool _connected;
     private bool _disposed;
     private bool _cancelled;
     private bool _timedOut;
     private SshHostKeyState? _rejectedHostKey;
 
-    public TmdsSshLink(string destination, ISshPrompter prompter, SemaphoreSlim prompts, TimeSpan timeout, BasinLogger log, string sshDirectory)
+    public TmdsSshLink(
+        string destination, ISshPrompter prompter, SemaphoreSlim prompts, TimeSpan timeout, BasinLogger log, string sshDirectory, bool enumerateKeys = false)
     {
         ArgumentException.ThrowIfNullOrEmpty(sshDirectory);
         Destination = destination;
         _sshDirectory = sshDirectory;
+        _enumerateKeys = enumerateKeys;
         _prompter = prompter;
         _prompts = prompts;
         _timeout = timeout;
@@ -38,7 +43,7 @@ internal sealed class TmdsSshLink : ISshLink
         _events = new TmdsSshLogger(log, destination);
         var settings = new SshConfigSettings
         {
-            ConfigFilePaths = [.. SshConfigSettings.DefaultConfigFilePaths],
+            ConfigFilePaths = ConfigFilePaths(sshDirectory),
             AutoConnect = false,
             AutoReconnect = false,
             ConnectTimeout = LoginLimit,
@@ -147,6 +152,8 @@ internal sealed class TmdsSshLink : ISshLink
     {
         var settings = context.Settings;
         settings.EnableBatchModeWhenConsoleIsRedirected = false;
+        settings.UserKnownHostsFilePaths = [KnownHostsPath];
+        settings.UpdateKnownHostsFileAfterAuthentication = true;
         if (settings.HostAuthentication is { } configured)
         {
             settings.HostAuthentication = async (hostContext, cancellation) =>
@@ -166,16 +173,70 @@ internal sealed class TmdsSshLink : ISshLink
             return;
         }
 
-        var sshDirectory = _sshDirectory;
-        foreach (var name in DefaultKeys)
+        var destination = $"{settings.UserName}@{settings.HostName}";
+        var index = settings.Credentials.FindIndex(static credential => credential is PasswordCredential);
+        if (index < 0)
         {
-            var path = Path.Combine(sshDirectory, name);
-            if (File.Exists(path))
+            index = settings.Credentials.Count;
+        }
+
+        foreach (var path in KeyFiles())
+        {
+            settings.Credentials.Insert(index++, new PrivateKeyCredential(path, () => AskPassphrase(destination, path), queryKey: true));
+        }
+    }
+
+    private string KnownHostsPath => Path.Combine(_sshDirectory, "known_hosts");
+
+    private static List<string> ConfigFilePaths(string sshDirectory)
+    {
+        var user = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh", "config");
+        var paths = new List<string> { Path.Combine(sshDirectory, "config") };
+        foreach (var path in SshConfigSettings.DefaultConfigFilePaths)
+        {
+            if (!string.Equals(path, user, StringComparison.Ordinal) && !paths.Contains(path))
             {
-                var destination = $"{settings.UserName}@{settings.HostName}";
-                settings.Credentials.Add(new PrivateKeyCredential(path, () => AskPassphrase(destination, path), queryKey: true));
+                paths.Add(path);
             }
         }
+
+        return paths;
+    }
+
+    internal IReadOnlyList<string> KeyFiles()
+    {
+        var keys = new List<string>();
+        if (!_enumerateKeys)
+        {
+            foreach (var name in DefaultKeys)
+            {
+                var path = Path.Combine(_sshDirectory, name);
+                if (File.Exists(path))
+                {
+                    keys.Add(path);
+                }
+            }
+
+            return keys;
+        }
+
+        try
+        {
+            foreach (var path in Directory.EnumerateFiles(_sshDirectory).Order(StringComparer.Ordinal))
+            {
+                var name = Path.GetFileName(path);
+                if (!NotKeys.Contains(name) && !name.EndsWith(".pub", StringComparison.Ordinal) && !name.StartsWith('.'))
+                {
+                    keys.Add(path);
+                }
+            }
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            _log.Warn($"the keys in {_sshDirectory} could not be listed: {error.Message}");
+        }
+
+        return keys;
     }
 
     private string? AskPassphrase(string destination, string path)
@@ -280,7 +341,12 @@ internal sealed class TmdsSshLink : ISshLink
         {
             return new SshLinkException(
                 SshLinkReason.AuthenticationFailed,
-                SshLinkException.Sentence(SshLinkReason.AuthenticationFailed, Destination, _events.AllowedMethods, ConfigNamesIdentity()),
+                SshLinkException.Sentence(
+                    SshLinkReason.AuthenticationFailed,
+                    Destination,
+                    _events.AllowedMethods,
+                    ConfigNamesIdentity(),
+                    _enumerateKeys ? SshLinkException.ImportHint : null),
                 error);
         }
 
@@ -288,11 +354,11 @@ internal sealed class TmdsSshLink : ISshLink
     }
 
     private SshLinkException Make(SshLinkReason reason, Exception error) =>
-        new(reason, SshLinkException.Sentence(reason, Destination), error);
+        new(reason, SshLinkException.Sentence(reason, Destination, reason == SshLinkReason.HostKeyChanged ? KnownHostsPath : null), error);
 
-    private static bool ConfigNamesIdentity()
+    private bool ConfigNamesIdentity()
     {
-        foreach (var path in SshConfigSettings.DefaultConfigFilePaths)
+        foreach (var path in ConfigFilePaths(_sshDirectory))
         {
             try
             {

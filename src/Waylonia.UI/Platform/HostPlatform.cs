@@ -8,12 +8,11 @@ internal sealed record HostPlatform(
     WayloniaPaths Paths,
     ISshLinkFactory Links,
     Func<AudioFill, int, int, IAudioSink?> OpenAudio,
+    IVideoDecoders Video,
     IHostCursor Cursor,
     IHostScreenScales ScreenScales,
-    IGlobalHotkeys Hotkeys,
-    IHostCapture Capture,
     IHostWindowing Windowing,
-    IXWaylandHost XWayland)
+    IKeyPicker Keys)
 {
     public static HostPlatform Minimal(WayloniaPaths paths, ISshLinkFactory links)
     {
@@ -24,11 +23,10 @@ internal sealed record HostPlatform(
             paths,
             links,
             static (_, _, _) => null,
+            NullVideoDecoders.Instance,
             NullHostCursor.Instance,
             NullHostScreenScales.Instance,
-            NullGlobalHotkeys.Instance,
-            NullHostCapture.Instance,
             NullHostWindowing.Instance,
-            NullXWaylandHost.Instance);
+            NullKeyPicker.Instance);
     }
 }

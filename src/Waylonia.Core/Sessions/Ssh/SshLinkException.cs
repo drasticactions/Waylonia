@@ -12,7 +12,11 @@ internal sealed class SshLinkException : Exception
 
     public SshLinkReason Reason { get; }
 
-    public static string Sentence(SshLinkReason reason, string destination, string? detail = null, bool configHint = false)
+    public const string AgentHint = "an encrypted key named in ~/.ssh/config needs an agent";
+
+    public const string ImportHint = "import the key in the session manager";
+
+    public static string Sentence(SshLinkReason reason, string destination, string? detail = null, bool configHint = false, string? hint = null)
     {
         ArgumentNullException.ThrowIfNull(destination);
         var host = SshPromptText.HostOf(destination);
@@ -23,8 +27,8 @@ internal sealed class SshLinkException : Exception
                 : $"{host} could not be reached",
             SshLinkReason.HostKeyRejected => $"the host key of {host} was not accepted",
             SshLinkReason.HostKeyChanged =>
-                $"the host key of {host} changed; remove the old one from ~/.ssh/known_hosts if that is expected",
-            SshLinkReason.AuthenticationFailed => Authentication(destination, detail, configHint),
+                $"the host key of {host} changed; remove the old one from {detail ?? "~/.ssh/known_hosts"} if that is expected",
+            SshLinkReason.AuthenticationFailed => Authentication(destination, detail, configHint ? hint ?? AgentHint : null),
             SshLinkReason.Cancelled => $"the login to {destination} was cancelled",
             SshLinkReason.ConfigUnsupported => detail is { Length: > 0 } keyword
                 ? $"the ssh config for {host} uses {keyword}, which waylonia cannot honour" +
@@ -56,7 +60,7 @@ internal sealed class SshLinkException : Exception
         return close > open + 1 ? message[(open + 1)..close] : null;
     }
 
-    private static string Authentication(string destination, string? methods, bool configHint)
+    private static string Authentication(string destination, string? methods, string? hint)
     {
         var offered = (methods ?? string.Empty)
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -70,9 +74,9 @@ internal sealed class SshLinkException : Exception
             text += $" ({string.Join(", ", offered)})";
         }
 
-        if (configHint)
+        if (hint is not null)
         {
-            text += "; an encrypted key named in ~/.ssh/config needs an agent";
+            text += $"; {hint}";
         }
 
         return text;

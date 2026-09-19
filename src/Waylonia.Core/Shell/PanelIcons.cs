@@ -6,7 +6,8 @@ internal sealed record PanelIcons(
     string? Disconnect = null,
     string? Quit = null,
     string? Session = null,
-    Func<string, string?>? Place = null)
+    Func<string, string?>? Place = null,
+    string? Keyboard = null)
 {
     public static PanelIcons None { get; } = new();
 
