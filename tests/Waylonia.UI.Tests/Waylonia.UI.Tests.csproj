@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Waylonia.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless.XUnit" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Basin.Avalonia" />
+    <PackageReference Include="Basin.Core" />
+    <PackageReference Include="Basin.Desktop" />
+    <PackageReference Include="Basin.Freedesktop" />
+    <PackageReference Include="Basin.Hosted" />
+    <PackageReference Include="Basin.Scene" />
+    <PackageReference Include="Basin.Shell.Xdg" />
+    <PackageReference Include="Basin.UI.Avalonia" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Waylonia.UI/Waylonia.UI.csproj" />
+    <ProjectReference Include="../../src/Waylonia.Desktop/Waylonia.Desktop.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../Waylonia.Core.Tests/Shared/CompositorHarness.cs" Link="Shared/CompositorHarness.cs" />
+    <Compile Include="../Waylonia.Core.Tests/Shared/ShmTestClient.cs" Link="Shared/ShmTestClient.cs" />
+    <Compile Include="../Waylonia.Core.Tests/Shared/LeakTracking.cs" Link="Shared/LeakTracking.cs" />
+    <Compile Include="../Waylonia.Core.Tests/Shared/StubSessionHost.cs" Link="Shared/StubSessionHost.cs" />
+    <Compile Include="../Waylonia.Core.Tests/Shell/FakePanelCommands.cs" Link="Shell/FakePanelCommands.cs" />
+    <Compile Include="../Waylonia.Core.Tests/Shell/PanelModelFixture.cs" Link="Shell/PanelModelFixture.cs" />
+    <Compile Include="../Waylonia.Core.Tests/Ssh/FakePrompter.cs" Link="Ssh/FakePrompter.cs" />
+    <Compile Include="../Waylonia.Core.Tests/Ssh/FakeSshLinkFactory.cs" Link="Ssh/FakeSshLinkFactory.cs" />
+    <Compile Include="../Waylonia.Core.Tests/Ssh/FakeSshLink.cs" Link="Ssh/FakeSshLink.cs" />
+    <Compile Include="../Waylonia.Core.Tests/Ssh/FakeSshCommand.cs" Link="Ssh/FakeSshCommand.cs" />
+    <Compile Include="../Waylonia.Core.Tests/Ssh/FakeSshListener.cs" Link="Ssh/FakeSshListener.cs" />
+    <Compile Include="../Waylonia.Core.Tests/Ssh/DuplexStream.cs" Link="Ssh/DuplexStream.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

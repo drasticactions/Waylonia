@@ -15,6 +15,7 @@
     <PackageVersion Include="Basin.Desktop" Version="$(BasinVersion)" />
     <PackageVersion Include="Basin.Frames.Metacity" Version="$(BasinVersion)" />
     <PackageVersion Include="Basin.Freedesktop" Version="$(BasinVersion)" />
+    <PackageVersion Include="Basin.Hosted" Version="$(BasinVersion)" />
     <PackageVersion Include="Basin.Render.Skia" Version="$(BasinVersion)" />
     <PackageVersion Include="Basin.Scene" Version="$(BasinVersion)" />
     <PackageVersion Include="Basin.Shell.Xdg" Version="$(BasinVersion)" />

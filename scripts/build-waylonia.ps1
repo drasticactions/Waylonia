@@ -2,7 +2,7 @@
 #
 # build-waylonia.ps1 [OPTIONS]
 #
-# The Windows half of build-waylonia.sh: publishes src/Waylonia with NativeAOT
+# The Windows half of build-waylonia.sh: publishes src/Waylonia.Desktop with NativeAOT
 # and zips one folder into artifacts/. A NativeAOT publish ends in a native
 # link, so a release is one run on each of Linux, macOS and Windows, and this
 # is the run a Windows box makes. The shell script needs a POSIX shell, zip
@@ -29,7 +29,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$project = 'src/Waylonia'
+$project = 'src/Waylonia.Desktop'
 
 function Get-ProgramName([string]$project) {
     $file = Get-ChildItem -Path (Join-Path $root $project) -Filter *.csproj -File | Select-Object -First 1

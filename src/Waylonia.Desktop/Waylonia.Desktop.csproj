@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Waylonia</RootNamespace>
+    <AssemblyName>waylonia</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);IL2104</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Platform/Linux/**" Condition="!$([MSBuild]::IsOSPlatform('Linux'))" />
+    <Compile Remove="Platform/Mac/**" Condition="!$([MSBuild]::IsOSPlatform('OSX'))" />
+    <Compile Remove="Platform/Windows/**" Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Waylonia.UI.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="waylonia.desktop" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Waylonia.UI/Waylonia.UI.csproj" />
+    <ProjectReference Include="../Waylonia.Ssh.Tmds/Waylonia.Ssh.Tmds.csproj" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="JAJ.Packages.MiniAudioEx" />
+    <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="Basin.XWayland" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <PackageReference Include="Avalonia.Wayland" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <PackageReference Include="Tmds.DBus.Protocol" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+  </ItemGroup>
+
+</Project>

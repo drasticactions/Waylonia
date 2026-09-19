@@ -2,7 +2,7 @@
 #
 # build-waylonia.sh [OPTIONS]
 #
-# Publishes src/Waylonia with NativeAOT and zips one folder into artifacts/.
+# Publishes src/Waylonia.Desktop with NativeAOT and zips one folder into artifacts/.
 # Waylonia runs on Linux, macOS and Windows. A NativeAOT publish ends in a
 # native link, so a release is one run of this on each of the three machines
 # rather than one run anywhere. Windows has neither a POSIX shell nor the zip
@@ -23,7 +23,7 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/release-common.sh"
 
-project=src/Waylonia
+project=src/Waylonia.Desktop
 slices=(osx-x64 osx-arm64)
 version=
 rid=

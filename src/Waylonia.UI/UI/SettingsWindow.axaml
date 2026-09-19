@@ -1,0 +1,11 @@
+<chrome:BluerCurveWindow xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:Waylonia.UI"
+        xmlns:chrome="clr-namespace:BluerCurve.Chrome;assembly=BluerCurve.Theme"
+        x:Class="Waylonia.UI.SettingsWindow"
+        x:DataType="ui:SettingsViewModel"
+        Title="Waylonia Settings"
+        Width="760" Height="640" MinWidth="560" MinHeight="420"
+        ShowInTaskbar="True">
+  <ui:SettingsView />
+</chrome:BluerCurveWindow>

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Waylonia</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="waylonia" />
+    <InternalsVisibleTo Include="Waylonia.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Waylonia.Core/Waylonia.Core.csproj" />
+    <PackageReference Include="Tmds.Ssh" />
+  </ItemGroup>
+
+</Project>

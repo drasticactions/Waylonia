@@ -1,8 +1,10 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/Waylonia/Waylonia.csproj" />
+    <Project Path="src/Waylonia.Core/Waylonia.Core.csproj" />
+    <Project Path="src/Waylonia.Ssh.Tmds/Waylonia.Ssh.Tmds.csproj" />
+    <Project Path="src/Waylonia.Desktop/Waylonia.Desktop.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Waylonia.Tests/Waylonia.Tests.csproj" />
+    <Project Path="tests/Waylonia.Core.Tests/Waylonia.Core.Tests.csproj" />
   </Folder>
 </Solution>

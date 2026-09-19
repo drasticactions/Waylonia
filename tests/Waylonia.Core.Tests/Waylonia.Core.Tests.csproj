@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Waylonia.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Basin.Core" />
+    <PackageReference Include="Basin.Desktop" />
+    <PackageReference Include="Basin.Freedesktop" />
+    <PackageReference Include="Basin.Hosted" />
+    <PackageReference Include="Basin.Scene" />
+    <PackageReference Include="Basin.Shell.Xdg" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Waylonia.Core/Waylonia.Core.csproj" />
+    <ProjectReference Include="../../src/Waylonia.Ssh.Tmds/Waylonia.Ssh.Tmds.csproj" />
+  </ItemGroup>
+
+</Project>
