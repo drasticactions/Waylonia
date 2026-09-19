@@ -24,6 +24,7 @@
     <PackageReference Include="Basin.Frames.Metacity" />
     <PackageReference Include="Basin.Freedesktop" />
     <PackageReference Include="Basin.Render.Skia" />
+    <PackageReference Include="Basin.Shell.Nested" />
     <PackageReference Include="Basin.Transport.Waypipe" />
     <PackageReference Include="Basin.UI.Skia" />
     <PackageReference Include="Basin.Video.FFmpeg" />

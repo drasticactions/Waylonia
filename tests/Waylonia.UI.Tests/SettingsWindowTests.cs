@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Basin.Diagnostics;
+using Basin.Shell.Nested;
 using Waylonia.Shell;
 using Waylonia.UI;
 using Xunit;
@@ -38,7 +39,7 @@ public sealed class SettingsWindowTests : IDisposable
         ["Main", "Mail"],
         FocusMode.Sloppy,
         FocusNewWindows.Strict,
-        Waylonia.Shell.PlacementMode.Pointer,
+        Basin.Shell.Nested.PlacementMode.Pointer,
         false,
         false,
         true,
@@ -438,8 +439,8 @@ public sealed class SettingsWindowTests : IDisposable
         Assert.Equal("Use a whole number of milliseconds, 0 or more.", form.AutoRaiseDelayProblem);
         Assert.Equal("close: 'Hyper+F4' has no modifier named 'Hyper'; the modifiers are shift, ctrl, alt and super.", form.ShellKeysProblem);
         Assert.Equal("Use 8 to 128, in pixels.", form.PanelSizeProblem);
-        Assert.Equal($"'launcher:' is not an applet. The applets are {PanelLayout.AppletNames}, separated by commas.", form.PanelTopProblem);
-        Assert.Equal($"'weather' is not an applet. The applets are {PanelLayout.AppletNames}, separated by commas.", form.PanelBottomProblem);
+        Assert.Equal($"'launcher:' is not an applet. The applets are {PanelApplets.AppletNames}, separated by commas.", form.PanelTopProblem);
+        Assert.Equal($"'weather' is not an applet. The applets are {PanelApplets.AppletNames}, separated by commas.", form.PanelBottomProblem);
         Assert.False(File.Exists(_path));
     }
 

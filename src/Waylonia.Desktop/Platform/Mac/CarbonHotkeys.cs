@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Basin.Diagnostics;
+using Basin.Shell.Nested;
 using static Waylonia.WayloniaLog;
 
 namespace Waylonia;
@@ -128,25 +129,25 @@ internal sealed unsafe class CarbonHotkeys : IDisposable
         return 0;
     }
 
-    private static uint CarbonModifiers(HotkeyModifiers modifiers)
+    private static uint CarbonModifiers(ShellModifiers modifiers)
     {
         var value = 0u;
-        if ((modifiers & HotkeyModifiers.Shift) != 0)
+        if ((modifiers & ShellModifiers.Shift) != 0)
         {
             value |= ShiftModifier;
         }
 
-        if ((modifiers & HotkeyModifiers.Ctrl) != 0)
+        if ((modifiers & ShellModifiers.Ctrl) != 0)
         {
             value |= ControlModifier;
         }
 
-        if ((modifiers & HotkeyModifiers.Alt) != 0)
+        if ((modifiers & ShellModifiers.Alt) != 0)
         {
             value |= OptionModifier;
         }
 
-        if ((modifiers & HotkeyModifiers.Super) != 0)
+        if ((modifiers & ShellModifiers.Super) != 0)
         {
             value |= CommandModifier;
         }

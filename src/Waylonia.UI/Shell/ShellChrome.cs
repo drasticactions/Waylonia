@@ -8,6 +8,7 @@ using Basin;
 using Basin.Capabilities;
 using Basin.Diagnostics;
 using Basin.Scene;
+using Basin.Shell.Nested;
 using Basin.UI.Avalonia;
 using Waylonia.UI;
 
@@ -18,6 +19,7 @@ internal sealed class ShellChrome : IDisposable
     private readonly NestedShell _shell;
     private readonly Window _window;
     private readonly PanelModel _model;
+    private PanelArrangement _arrangement;
     private readonly Action<Action> _post;
     private readonly BasinLogger _log;
     private readonly AvaloniaUIHost _ui;
@@ -50,19 +52,21 @@ internal sealed class ShellChrome : IDisposable
         public bool Closing { get; set; }
     }
 
-    public ShellChrome(NestedShell shell, Window window, PanelModel model, Action<Action> post, BasinLogger log)
+    public ShellChrome(NestedShell shell, Window window, PanelModel model, PanelArrangement panels, Action<Action> post, BasinLogger log)
     {
         ArgumentNullException.ThrowIfNull(shell);
         ArgumentNullException.ThrowIfNull(window);
         ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(panels);
         ArgumentNullException.ThrowIfNull(post);
         _shell = shell;
         _window = window;
         _model = model;
+        _arrangement = panels;
         _post = post;
         _log = log;
         _screens = new ShellScreenSource(shell.Output, shell.Scale);
-        _ui = BasinPlatform.Attach(new BasinPlatformOptions
+        _ui = global::Basin.UI.Avalonia.BasinPlatform.Attach(new BasinPlatformOptions
         {
             Screens = _screens,
             CompositorAffinity = shell.Host.Affinity,
@@ -87,7 +91,7 @@ internal sealed class ShellChrome : IDisposable
         }
 
         _panels.Clear();
-        var layout = _shell.Panel;
+        var layout = _arrangement;
         if (layout.Top.Count > 0)
         {
             _panels.Add(CreatePanel(top: true, layout.Top));
@@ -160,13 +164,15 @@ internal sealed class ShellChrome : IDisposable
         }
     }
 
-    public void RebuildPanels()
+    public void RebuildPanels(PanelArrangement panels)
     {
+        ArgumentNullException.ThrowIfNull(panels);
         if (_disposed)
         {
             return;
         }
 
+        _arrangement = panels;
         BuildPanels();
     }
 
@@ -362,7 +368,7 @@ internal sealed class ShellChrome : IDisposable
         var entries = new List<SwitcherEntry>(order.Count);
         foreach (var window in order)
         {
-            entries.Add(new SwitcherEntry(window.Title, window.Session, window.IconName is { } icon && Path.IsPathRooted(icon) ? icon : null));
+            entries.Add(new SwitcherEntry(window.Title, window.Suffix, window.IconName is { } icon && Path.IsPathRooted(icon) ? icon : null));
         }
 
         _switcherEntries = entries;

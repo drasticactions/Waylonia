@@ -1,5 +1,6 @@
 using System.Globalization;
 using Basin.Frames.Metacity;
+using Basin.Shell.Nested;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Waylonia.Cli;
 using Waylonia.Shell;
@@ -484,9 +485,9 @@ internal sealed partial class SettingsFormViewModel : FormViewModel
         var names = Names(text);
         foreach (var name in names)
         {
-            if (PanelLayout.ParseApplet(name) is null)
+            if (PanelApplets.ParseApplet(name) is null)
             {
-                Complain(field, $"'{name}' is not an applet. The applets are {PanelLayout.AppletNames}, separated by commas.");
+                Complain(field, $"'{name}' is not an applet. The applets are {PanelApplets.AppletNames}, separated by commas.");
                 break;
             }
         }

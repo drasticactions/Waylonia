@@ -47,7 +47,7 @@ internal static class PanelConfig
             return array.Cast<string>().Select(static name => name.Trim()).ToArray();
         }
 
-        log.Warn($"[panel] {key} takes an array of applet names, ignoring it; the applets are {PanelLayout.AppletNames}");
+        log.Warn($"[panel] {key} takes an array of applet names, ignoring it; the applets are {PanelApplets.AppletNames}");
         return fallback;
     }
 }

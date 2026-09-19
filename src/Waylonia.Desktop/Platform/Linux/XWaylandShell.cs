@@ -1,5 +1,6 @@
 using Basin;
 using Basin.Diagnostics;
+using Basin.Shell.Nested;
 using Basin.XWayland;
 using Waylonia.Shell;
 

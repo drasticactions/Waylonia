@@ -18,6 +18,7 @@
     <PackageVersion Include="Basin.Hosted" Version="$(BasinVersion)" />
     <PackageVersion Include="Basin.Render.Skia" Version="$(BasinVersion)" />
     <PackageVersion Include="Basin.Scene" Version="$(BasinVersion)" />
+    <PackageVersion Include="Basin.Shell.Nested" Version="$(BasinVersion)" />
     <PackageVersion Include="Basin.Shell.Xdg" Version="$(BasinVersion)" />
     <PackageVersion Include="Basin.Transport.Waypipe" Version="$(BasinVersion)" />
     <PackageVersion Include="Basin.UI.Avalonia" Version="$(BasinVersion)" />

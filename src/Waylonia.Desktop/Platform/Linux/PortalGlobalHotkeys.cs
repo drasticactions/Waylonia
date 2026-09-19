@@ -1,5 +1,6 @@
 using Avalonia.Threading;
 using Basin.Diagnostics;
+using Basin.Shell.Nested;
 using Tmds.DBus.Protocol;
 using static Waylonia.WayloniaLog;
 
@@ -286,22 +287,22 @@ internal sealed class PortalGlobalHotkeys : IDisposable
     private static string Trigger(Hotkey hotkey)
     {
         var parts = new List<string>(5);
-        if ((hotkey.Modifiers & HotkeyModifiers.Ctrl) != 0)
+        if ((hotkey.Modifiers & ShellModifiers.Ctrl) != 0)
         {
             parts.Add("CTRL");
         }
 
-        if ((hotkey.Modifiers & HotkeyModifiers.Shift) != 0)
+        if ((hotkey.Modifiers & ShellModifiers.Shift) != 0)
         {
             parts.Add("SHIFT");
         }
 
-        if ((hotkey.Modifiers & HotkeyModifiers.Alt) != 0)
+        if ((hotkey.Modifiers & ShellModifiers.Alt) != 0)
         {
             parts.Add("ALT");
         }
 
-        if ((hotkey.Modifiers & HotkeyModifiers.Super) != 0)
+        if ((hotkey.Modifiers & ShellModifiers.Super) != 0)
         {
             parts.Add("LOGO");
         }

@@ -1,4 +1,5 @@
 using Basin.Diagnostics;
+using Basin.Shell.Nested;
 using Waylonia;
 using Xunit;
 
@@ -15,7 +16,7 @@ public sealed class CaptureChordTests
 
         Assert.True(chord.DoubleTap);
         Assert.Equal(97u, chord.Code);
-        Assert.Equal(HotkeyModifiers.None, chord.Modifiers);
+        Assert.Equal(ShellModifiers.None, chord.Modifiers);
         Assert.Equal("double:RightControl", chord.Text);
     }
 
@@ -42,7 +43,7 @@ public sealed class CaptureChordTests
         var chord = Assert.IsType<CaptureChord>(Parse("Ctrl+Alt+G"));
 
         Assert.False(chord.DoubleTap);
-        Assert.Equal(HotkeyModifiers.Ctrl | HotkeyModifiers.Alt, chord.Modifiers);
+        Assert.Equal(ShellModifiers.Ctrl | ShellModifiers.Alt, chord.Modifiers);
         Assert.Equal(34u, chord.Code);
     }
 
@@ -52,7 +53,7 @@ public sealed class CaptureChordTests
         var chord = Assert.IsType<CaptureChord>(Parse("double:ctrl+rightalt"));
 
         Assert.True(chord.DoubleTap);
-        Assert.Equal(HotkeyModifiers.None, chord.Modifiers);
+        Assert.Equal(ShellModifiers.None, chord.Modifiers);
         Assert.Equal(100u, chord.Code);
     }
 
@@ -75,17 +76,17 @@ public sealed class CaptureChordTests
     }
 
     [Theory]
-    [InlineData(42u, nameof(HotkeyModifiers.Shift))]
-    [InlineData(54u, nameof(HotkeyModifiers.Shift))]
-    [InlineData(29u, nameof(HotkeyModifiers.Ctrl))]
-    [InlineData(97u, nameof(HotkeyModifiers.Ctrl))]
-    [InlineData(56u, nameof(HotkeyModifiers.Alt))]
-    [InlineData(100u, nameof(HotkeyModifiers.Alt))]
-    [InlineData(125u, nameof(HotkeyModifiers.Super))]
-    [InlineData(126u, nameof(HotkeyModifiers.Super))]
-    [InlineData(34u, nameof(HotkeyModifiers.None))]
+    [InlineData(42u, nameof(ShellModifiers.Shift))]
+    [InlineData(54u, nameof(ShellModifiers.Shift))]
+    [InlineData(29u, nameof(ShellModifiers.Ctrl))]
+    [InlineData(97u, nameof(ShellModifiers.Ctrl))]
+    [InlineData(56u, nameof(ShellModifiers.Alt))]
+    [InlineData(100u, nameof(ShellModifiers.Alt))]
+    [InlineData(125u, nameof(ShellModifiers.Super))]
+    [InlineData(126u, nameof(ShellModifiers.Super))]
+    [InlineData(34u, nameof(ShellModifiers.None))]
     public void Both_sides_of_a_modifier_carry_the_same_flag(uint code, string expected)
     {
-        Assert.Equal(Enum.Parse<HotkeyModifiers>(expected), CaptureChord.ModifierOf(code));
+        Assert.Equal(Enum.Parse<ShellModifiers>(expected), CaptureChord.ModifierOf(code));
     }
 }

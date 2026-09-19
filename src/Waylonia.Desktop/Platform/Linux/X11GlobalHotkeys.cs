@@ -2,6 +2,7 @@ using Avalonia.Threading;
 using Basin.Avalonia;
 using Basin.Hosted;
 using Basin.Diagnostics;
+using Basin.Shell.Nested;
 using Basin.XWayland;
 using static Waylonia.WayloniaLog;
 
@@ -63,27 +64,27 @@ internal sealed class X11GlobalHotkeys : IDisposable
         _grabber = null;
     });
 
-    private static X11HotkeyModifiers Modifiers(HotkeyModifiers modifiers)
+    private static X11ShellModifiers Modifiers(ShellModifiers modifiers)
     {
-        var value = X11HotkeyModifiers.None;
-        if ((modifiers & HotkeyModifiers.Shift) != 0)
+        var value = X11ShellModifiers.None;
+        if ((modifiers & ShellModifiers.Shift) != 0)
         {
-            value |= X11HotkeyModifiers.Shift;
+            value |= X11ShellModifiers.Shift;
         }
 
-        if ((modifiers & HotkeyModifiers.Ctrl) != 0)
+        if ((modifiers & ShellModifiers.Ctrl) != 0)
         {
-            value |= X11HotkeyModifiers.Ctrl;
+            value |= X11ShellModifiers.Ctrl;
         }
 
-        if ((modifiers & HotkeyModifiers.Alt) != 0)
+        if ((modifiers & ShellModifiers.Alt) != 0)
         {
-            value |= X11HotkeyModifiers.Alt;
+            value |= X11ShellModifiers.Alt;
         }
 
-        if ((modifiers & HotkeyModifiers.Super) != 0)
+        if ((modifiers & ShellModifiers.Super) != 0)
         {
-            value |= X11HotkeyModifiers.Super;
+            value |= X11ShellModifiers.Super;
         }
 
         return value;

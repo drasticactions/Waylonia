@@ -1,4 +1,5 @@
 using Basin.Diagnostics;
+using Basin.Shell.Nested;
 using Waylonia.Cli;
 using Waylonia.Shell;
 using Xunit;

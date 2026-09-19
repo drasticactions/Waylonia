@@ -3,6 +3,7 @@ using Waylonia.Sessions;
 using Xunit;
 
 using Basin.Diagnostics;
+using Basin.Shell.Nested;
 
 namespace Waylonia.Tests;
 
@@ -294,12 +295,12 @@ public sealed class ConfigTests : IDisposable
 
         Assert.Equal(2, config.Hotkeys.Count);
         var terminal = Assert.Single(config.Hotkeys, hotkey => hotkey.Chord == "ctrl+alt+t");
-        Assert.Equal(HotkeyModifiers.Ctrl | HotkeyModifiers.Alt, terminal.Modifiers);
+        Assert.Equal(ShellModifiers.Ctrl | ShellModifiers.Alt, terminal.Modifiers);
         Assert.Equal("t", terminal.Key);
         Assert.Equal("foot", terminal.Command);
 
         var other = Assert.Single(config.Hotkeys, hotkey => hotkey.Chord == "super+shift+return");
-        Assert.Equal(HotkeyModifiers.Super | HotkeyModifiers.Shift, other.Modifiers);
+        Assert.Equal(ShellModifiers.Super | ShellModifiers.Shift, other.Modifiers);
         Assert.Equal("foot -e htop", other.Command);
     }
 

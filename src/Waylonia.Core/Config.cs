@@ -4,6 +4,7 @@ using Tomlyn.Model;
 using Waylonia.Shell;
 
 using Basin.Diagnostics;
+using Basin.Shell.Nested;
 
 namespace Waylonia;
 

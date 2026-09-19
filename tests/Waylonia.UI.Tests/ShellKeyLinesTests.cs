@@ -1,3 +1,4 @@
+using Basin.Shell.Nested;
 using Waylonia.Shell;
 using Waylonia.UI;
 using Xunit;

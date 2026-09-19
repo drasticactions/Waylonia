@@ -2,20 +2,11 @@ using Basin.Diagnostics;
 
 namespace Waylonia.Shell;
 
-internal sealed record PanelLayout(int Size, IReadOnlyList<PanelApplet> Top, IReadOnlyList<PanelApplet> Bottom)
+internal static class PanelApplets
 {
     public const string AppletNames = "menu-bar, window-list, workspace-switcher, clock, show-desktop, launcher:NAME and spacer";
 
-    public static PanelLayout From(PanelSettings settings, BasinLogger log)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        return new PanelLayout(
-            settings.Size,
-            ParseApplets(settings.Top, "top", log),
-            ParseApplets(settings.Bottom, "bottom", log));
-    }
-
-    public static IReadOnlyList<PanelApplet> ParseApplets(IReadOnlyList<string> names, string panel, BasinLogger log)
+    public static IReadOnlyList<PanelApplet> Parse(IReadOnlyList<string> names, string panel, BasinLogger log)
     {
         ArgumentNullException.ThrowIfNull(names);
         var applets = new List<PanelApplet>();

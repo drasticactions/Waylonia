@@ -1,6 +1,7 @@
 using Basin;
 using Basin.Capabilities;
 using Basin.Scene;
+using Basin.Shell.Nested;
 using Basin.Shell.Xdg;
 using Basin.XWayland;
 using Waylonia.Shell;

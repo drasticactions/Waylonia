@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Avalonia.Controls;
 using Basin.Diagnostics;
+using Basin.Shell.Nested;
 using static Waylonia.WayloniaLog;
 
 namespace Waylonia;
@@ -106,25 +107,25 @@ internal sealed class Win32Hotkeys : IDisposable
         return IntPtr.Zero;
     }
 
-    private static uint WindowsModifiers(HotkeyModifiers modifiers)
+    private static uint WindowsModifiers(ShellModifiers modifiers)
     {
         var value = 0u;
-        if ((modifiers & HotkeyModifiers.Shift) != 0)
+        if ((modifiers & ShellModifiers.Shift) != 0)
         {
             value |= ShiftModifier;
         }
 
-        if ((modifiers & HotkeyModifiers.Ctrl) != 0)
+        if ((modifiers & ShellModifiers.Ctrl) != 0)
         {
             value |= ControlModifier;
         }
 
-        if ((modifiers & HotkeyModifiers.Alt) != 0)
+        if ((modifiers & ShellModifiers.Alt) != 0)
         {
             value |= AltModifier;
         }
 
-        if ((modifiers & HotkeyModifiers.Super) != 0)
+        if ((modifiers & ShellModifiers.Super) != 0)
         {
             value |= WinModifier;
         }

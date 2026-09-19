@@ -9,6 +9,7 @@ using Basin.Hosted;
 using Basin.Diagnostics;
 using Basin.Freedesktop;
 using Basin.Scene;
+using Basin.Shell.Nested;
 using Wayland.Server;
 using Waylonia.Audio;
 using Waylonia.Cli;
@@ -61,6 +62,7 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
     private string? _localNotice;
     private bool _shuttingDown;
     private NestedShell? _shell;
+    private PanelArrangement? _panelArrangement;
     private ShellWindow? _shellWindow;
     private ShellChrome? _chrome;
     private PanelModel? _panelModel;
@@ -401,20 +403,19 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
     {
         var run = _run!;
         var view = host.CreateViewOutput(Math.Max(1, width), Math.Max(1, height), scale, NestedShell.OutputKey);
-        var keys = KeyTable.Build(run.Config.ShellSettings.Keys, run.Host.Hotkeys, Log);
+        var keys = KeyTable.Build(run.Config.ShellSettings.Keys, Hotkey.Reserved(run.Host.Hotkeys));
+        _panelArrangement = PanelArrangement.From(run.Config.Panel, Log);
         var shell = new NestedShell(
             host,
             view,
             run.Config.ShellSettings,
-            PanelLayout.From(run.Config.Panel, Log),
+            _panelArrangement.Layout,
             keys,
-            client => _channelClients.OwnerOf(client) is WaypipeAcceptor { Session: not null } owner ? owner.Name : null,
-            run.Host.SessionTitles,
-            action => Dispatcher.UIThread.Post(action),
             action => _view!.Post(action),
-            Log)
+            [BundledThemes.Load])
         {
-            IconResolver = ResolveIcon,
+            WindowSuffix = run.Host.SessionTitles ? SessionNameOf : null,
+            ResolveIcon = ResolveIcon,
         };
         if (_xwayland is { } xwayland)
         {
@@ -505,7 +506,7 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         };
         try
         {
-            _chrome = new ShellChrome(shell, window, _panelModel, action => _view!.Post(action), Log);
+            _chrome = new ShellChrome(shell, window, _panelModel, _panelArrangement!, action => _view!.Post(action), Log);
         }
         catch (Exception error) when (error is InvalidOperationException or NotSupportedException)
         {
@@ -1049,16 +1050,18 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         if (_shell is { } shell)
         {
             var settings = config.ShellSettings;
-            var panel = PanelLayout.From(config.Panel, Log);
-            var keys = KeyTable.Build(settings.Keys, config.Host.Hotkeys, Log);
+            var panels = PanelArrangement.From(config.Panel, Log);
+            var keys = KeyTable.Build(settings.Keys, Hotkey.Reserved(config.Host.Hotkeys));
             var sessionTitles = config.Host.SessionTitles;
-            var panelsChanged = !PanelLayoutEquals(shell.Panel, panel);
+            var panelsChanged = _panelArrangement is null || !_panelArrangement.SameAs(panels);
+            _panelArrangement = panels;
             _view?.Post(() =>
             {
-                shell.Apply(settings, panel, keys, sessionTitles);
+                shell.WindowSuffix = sessionTitles ? SessionNameOf : null;
+                shell.Apply(settings, panels.Layout, keys);
                 if (panelsChanged)
                 {
-                    Dispatcher.UIThread.Post(() => _chrome?.RebuildPanels());
+                    Dispatcher.UIThread.Post(() => _chrome?.RebuildPanels(panels));
                 }
             });
         }
@@ -1086,8 +1089,8 @@ internal sealed class WayloniaApp : Application, ISessionHost, ISshPrompter
         RebuildTray();
     }
 
-    private static bool PanelLayoutEquals(PanelLayout a, PanelLayout b) =>
-        a.Size == b.Size && a.Top.SequenceEqual(b.Top) && a.Bottom.SequenceEqual(b.Bottom);
+    private string? SessionNameOf(Wayland.Server.WlClient client) =>
+        _channelClients.OwnerOf(client) is WaypipeAcceptor { Session: not null } owner ? owner.Name : null;
 
     private void CreateCapture(BasinCompositorHost host)
     {

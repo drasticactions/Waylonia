@@ -1,5 +1,6 @@
 using Avalonia.Input;
 using Basin.Avalonia;
+using Basin.Shell.Nested;
 
 namespace Waylonia.Shell;
 

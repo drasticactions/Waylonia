@@ -2,6 +2,7 @@ using Basin;
 using Basin.Avalonia;
 using Basin.Hosted;
 using Basin.Diagnostics;
+using Basin.Shell.Nested;
 using Basin.XWayland;
 using Waylonia.Shell;
 

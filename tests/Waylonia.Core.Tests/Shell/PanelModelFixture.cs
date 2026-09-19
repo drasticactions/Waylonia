@@ -1,3 +1,4 @@
+using Basin.Shell.Nested;
 using Basin;
 using Waylonia.Sessions;
 using Waylonia.Shell;

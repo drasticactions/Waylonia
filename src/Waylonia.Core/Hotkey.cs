@@ -1,8 +1,9 @@
 using Basin.Diagnostics;
+using Basin.Shell.Nested;
 
 namespace Waylonia;
 
-internal sealed record Hotkey(string Chord, HotkeyModifiers Modifiers, string Key, string Command, string? Session = null)
+internal sealed record Hotkey(string Chord, ShellModifiers Modifiers, string Key, string Command, string? Session = null)
 {
     public static Hotkey? Parse(string chord, string? command, BasinLogger log, string? session = null)
     {
@@ -19,7 +20,7 @@ internal sealed record Hotkey(string Chord, HotkeyModifiers Modifiers, string Ke
             return null;
         }
 
-        var modifiers = HotkeyModifiers.None;
+        var modifiers = ShellModifiers.None;
         for (var i = 0; i < tokens.Length - 1; i++)
         {
             if (ModifierNamed(tokens[i]) is { } modifier)
@@ -36,14 +37,23 @@ internal sealed record Hotkey(string Chord, HotkeyModifiers Modifiers, string Ke
         return new Hotkey(chord, modifiers, tokens[^1].ToLowerInvariant(), command, session);
     }
 
-    public static HotkeyModifiers? ModifierNamed(string token) => token.Trim().ToLowerInvariant() switch
+    public static ShellModifiers? ModifierNamed(string token) => ShellKeyCodes.ModifierNamed(token);
+
+    public static IReadOnlyList<ShellChord> Reserved(IReadOnlyList<Hotkey> hotkeys)
     {
-        "shift" => HotkeyModifiers.Shift,
-        "ctrl" or "control" => HotkeyModifiers.Ctrl,
-        "alt" or "option" => HotkeyModifiers.Alt,
-        "super" or "cmd" or "command" or "win" or "logo" => HotkeyModifiers.Super,
-        _ => null,
-    };
+        ArgumentNullException.ThrowIfNull(hotkeys);
+        var reserved = new List<ShellChord>(hotkeys.Count);
+        foreach (var hotkey in hotkeys)
+        {
+            var code = CaptureChord.CodeFor(hotkey.Key);
+            if (code != 0)
+            {
+                reserved.Add(new ShellChord(hotkey.Modifiers, code));
+            }
+        }
+
+        return reserved;
+    }
 
     public bool SameChord(Hotkey other) => Modifiers == other.Modifiers && Key == other.Key;
 }

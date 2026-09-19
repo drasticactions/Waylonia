@@ -1,4 +1,5 @@
 using Basin.Diagnostics;
+using Basin.Shell.Nested;
 using Waylonia.Shell;
 using Xunit;
 
@@ -209,9 +210,9 @@ public sealed class ShellConfigTests : IDisposable
         Assert.DoesNotContain(warnings, entry => entry.StartsWith("Warn", StringComparison.Ordinal));
 
         using var capture = new LogCapture();
-        var table = KeyTable.Build(config.ShellSettings.Keys, [], BasinLog.For("test"));
+        var table = KeyTable.Build(config.ShellSettings.Keys, []);
         Assert.Contains("Warn: shell key close and minimize both use Alt+F4, keeping close", capture.Lines);
-        Assert.Equal("close", table.Match(HotkeyModifiers.Alt, 62));
+        Assert.Equal("close", table.Match(ShellModifiers.Alt, 62));
         Assert.DoesNotContain(table.Bindings, binding => binding.Name == "minimize");
     }
 

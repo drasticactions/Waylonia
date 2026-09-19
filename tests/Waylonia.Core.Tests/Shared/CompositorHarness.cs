@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Basin.Hosted;
 using Basin.Diagnostics;
+using Basin.Shell.Nested;
 using Basin.Shell.Xdg.Protocol;
 using Wayland;
 using Waylonia.Shell;
@@ -54,13 +55,10 @@ internal class CompositorHarness : IDisposable
                 Host,
                 ShellView,
                 options.Settings,
-                PanelLayout.From(options.Panel, BasinLogger.None),
-                KeyTable.Build(options.Settings.Keys, [], BasinLogger.None),
-                _ => null,
-                sessionTitles: true,
+                PanelArrangement.From(options.Panel, BasinLogger.None).Layout,
+                KeyTable.Build(options.Settings.Keys, []),
                 action => action(),
-                action => action(),
-                BasinLog.For("waylonia-tests"));
+                [BundledThemes.Load]);
         }
         else
         {

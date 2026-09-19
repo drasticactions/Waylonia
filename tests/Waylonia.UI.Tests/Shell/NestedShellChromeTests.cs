@@ -6,6 +6,7 @@ using Basin.UI.Avalonia;
 using Basin.Diagnostics;
 using Basin.Render.Skia;
 using Basin.Scene;
+using Basin.Shell.Nested;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Waylonia.Sessions;
@@ -25,7 +26,7 @@ public sealed class NestedShellChromeTests
         var client = harness.MapToplevel(title: "client", serverDecorated: true);
         var clientWindow = Assert.Single(shell.Windows);
 
-        using var ui = BasinPlatform.Attach(new BasinPlatformOptions
+        using var ui = global::Basin.UI.Avalonia.BasinPlatform.Attach(new BasinPlatformOptions
         {
             Screens = new ShellScreenSource(shell.Output, shell.Scale),
             CompositorAffinity = harness.Host.Affinity,
@@ -140,7 +141,7 @@ public sealed class NestedShellChromeTests
         var host = new Window { Width = 800, Height = 600 };
         host.Show();
         var model = new PanelModel(new FakePanelCommands());
-        using var chrome = new ShellChrome(shell, host, model, action => action(), BasinLogger.None);
+        using var chrome = new ShellChrome(shell, host, model, PanelArrangement.From(new PanelSettings(), BasinLogger.None), action => action(), BasinLogger.None);
         var directory = Path.Combine(Path.GetTempPath(), $"waylonia-chrome-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         try

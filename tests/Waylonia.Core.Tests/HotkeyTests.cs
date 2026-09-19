@@ -2,6 +2,7 @@ using Waylonia;
 using Xunit;
 
 using Basin.Diagnostics;
+using Basin.Shell.Nested;
 
 namespace Waylonia.Tests;
 
@@ -11,21 +12,21 @@ public sealed class HotkeyTests
         Hotkey.Parse(chord, command, BasinLogger.None);
 
     [Theory]
-    [InlineData("ctrl+t", nameof(HotkeyModifiers.Ctrl))]
-    [InlineData("control+t", nameof(HotkeyModifiers.Ctrl))]
-    [InlineData("alt+t", nameof(HotkeyModifiers.Alt))]
-    [InlineData("option+t", nameof(HotkeyModifiers.Alt))]
-    [InlineData("shift+t", nameof(HotkeyModifiers.Shift))]
-    [InlineData("super+t", nameof(HotkeyModifiers.Super))]
-    [InlineData("cmd+t", nameof(HotkeyModifiers.Super))]
-    [InlineData("command+t", nameof(HotkeyModifiers.Super))]
-    [InlineData("win+t", nameof(HotkeyModifiers.Super))]
-    [InlineData("logo+t", nameof(HotkeyModifiers.Super))]
+    [InlineData("ctrl+t", nameof(ShellModifiers.Ctrl))]
+    [InlineData("control+t", nameof(ShellModifiers.Ctrl))]
+    [InlineData("alt+t", nameof(ShellModifiers.Alt))]
+    [InlineData("option+t", nameof(ShellModifiers.Alt))]
+    [InlineData("shift+t", nameof(ShellModifiers.Shift))]
+    [InlineData("super+t", nameof(ShellModifiers.Super))]
+    [InlineData("cmd+t", nameof(ShellModifiers.Super))]
+    [InlineData("command+t", nameof(ShellModifiers.Super))]
+    [InlineData("win+t", nameof(ShellModifiers.Super))]
+    [InlineData("logo+t", nameof(ShellModifiers.Super))]
     public void Every_modifier_spelling_reaches_the_same_flag(string chord, string expected)
     {
         var hotkey = Assert.IsType<Hotkey>(Parse(chord));
 
-        Assert.Equal(Enum.Parse<HotkeyModifiers>(expected), hotkey.Modifiers);
+        Assert.Equal(Enum.Parse<ShellModifiers>(expected), hotkey.Modifiers);
         Assert.Equal("t", hotkey.Key);
     }
 
@@ -35,7 +36,7 @@ public sealed class HotkeyTests
         var hotkey = Assert.IsType<Hotkey>(Parse("Ctrl + Alt + Shift + Super + F5"));
 
         Assert.Equal(
-            HotkeyModifiers.Ctrl | HotkeyModifiers.Alt | HotkeyModifiers.Shift | HotkeyModifiers.Super,
+            ShellModifiers.Ctrl | ShellModifiers.Alt | ShellModifiers.Shift | ShellModifiers.Super,
             hotkey.Modifiers);
         Assert.Equal("f5", hotkey.Key);
     }
@@ -45,7 +46,7 @@ public sealed class HotkeyTests
     {
         var hotkey = Assert.IsType<Hotkey>(Parse("f12"));
 
-        Assert.Equal(HotkeyModifiers.None, hotkey.Modifiers);
+        Assert.Equal(ShellModifiers.None, hotkey.Modifiers);
         Assert.Equal("f12", hotkey.Key);
     }
 

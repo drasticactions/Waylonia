@@ -1,3 +1,4 @@
+using Basin.Shell.Nested;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -49,7 +50,7 @@ internal sealed partial class WindowButtonViewModel : ObservableObject
         IsFocused = window.Focused;
         IsMinimized = window.Minimized;
         DemandsAttention = window.DemandsAttention;
-        Session = window.Session;
+        Session = window.Suffix;
         IconPath = window.Icon;
     }
 

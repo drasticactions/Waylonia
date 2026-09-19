@@ -1,5 +1,6 @@
 using System.Globalization;
 using Basin.Diagnostics;
+using Basin.Shell.Nested;
 using Tomlyn.Model;
 
 namespace Waylonia.Shell;

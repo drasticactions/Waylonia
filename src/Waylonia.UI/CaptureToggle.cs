@@ -1,5 +1,6 @@
 using Basin.Avalonia;
 using Basin.Hosted;
+using Basin.Shell.Nested;
 using static Waylonia.WayloniaLog;
 
 namespace Waylonia;
@@ -20,7 +21,7 @@ internal sealed class CaptureToggle : IDisposable
     private IDisposable? _grab;
     private long _lastTap;
     private bool _tapIsAlone;
-    private HotkeyModifiers _held;
+    private ShellModifiers _held;
     private bool _disposed;
 
     public CaptureToggle(
@@ -53,7 +54,7 @@ internal sealed class CaptureToggle : IDisposable
         _window = window;
         _overrideTitle = overrideTitle;
         _title = title;
-        _held = HotkeyModifiers.None;
+        _held = ShellModifiers.None;
         _lastTap = 0;
         target.KeyFilter = OnKey;
         window.Deactivated += OnDeactivated;
@@ -116,7 +117,7 @@ internal sealed class CaptureToggle : IDisposable
             return true;
         }
 
-        if (CaptureChord.ModifierOf(code) is var modifier && modifier != HotkeyModifiers.None)
+        if (CaptureChord.ModifierOf(code) is var modifier && modifier != ShellModifiers.None)
         {
             if (pressed)
             {

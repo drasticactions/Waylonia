@@ -1,3 +1,4 @@
+using Basin.Shell.Nested;
 namespace Waylonia.Shell;
 
 internal sealed class PanelCommands : IPanelCommands
