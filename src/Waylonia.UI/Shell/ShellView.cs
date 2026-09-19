@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Platform;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Basin.Avalonia;
 using Basin.Hosted;
 
@@ -80,6 +81,20 @@ internal sealed class ShellView : UserControl
 
     public void FocusShell() => _toplevel?.Focus();
 
+    public void PressKey(uint evdev)
+    {
+        if (_toplevel is not { } toplevel)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            toplevel.InjectKey(evdev, pressed: true);
+            toplevel.InjectKey(evdev, pressed: false);
+        });
+    }
+
     public void NotifyActivated(bool active) => _toplevel?.NotifyActivated(active);
 
     public void ToggleSoftKeyboard()
@@ -98,6 +113,11 @@ internal sealed class ShellView : UserControl
             _insets = top.InsetsManager;
             _inputPane = top.InputPane;
             Hook();
+        }
+
+        if (_toplevel is { } toplevel)
+        {
+            Dispatcher.UIThread.Post(() => toplevel.Focus());
         }
     }
 
@@ -151,7 +171,19 @@ internal sealed class ShellView : UserControl
         ReportSize();
     }
 
-    private void OnSafeAreaChanged(object? sender, SafeAreaChangedArgs e) => ApplySafeArea(e.SafeAreaPadding);
+    private void OnSafeAreaChanged(object? sender, SafeAreaChangedArgs e)
+    {
+        ApplySafeArea(e.SafeAreaPadding);
+        Dispatcher.UIThread.Post(RefreshInputPane, DispatcherPriority.Background);
+    }
+
+    private void RefreshInputPane()
+    {
+        if (_inputPane is { } pane)
+        {
+            ApplyInputPane(pane.State, pane.OccludedRect);
+        }
+    }
 
     private void OnInputPaneChanged(object? sender, InputPaneStateEventArgs e) => ApplyInputPane(e.NewState, e.EndRect);
 

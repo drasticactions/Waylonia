@@ -48,6 +48,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
     private NestedShell? _shell;
     private PanelArrangement? _panelArrangement;
     private IShellHost? _shellHost;
+    private ShellView? _shellView;
     private ShellChrome? _chrome;
     private PanelModel? _panelModel;
     private bool _shellStarted;
@@ -257,12 +258,18 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
         _run!.Store.Changed += () => Dispatcher.UIThread.Post(RefreshCatalog);
         _catalog = _run.Store.Load(Log);
 
-        if (ApplicationLifetime is ISingleViewApplicationLifetime single)
+        if (ApplicationLifetime is IActivityApplicationLifetime activity)
         {
-            single.MainView = new ShellView(_view);
+            _shellView = new ShellView(_view);
+            activity.MainViewFactory = () => _shellView;
+        }
+        else if (ApplicationLifetime is ISingleViewApplicationLifetime single)
+        {
+            _shellView = new ShellView(_view);
+            single.MainView = _shellView;
         }
 
-        if (ApplicationLifetime is ISingleViewApplicationLifetime && this.TryGetFeature<IActivatableLifetime>() is { } activatable)
+        if (_shellView is not null && this.TryGetFeature<IActivatableLifetime>() is { } activatable)
         {
             activatable.Deactivated += (_, e) => OnActivation(e.Kind, active: false);
             activatable.Activated += (_, e) => OnActivation(e.Kind, active: true);
@@ -492,13 +499,23 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
 
     protected virtual IShellHost HostShell(BasinCompositorHost host, ShellWindowState state, Func<BasinCompositorHost, BasinViewOutput> createView)
     {
-        if (ApplicationLifetime is not ISingleViewApplicationLifetime { MainView: ShellView view })
+        if (_shellView is not { } view)
         {
             throw new InvalidOperationException("the nested shell needs a single view or a host window to live in");
         }
 
         view.AttachHost(host, createView);
         return new SingleViewShellHost(view, this.TryGetFeature<IActivatableLifetime>());
+    }
+
+    public void PressKey(uint evdev)
+    {
+        if (_shuttingDown || _shell is null)
+        {
+            return;
+        }
+
+        _shellHost?.View.PressKey(evdev);
     }
 
     private void OnShellCreated()
@@ -784,11 +801,21 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
             return;
         }
 
-        if (_resumePlan.Remove(session.Name) && !_suspended && _catalog.Find(session.Name) is { } profile)
+        if (_resumePlan.Contains(session.Name))
         {
-            Log.Info($"reconnecting {session.Name} after the host came back");
-            _ = ConnectProfileAsync(profile);
-            return;
+            if (_suspended)
+            {
+                Log.Debug($"{session.Name} ended while the host was in the background; it reconnects on return");
+                return;
+            }
+
+            _resumePlan.Remove(session.Name);
+            if (_catalog.Find(session.Name) is { } profile)
+            {
+                Log.Info($"reconnecting {session.Name} after the host came back");
+                _ = ConnectProfileAsync(profile);
+                return;
+            }
         }
 
         var othersLive = registry.Live.Any(other => !ReferenceEquals(other, session));

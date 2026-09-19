@@ -1,8 +1,11 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Platform;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
+using Avalonia.Threading;
+using Basin.Hosted;
 using Waylonia.Shell;
 using Xunit;
 
@@ -74,6 +77,36 @@ public sealed class ShellViewTests
 
         Assert.Equal([true, false], shown);
         Assert.Equal(Brushes.Black, view.Background);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void PressKey_injects_a_press_and_a_release()
+    {
+        using var harness = new WayloniaHostHarness(nested: new WayloniaHostHarness.NestedShellOptions());
+        var view = new ShellView();
+        var window = new Window { Width = 800, Height = 600, Content = view };
+        window.Show();
+        view.AttachHost(harness.Host, _ => harness.ShellView!);
+        window.UpdateLayout();
+        var seen = new System.Collections.Concurrent.ConcurrentQueue<(uint Code, bool Pressed)>();
+        view.Toplevel!.InputSink = input =>
+        {
+            if (input.Kind == BasinViewInputKind.Key)
+            {
+                seen.Enqueue((input.Code, input.Pressed));
+            }
+        };
+
+        view.PressKey(1);
+        for (var attempt = 0; attempt < 50 && seen.Count < 2; attempt++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            harness.PumpInput();
+        }
+
+        Assert.Equal([(1u, true), (1u, false)], seen.ToArray());
         window.Close();
     }
 }

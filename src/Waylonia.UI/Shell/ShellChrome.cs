@@ -62,7 +62,7 @@ internal sealed class ShellChrome : IDisposable
         ArgumentNullException.ThrowIfNull(post);
         _shell = shell;
         _host = host;
-        _pressSource = host.TopLevel ?? (Interactive)host.View;
+        _pressSource = host.View;
         _model = model;
         _arrangement = panels;
         _post = post;

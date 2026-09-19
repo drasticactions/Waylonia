@@ -23,17 +23,18 @@ internal sealed record WayloniaPaths(
             Path.Combine(home, ".ssh"));
     }
 
-    public static WayloniaPaths Sandbox(string documents, string library, string appName = "waylonia")
+    public static WayloniaPaths Sandbox(string documents, string stateRoot, string cacheRoot, string appName = "waylonia")
     {
         ArgumentException.ThrowIfNullOrEmpty(documents);
-        ArgumentException.ThrowIfNullOrEmpty(library);
+        ArgumentException.ThrowIfNullOrEmpty(stateRoot);
+        ArgumentException.ThrowIfNullOrEmpty(cacheRoot);
         ArgumentException.ThrowIfNullOrEmpty(appName);
         var configFile = Path.Combine(documents, appName + ".toml");
         return new(
             configFile,
             SessionStore.DirectoryFor(configFile)!,
-            Path.Combine(library, "Application Support", appName, "shell.toml"),
-            Path.Combine(library, "Caches", appName, "icons"),
+            Path.Combine(stateRoot, appName, "shell.toml"),
+            Path.Combine(cacheRoot, appName, "icons"),
             Path.Combine(documents, "ssh"));
     }
 

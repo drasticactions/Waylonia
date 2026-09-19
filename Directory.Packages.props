@@ -25,11 +25,13 @@
     <PackageVersion Include="Basin.UI.Avalonia" Version="$(BasinVersion)" />
     <PackageVersion Include="Basin.UI.Skia" Version="$(BasinVersion)" />
     <PackageVersion Include="Basin.Video.FFmpeg" Version="$(BasinVersion)" />
+    <PackageVersion Include="Basin.Video.MediaCodec" Version="$(BasinVersion)" />
     <PackageVersion Include="Basin.Video.VideoToolbox" Version="$(BasinVersion)" />
     <PackageVersion Include="Basin.XWayland" Version="$(BasinVersion)" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageVersion Include="Avalonia.Android" Version="$(AvaloniaVersion)" />
     <PackageVersion Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
     <PackageVersion Include="Avalonia.Headless.XUnit" Version="$(AvaloniaVersion)" />
     <PackageVersion Include="Avalonia.iOS" Version="$(AvaloniaVersion)" />

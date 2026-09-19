@@ -25,12 +25,18 @@ internal static class IosHead
     public static WayloniaPaths Paths()
     {
         var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        var library = NSFileManager.DefaultManager.GetUrls(NSSearchPathDirectory.LibraryDirectory, NSSearchPathDomain.User) is { Length: > 0 } urls
+        return WayloniaPaths.Sandbox(documents, StateRoot(), CacheRoot());
+    }
+
+    private static string Library() =>
+        NSFileManager.DefaultManager.GetUrls(NSSearchPathDirectory.LibraryDirectory, NSSearchPathDomain.User) is { Length: > 0 } urls
             && urls[0].Path is { Length: > 0 } path
             ? path
             : Path.GetDirectoryName(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData))!;
-        return WayloniaPaths.Sandbox(documents, library);
-    }
+
+    private static string StateRoot() => Path.Combine(Library(), "Application Support");
+
+    private static string CacheRoot() => Path.Combine(Library(), "Caches");
 
     public const string LogVariable = "WAYLONIA_LOG";
 
@@ -45,38 +51,8 @@ internal static class IosHead
         BasinLog.Sink = new StandardErrorLogSink();
         var log = BasinLog.For("waylonia");
         var paths = Paths();
-        var library = Path.GetDirectoryName(Path.GetDirectoryName(paths.IconCacheRoot))!;
-        Environment.SetEnvironmentVariable("XDG_STATE_HOME", Path.Combine(library, "Application Support"));
-        Environment.SetEnvironmentVariable("XDG_DATA_HOME", Path.Combine(library, "Application Support"));
-        Environment.SetEnvironmentVariable("XDG_CACHE_HOME", Path.Combine(library, "Caches"));
-        Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", Path.GetDirectoryName(paths.ConfigFile));
-        try
-        {
-            Directory.CreateDirectory(paths.SshDirectory);
-        }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-        {
-            log.Warn($"cannot create {paths.SshDirectory}: {error.Message}");
-        }
-
-        var config = Config.Load(paths, log);
-        var store = new SessionStore(config.SessionsDirectory);
-        var host = config.Host with { Shell = ShellMode.Nested, Tray = false };
-        var initial = RunRules.Autoconnect(store.Load(log), [], config, "f32", log);
-        return new WayloniaRun(
-            Capabilities,
-            paths,
-            host,
-            initial,
-            Manager: true,
-            LocalCommand: null,
-            LocalDesktop: null,
-            WaypipeListen: null,
-            Frames: 0,
-            Screenshot: null,
-            SocketName: null,
-            config,
-            store);
+        MobileRun.ExportXdg(StateRoot(), CacheRoot(), Path.GetDirectoryName(paths.ConfigFile)!);
+        return MobileRun.Build(paths, Capabilities, log);
     }
 
     public static HostPlatform Compose(WayloniaRun run)
