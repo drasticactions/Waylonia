@@ -6,7 +6,7 @@ internal enum SshLinkReason
     HostKeyRejected,
     HostKeyChanged,
     AuthenticationFailed,
-    Cancelled,
+    Canceled,
     ConfigUnsupported,
     ForwardRefused,
     Lost,

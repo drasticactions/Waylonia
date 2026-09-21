@@ -257,7 +257,7 @@ public sealed class SettingsWindowTests : IDisposable
     }
 
     [Fact]
-    public void Deleting_a_desktop_selects_its_neighbour_and_revert_reloads_the_file()
+    public void Deleting_a_desktop_selects_its_neighbor_and_revert_reloads_the_file()
     {
         var model = Model("[desktops.a]\nrecipe = \"sway\"\n\n[desktops.b]\nrecipe = \"niri\"\n\n[desktops.c]\nrecipe = \"xfce\"\n");
         Assert.Equal(["a", "b", "c"], model.Desktops.Select(desktop => desktop.Name));

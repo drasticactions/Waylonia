@@ -20,7 +20,7 @@ internal sealed class RemoteApplications
     public static string Script(DesktopLocale locale)
     {
         var lang = locale.IsNone || !locale.Lang.All(char.IsAsciiLetter) ? null : locale.Lang;
-        var localised = lang is null
+        var localized = lang is null
             ? "/^[A-Za-z][-A-Za-z0-9]*\\[/d"
             : $"/^[A-Za-z][-A-Za-z0-9]*\\[/{{/^[A-Za-z][-A-Za-z0-9]*\\[{lang}/!d;}}";
         return
@@ -30,7 +30,7 @@ internal sealed class RemoteApplications
             "[ -f \"$f\" ] || continue; ok=1; t=$(sed -n 's/^TryExec=//p' \"$f\" | head -n 1); " +
             "if [ -n \"$t\" ]; then case $t in /*) [ -x \"$t\" ] || ok=0;; *) command -v \"$t\" >/dev/null 2>&1 || ok=0;; esac; fi; " +
             "printf '\\001%s\\001%s\\001%s\\n' \"$a\" \"$f\" \"$ok\"; " +
-            $"sed -e '/^#/d' -e '{localised}' \"$f\"; printf '\\n'; " +
+            $"sed -e '/^#/d' -e '{localized}' \"$f\"; printf '\\n'; " +
             "done; done";
     }
 

@@ -15,9 +15,9 @@ public sealed class SshLinkExceptionTests
     [InlineData("AuthenticationFailed", "user@devbox", "keyboard-interactive", false, "user@devbox refused every credential; the server offers keyboard-interactive, which waylonia cannot do")]
     [InlineData("AuthenticationFailed", "user@devbox", "publickey", true, "user@devbox refused every credential (publickey); an encrypted key named in ~/.ssh/config needs an agent")]
     [InlineData("HostKeyChanged", "user@devbox", "/data/Documents/ssh/known_hosts", false, "the host key of devbox changed; remove the old one from /data/Documents/ssh/known_hosts if that is expected")]
-    [InlineData("Cancelled", "user@devbox", null, false, "the login to user@devbox was cancelled")]
-    [InlineData("ConfigUnsupported", "user@devbox", "ProxyCommand", false, "the ssh config for devbox uses ProxyCommand, which waylonia cannot honour; use ProxyJump")]
-    [InlineData("ConfigUnsupported", "devbox", "SetEnv", false, "the ssh config for devbox uses SetEnv, which waylonia cannot honour")]
+    [InlineData("Canceled", "user@devbox", null, false, "the login to user@devbox was canceled")]
+    [InlineData("ConfigUnsupported", "user@devbox", "ProxyCommand", false, "the ssh config for devbox uses ProxyCommand, which waylonia cannot honor; use ProxyJump")]
+    [InlineData("ConfigUnsupported", "devbox", "SetEnv", false, "the ssh config for devbox uses SetEnv, which waylonia cannot honor")]
     [InlineData("ForwardRefused", "user@devbox", "/tmp/waylonia-1-1.sock", false, "the remote side refused to listen on /tmp/waylonia-1-1.sock; sshd needs StreamLocalBindUnlink yes or the socket is stale")]
     [InlineData("Lost", "user@devbox", null, false, "the connection to user@devbox ended")]
     public void The_sentence_table_speaks_in_lowercase_user_terms(string reason, string destination, string? detail, bool hint, string expected)

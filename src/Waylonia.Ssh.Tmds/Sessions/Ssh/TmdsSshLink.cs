@@ -25,7 +25,7 @@ internal sealed class TmdsSshLink : ISshLink
     private readonly bool _enumerateKeys;
     private bool _connected;
     private bool _disposed;
-    private bool _cancelled;
+    private bool _canceled;
     private bool _timedOut;
     private SshHostKeyState? _rejectedHostKey;
 
@@ -92,7 +92,7 @@ internal sealed class TmdsSshLink : ISshLink
                     SshLinkReason.Unreachable,
                     SshLinkException.Sentence(SshLinkReason.Unreachable, Destination, $"no answer within {_timeout.TotalSeconds:0} seconds"),
                     error)
-                : new SshLinkException(SshLinkReason.Cancelled, SshLinkException.Sentence(SshLinkReason.Cancelled, Destination), error);
+                : new SshLinkException(SshLinkReason.Canceled, SshLinkException.Sentence(SshLinkReason.Canceled, Destination), error);
         }
         catch (Exception error) when (error is NotSupportedException or InvalidDataException or ArgumentException or IOException or UnauthorizedAccessException)
         {
@@ -245,7 +245,7 @@ internal sealed class TmdsSshLink : ISshLink
         var answer = SerializedAsync(() => _prompter.AskSecretAsync(prompt, CancellationToken.None)).GetAwaiter().GetResult();
         if (answer is null)
         {
-            _cancelled = true;
+            _canceled = true;
         }
 
         return answer;
@@ -253,7 +253,7 @@ internal sealed class TmdsSshLink : ISshLink
 
     private async ValueTask<string?> AskPasswordAsync(PasswordPromptContext context, CancellationToken cancellation)
     {
-        if (context.Attempt > PasswordAttempts || _cancelled)
+        if (context.Attempt > PasswordAttempts || _canceled)
         {
             return null;
         }
@@ -263,7 +263,7 @@ internal sealed class TmdsSshLink : ISshLink
         var answer = await SerializedAsync(() => _prompter.AskSecretAsync(prompt, cancellation)).ConfigureAwait(false);
         if (answer is null)
         {
-            _cancelled = true;
+            _canceled = true;
         }
 
         return answer;
@@ -307,9 +307,9 @@ internal sealed class TmdsSshLink : ISshLink
 
     private SshLinkException Classify(Exception error)
     {
-        if (_cancelled)
+        if (_canceled)
         {
-            return Make(SshLinkReason.Cancelled, error);
+            return Make(SshLinkReason.Canceled, error);
         }
 
         if (_rejectedHostKey is { } rejected)

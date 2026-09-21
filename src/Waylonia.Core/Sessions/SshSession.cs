@@ -144,7 +144,7 @@ internal sealed class SshSession : IDisposable
         }
         catch (SshLinkException error)
         {
-            return await FailAsync(link, error.Message, report: error.Reason != SshLinkReason.Cancelled);
+            return await FailAsync(link, error.Message, report: error.Reason != SshLinkReason.Canceled);
         }
 
         if (_disconnecting || _host.ShuttingDown)

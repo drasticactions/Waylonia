@@ -602,7 +602,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
 
     protected virtual Task<string?> AskOutsideShellAsync(string prompt, AskPassKind kind, CancellationToken cancellation)
     {
-        Log.Warn($"an ssh prompt arrived before the shell was up, cancelling the login");
+        Log.Warn($"an ssh prompt arrived before the shell was up, canceling the login");
         return Task.FromResult<string?>(null);
     }
 

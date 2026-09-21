@@ -29,11 +29,11 @@ internal sealed class SshLinkException : Exception
             SshLinkReason.HostKeyChanged =>
                 $"the host key of {host} changed; remove the old one from {detail ?? "~/.ssh/known_hosts"} if that is expected",
             SshLinkReason.AuthenticationFailed => Authentication(destination, detail, configHint ? hint ?? AgentHint : null),
-            SshLinkReason.Cancelled => $"the login to {destination} was cancelled",
+            SshLinkReason.Canceled => $"the login to {destination} was canceled",
             SshLinkReason.ConfigUnsupported => detail is { Length: > 0 } keyword
-                ? $"the ssh config for {host} uses {keyword}, which waylonia cannot honour" +
+                ? $"the ssh config for {host} uses {keyword}, which waylonia cannot honor" +
                   (keyword.Equals("ProxyCommand", StringComparison.OrdinalIgnoreCase) ? "; use ProxyJump" : string.Empty)
-                : $"the ssh config for {host} uses a keyword waylonia cannot honour",
+                : $"the ssh config for {host} uses a keyword waylonia cannot honor",
             SshLinkReason.ForwardRefused =>
                 $"the remote side refused to listen on {detail}; sshd needs StreamLocalBindUnlink yes or the socket is stale",
             SshLinkReason.Lost => $"the connection to {destination} ended",

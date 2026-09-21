@@ -102,7 +102,7 @@ public sealed class SshSessionTests
     }
 
     [Fact]
-    public async Task A_cancelled_prompt_ends_the_login_quietly()
+    public async Task A_canceled_prompt_ends_the_login_quietly()
     {
         var host = new StubSessionHost { Settings = new HostSettings(TrayApps: false) };
         host.Links.BeforeConnect = async link =>
@@ -110,7 +110,7 @@ public sealed class SshSessionTests
             var answer = await link.Prompter.AskSecretAsync(new SshSecretPrompt(SshSecretKind.Password, link.Destination, 1), CancellationToken.None);
             if (answer is null)
             {
-                link.ConnectOutcome = new SshLinkException(SshLinkReason.Cancelled, SshLinkException.Sentence(SshLinkReason.Cancelled, link.Destination));
+                link.ConnectOutcome = new SshLinkException(SshLinkReason.Canceled, SshLinkException.Sentence(SshLinkReason.Canceled, link.Destination));
             }
         };
         host.Prompter.SecretAnswer = null;
@@ -118,9 +118,9 @@ public sealed class SshSessionTests
         var session = new SshSession(StubSessionHost.For("dev"), host);
 
         Assert.False(await session.ConnectAsync());
-        Assert.Equal("the login to user@dev was cancelled", session.LastError);
+        Assert.Equal("the login to user@dev was canceled", session.LastError);
         Assert.Single(host.Prompter.Secrets);
-        Assert.DoesNotContain(capture.Lines, line => line.Contains("cancelled", StringComparison.Ordinal) && line.Contains("error", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(capture.Lines, line => line.Contains("canceled", StringComparison.Ordinal) && line.Contains("error", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

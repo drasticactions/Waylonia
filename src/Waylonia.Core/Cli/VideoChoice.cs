@@ -51,8 +51,8 @@ public static class VideoChoice
             return null;
         }
 
-        var travelling = value.Split(',').Where(Travels).ToArray();
-        return travelling.Length == 0 ? null : string.Join(',', travelling);
+        var traveling = value.Split(',').Where(Travels).ToArray();
+        return traveling.Length == 0 ? null : string.Join(',', traveling);
     }
 
     private static bool Travels(string part) =>
