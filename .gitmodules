@@ -1,3 +1,6 @@
 [submodule "external/Tmds.Ssh"]
 	path = external/Tmds.Ssh
 	url = https://github.com/drasticactions/Tmds.Ssh.git
+[submodule "external/basin"]
+	path = external/basin
+	url = https://github.com/drasticactions/basin
