@@ -30,9 +30,9 @@
     <ProjectReference Include="../Waylonia.Ssh.Tmds/Waylonia.Ssh.Tmds.csproj" />
     <ProjectReference Include="../Waylonia.Audio.MiniAudio/Waylonia.Audio.MiniAudio.csproj" />
     <PackageReference Include="Avalonia.Desktop" />
-    <PackageReference Include="Basin.Video.FFmpeg" />
+    <ProjectReference Include="../../external/basin/src/Basin.Video.FFmpeg/Basin.Video.FFmpeg.csproj" />
     <PackageReference Include="System.CommandLine" />
-    <PackageReference Include="Basin.XWayland" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
+    <ProjectReference Include="../../external/basin/src/Basin.XWayland/Basin.XWayland.csproj" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <PackageReference Include="Avalonia.Wayland" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
     <PackageReference Include="Tmds.DBus.Protocol" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </ItemGroup>

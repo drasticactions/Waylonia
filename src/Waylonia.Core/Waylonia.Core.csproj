@@ -24,13 +24,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Basin.Hosted" />
-    <PackageReference Include="Basin.Frames.Metacity" />
-    <PackageReference Include="Basin.Freedesktop" />
-    <PackageReference Include="Basin.Render.Skia" />
-    <PackageReference Include="Basin.Shell.Nested" />
-    <PackageReference Include="Basin.Transport.Waypipe" />
-    <PackageReference Include="Basin.UI.Skia" />
+    <ProjectReference Include="../../external/basin/src/Basin.Hosted/Basin.Hosted.csproj" />
+    <ProjectReference Include="../../external/basin/src/Basin.Frames.Metacity/Basin.Frames.Metacity.csproj" />
+    <ProjectReference Include="../../external/basin/src/Basin.Freedesktop/Basin.Freedesktop.csproj" />
+    <ProjectReference Include="../../external/basin/src/Basin.Render.Skia/Basin.Render.Skia.csproj" />
+    <ProjectReference Include="../../external/basin/src/Basin.Shell.Nested/Basin.Shell.Nested.csproj" />
+    <ProjectReference Include="../../external/basin/src/Basin.Transport.Waypipe/Basin.Transport.Waypipe.csproj" />
+    <ProjectReference Include="../../external/basin/src/Basin.UI.Skia/Basin.UI.Skia.csproj" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Tomlyn" />
   </ItemGroup>

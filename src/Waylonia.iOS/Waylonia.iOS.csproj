@@ -20,7 +20,7 @@
     <ProjectReference Include="../Waylonia.UI/Waylonia.UI.csproj" />
     <ProjectReference Include="../Waylonia.Ssh.Tmds/Waylonia.Ssh.Tmds.csproj" />
     <PackageReference Include="Avalonia.iOS" />
-    <PackageReference Include="Basin.Video.VideoToolbox" />
+    <ProjectReference Include="../../external/basin/src/Basin.Video.VideoToolbox/Basin.Video.VideoToolbox.csproj" />
   </ItemGroup>
 
 </Project>

@@ -6,29 +6,7 @@
 
   <PropertyGroup>
     <AvaloniaVersion>12.1.2</AvaloniaVersion>
-    <BasinVersion>9999.0.0-localbuild</BasinVersion>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageVersion Include="Basin.Avalonia" Version="$(BasinVersion)" />
-    <PackageVersion Include="Basin.Avalonia.View" Version="$(BasinVersion)" />
-    <PackageVersion Include="Basin.Core" Version="$(BasinVersion)" />
-    <PackageVersion Include="Basin.Desktop" Version="$(BasinVersion)" />
-    <PackageVersion Include="Basin.Frames.Metacity" Version="$(BasinVersion)" />
-    <PackageVersion Include="Basin.Freedesktop" Version="$(BasinVersion)" />
-    <PackageVersion Include="Basin.Hosted" Version="$(BasinVersion)" />
-    <PackageVersion Include="Basin.Render.Skia" Version="$(BasinVersion)" />
-    <PackageVersion Include="Basin.Scene" Version="$(BasinVersion)" />
-    <PackageVersion Include="Basin.Shell.Nested" Version="$(BasinVersion)" />
-    <PackageVersion Include="Basin.Shell.Xdg" Version="$(BasinVersion)" />
-    <PackageVersion Include="Basin.Transport.Waypipe" Version="$(BasinVersion)" />
-    <PackageVersion Include="Basin.UI.Avalonia" Version="$(BasinVersion)" />
-    <PackageVersion Include="Basin.UI.Skia" Version="$(BasinVersion)" />
-    <PackageVersion Include="Basin.Video.FFmpeg" Version="$(BasinVersion)" />
-    <PackageVersion Include="Basin.Video.MediaCodec" Version="$(BasinVersion)" />
-    <PackageVersion Include="Basin.Video.VideoToolbox" Version="$(BasinVersion)" />
-    <PackageVersion Include="Basin.XWayland" Version="$(BasinVersion)" />
-  </ItemGroup>
 
   <ItemGroup>
     <PackageVersion Include="Avalonia.Android" Version="$(AvaloniaVersion)" />

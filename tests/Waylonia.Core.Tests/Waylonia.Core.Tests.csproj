@@ -11,12 +11,12 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
     <PackageReference Include="xunit.v3" />
-    <PackageReference Include="Basin.Core" />
-    <PackageReference Include="Basin.Desktop" />
-    <PackageReference Include="Basin.Freedesktop" />
-    <PackageReference Include="Basin.Hosted" />
-    <PackageReference Include="Basin.Scene" />
-    <PackageReference Include="Basin.Shell.Xdg" />
+    <ProjectReference Include="../../external/basin/src/Basin.Core/Basin.Core.csproj" />
+    <ProjectReference Include="../../external/basin/src/Basin.Desktop/Basin.Desktop.csproj" />
+    <ProjectReference Include="../../external/basin/src/Basin.Freedesktop/Basin.Freedesktop.csproj" />
+    <ProjectReference Include="../../external/basin/src/Basin.Hosted/Basin.Hosted.csproj" />
+    <ProjectReference Include="../../external/basin/src/Basin.Scene/Basin.Scene.csproj" />
+    <ProjectReference Include="../../external/basin/src/Basin.Shell.Xdg/Basin.Shell.Xdg.csproj" />
   </ItemGroup>
 
   <ItemGroup>
