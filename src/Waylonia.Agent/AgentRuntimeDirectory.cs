@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.Versioning;
 using static Waylonia.Agent.AgentLog;
 
@@ -6,6 +7,8 @@ namespace Waylonia.Agent;
 [SupportedOSPlatform("linux")]
 internal sealed class AgentRuntimeDirectory : IDisposable
 {
+    private static readonly TimeSpan MountGrace = TimeSpan.FromSeconds(1);
+
     private bool _disposed;
 
     private AgentRuntimeDirectory(string path) => Path = path;
@@ -69,6 +72,7 @@ internal sealed class AgentRuntimeDirectory : IDisposable
         }
 
         _disposed = true;
+        ReleaseMounts();
         try
         {
             Directory.Delete(Path, recursive: true);
@@ -76,6 +80,23 @@ internal sealed class AgentRuntimeDirectory : IDisposable
         catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
         {
             Log.Warn($"the agent's runtime directory {Path} was not removed: {failure.Message}");
+        }
+    }
+
+    private void ReleaseMounts()
+    {
+        var deadline = Stopwatch.StartNew();
+        var mounts = AgentMounts.Under(Path);
+        while (mounts.Count > 0 && deadline.Elapsed < MountGrace)
+        {
+            Thread.Sleep(50);
+            mounts = AgentMounts.Under(Path);
+        }
+
+        foreach (var mount in mounts)
+        {
+            Log.Debug($"{mount} is still mounted {MountGrace.TotalSeconds:0} s after the agent's bus ended; detaching it");
+            _ = AgentMounts.Detach(mount);
         }
     }
 }
