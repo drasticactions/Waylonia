@@ -88,6 +88,9 @@ internal sealed partial class SettingsFormViewModel : FormViewModel
     private bool _sessionTitles = true;
 
     [ObservableProperty]
+    private bool _virtualInput;
+
+    [ObservableProperty]
     private string _captureChord = string.Empty;
 
     [ObservableProperty]
@@ -272,6 +275,7 @@ internal sealed partial class SettingsFormViewModel : FormViewModel
         FollowCursor = values.FollowCursor;
         GtkDpi = values.GtkDpi;
         SessionTitles = values.SessionTitles;
+        VirtualInput = values.VirtualInput;
         CaptureChord = values.CaptureChord == ConfigValues.DefaultCaptureChord ? string.Empty : values.CaptureChord;
         SshTimeout = Unless(values.SshTimeout, ConfigValues.DefaultSshTimeout);
         CompressIndex = Math.Max(0, values.Compress is null ? 0 : IndexOf(CompressChoices, values.Compress));
@@ -359,7 +363,8 @@ internal sealed partial class SettingsFormViewModel : FormViewModel
             hotkeys,
             Shell: ShellModeIndex == 1 ? ShellMode.Nested : ShellMode.Windows,
             ShellSettings: shell,
-            Panel: panel);
+            Panel: panel,
+            VirtualInput: VirtualInput);
     }
 
     private void LoadShell(ShellMode mode, ShellSettings shell, PanelSettings panel)

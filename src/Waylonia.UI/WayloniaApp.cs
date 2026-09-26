@@ -360,11 +360,16 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
             ManagedTransport = run.ManagedTransport,
             TextInput = _textInput,
             ExtraModules = ExtraModules(),
+            ConfigureServices = ConfigureServices,
+            Dmabuf = run.Agent is null,
         });
         return Nested ? CreateNestedHost(host, run) : CreateWindowsHost(host, run);
     }
 
     protected virtual IReadOnlyList<IProtocolModule>? ExtraModules() => null;
+
+    protected virtual void ConfigureServices(BasinCompositorHost host, BasinServices services) =>
+        VirtualInputGlobals.Apply(services, _run!.Host.VirtualInput);
 
     protected virtual BasinCompositorHost CreateWindowsHost(BasinCompositorHost host, WayloniaRun run) =>
         throw new InvalidOperationException("windows mode needs a desktop host; this host runs the nested shell only");
@@ -421,12 +426,13 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
     {
         var run = _run!;
         var view = host.CreateViewOutput(Math.Max(1, width), Math.Max(1, height), scale, NestedShell.OutputKey);
-        var keys = KeyTable.Build(run.Config.ShellSettings.Keys, Hotkey.Reserved(run.Host.Hotkeys));
-        _panelArrangement = PanelArrangement.From(run.Config.Panel, run.Capabilities, Log);
+        var agent = run.Agent;
+        var keys = agent is null ? KeyTable.Build(run.Config.ShellSettings.Keys, Hotkey.Reserved(run.Host.Hotkeys)) : KeyTable.Empty;
+        _panelArrangement = agent is null ? PanelArrangement.From(run.Config.Panel, run.Capabilities, Log) : Agent.AgentShell.Arrangement;
         var shell = new NestedShell(
             host,
             view,
-            run.Config.ShellSettings,
+            agent is null ? run.Config.ShellSettings : Agent.AgentShell.Settings(agent, run.Config.ShellSettings),
             _panelArrangement.Layout,
             keys,
             action => _view!.Post(action),
@@ -435,7 +441,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
             WindowSuffix = run.Host.SessionTitles ? SessionNameOf : null,
             ResolveIcon = ResolveIcon,
         };
-        AttachShell(shell);
+        AttachShell(shell, view);
         shell.Changed += PublishPanelModel;
         shell.CursorChanged += name => Dispatcher.UIThread.Post(() => _shellHost?.View.ApplyCursor(CursorNames.For(name)));
         shell.ClientCursorChanged += cursor =>
@@ -457,7 +463,11 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
         return view;
     }
 
-    protected virtual void AttachShell(NestedShell shell)
+    protected virtual void AttachShell(NestedShell shell, BasinViewOutput view)
+    {
+    }
+
+    protected virtual void OnHostInput(in BasinViewInput input)
     {
     }
 
@@ -489,7 +499,11 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
         };
         if (view.Toplevel is { } toplevel)
         {
-            toplevel.InputSink = input => _shell?.HandleInput(input);
+            toplevel.InputSink = input =>
+            {
+                OnHostInput(input);
+                _shell?.HandleInput(input);
+            };
             _textInput?.AttachView(toplevel);
         }
 
@@ -691,9 +705,16 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
             return;
         }
 
-        var live = registry.Live.ToList();
-        shellHost.SetTitle(live.Count == 1 ? $"Waylonia — {live[0].Name}" : "Waylonia");
+        shellHost.SetTitle(ShellTitle(registry));
     }
+
+    protected virtual string ShellTitle(SessionRegistry registry)
+    {
+        var live = registry.Live.ToList();
+        return live.Count == 1 ? $"Waylonia — {live[0].Name}" : "Waylonia";
+    }
+
+    protected void RefreshShellTitle() => UpdateShellTitle();
 
     protected void ShowShell() => _shellHost?.Present();
 
@@ -910,7 +931,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
         }
 
         _run = _run! with { Host = config.Host with { Shell = _run.Host.Shell }, Config = config };
-        if (_shell is { } shell)
+        if (_shell is { } shell && _run.Agent is null)
         {
             var settings = config.ShellSettings;
             var panels = PanelArrangement.From(config.Panel, _run.Capabilities, Log);

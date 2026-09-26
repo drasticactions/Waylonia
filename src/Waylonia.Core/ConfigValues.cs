@@ -27,7 +27,8 @@ internal sealed record ConfigValues(
     IReadOnlyList<DesktopProfile>? Desktops = null,
     ShellMode Shell = ShellMode.Windows,
     ShellSettings? ShellSettings = null,
-    PanelSettings? Panel = null)
+    PanelSettings? Panel = null,
+    bool VirtualInput = false)
 {
     public const string DefaultLang = "C.UTF-8";
 
@@ -77,6 +78,11 @@ internal sealed record ConfigValues(
         if (FollowCursor != other.FollowCursor)
         {
             keys.Add("follow-cursor");
+        }
+
+        if (VirtualInput != other.VirtualInput)
+        {
+            keys.Add("virtual-input");
         }
 
         if (Socket != other.Socket)

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <WayloniaPlatforms>linux</WayloniaPlatforms>
+    <RootNamespace>Waylonia.Accessibility</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Waylonia.Accessibility.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tmds.DBus.Protocol" />
+    <PackageReference Include="Tmds.DBus.Generator" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="DBusXml/*.xml" />
+    <None Include="DBusXml/NOTICE" />
+    <AdditionalFiles Include="DBusXml/org.a11y.Bus.xml" DBusGeneratorMode="Proxy" Namespace="Waylonia.Accessibility.DBus" Visibility="internal" />
+    <AdditionalFiles Include="DBusXml/Status.xml" DBusGeneratorMode="Proxy" Namespace="Waylonia.Accessibility.DBus" Visibility="internal" />
+    <AdditionalFiles Include="DBusXml/Accessible.xml" DBusGeneratorMode="Proxy" Namespace="Waylonia.Accessibility.DBus" Visibility="internal" />
+    <AdditionalFiles Include="DBusXml/Action.xml" DBusGeneratorMode="Proxy" Namespace="Waylonia.Accessibility.DBus" Visibility="internal" />
+    <AdditionalFiles Include="DBusXml/Component.xml" DBusGeneratorMode="Proxy" Namespace="Waylonia.Accessibility.DBus" Visibility="internal" />
+    <AdditionalFiles Include="DBusXml/Text.xml" DBusGeneratorMode="Proxy" Namespace="Waylonia.Accessibility.DBus" Visibility="internal" />
+    <AdditionalFiles Include="DBusXml/EditableText.xml" DBusGeneratorMode="Proxy" Namespace="Waylonia.Accessibility.DBus" Visibility="internal" />
+    <AdditionalFiles Include="DBusXml/Value.xml" DBusGeneratorMode="Proxy" Namespace="Waylonia.Accessibility.DBus" Visibility="internal" />
+    <AdditionalFiles Include="DBusXml/Cache.xml" DBusGeneratorMode="Proxy" Namespace="Waylonia.Accessibility.DBus" Visibility="internal" />
+    <AdditionalFiles Include="DBusXml/Collection.xml" DBusGeneratorMode="Proxy" Namespace="Waylonia.Accessibility.DBus" Visibility="internal" />
+    <AdditionalFiles Include="DBusXml/Registry.xml" DBusGeneratorMode="Proxy" Namespace="Waylonia.Accessibility.DBus" Visibility="internal" />
+    <AdditionalFiles Include="DBusXml/Application.xml" DBusGeneratorMode="Proxy" Namespace="Waylonia.Accessibility.DBus" Visibility="internal" />
+  </ItemGroup>
+
+</Project>

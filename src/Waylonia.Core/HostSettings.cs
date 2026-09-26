@@ -16,7 +16,8 @@ internal sealed record HostSettings(
     IReadOnlyList<Hotkey>? Hotkeys = null,
     string? Terminal = null,
     string? CurrentDesktop = null,
-    ShellMode Shell = ShellMode.Windows)
+    ShellMode Shell = ShellMode.Windows,
+    bool VirtualInput = false)
 {
     public IReadOnlyList<Hotkey> Hotkeys { get; init; } = Hotkeys ?? [];
 }

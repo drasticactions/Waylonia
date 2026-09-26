@@ -14,6 +14,11 @@ internal sealed class ShellWindow : BluerCurveWindow, IShellHost
     private bool _allowClose;
     private DispatcherTimer? _saveTimer;
     private ShellWindowState _lastNormal = ShellWindowState.Default;
+    private TextBlock? _agentStatus;
+    private Button? _resume;
+    private bool _fixedSize;
+
+    public const int AgentStripHeight = 32;
 
     public ShellWindow(BasinCompositorHost host, ShellWindowState state, Func<BasinCompositorHost, BasinViewOutput> createView)
     {
@@ -55,7 +60,7 @@ internal sealed class ShellWindow : BluerCurveWindow, IShellHost
                 }
             }
 
-            if (state.FullScreen)
+            if (state.FullScreen && !_fixedSize)
             {
                 WindowState = WindowState.FullScreen;
             }
@@ -87,7 +92,7 @@ internal sealed class ShellWindow : BluerCurveWindow, IShellHost
 
     public TopLevel? TopLevel => this;
 
-    public bool CanFullScreen => true;
+    public bool CanFullScreen => !_fixedSize;
 
     public event Action? CloseRequested;
 
@@ -99,8 +104,97 @@ internal sealed class ShellWindow : BluerCurveWindow, IShellHost
 
     public bool IsFullScreen => WindowState == WindowState.FullScreen;
 
-    public void ToggleFullScreen() =>
-        WindowState = WindowState == WindowState.FullScreen ? WindowState.Normal : WindowState.FullScreen;
+    public void ToggleFullScreen()
+    {
+        if (!_fixedSize)
+        {
+            WindowState = WindowState == WindowState.FullScreen ? WindowState.Normal : WindowState.FullScreen;
+        }
+    }
+
+    public void FixForAgent(int outputWidth, int outputHeight, Action resume)
+    {
+        ArgumentNullException.ThrowIfNull(resume);
+        _fixedSize = true;
+        _agentStatus = new TextBlock
+        {
+            VerticalAlignment = global::Avalonia.Layout.VerticalAlignment.Center,
+            Margin = new Thickness(8, 0),
+        };
+        _resume = new Button
+        {
+            Content = "Resume agent",
+            IsVisible = false,
+            VerticalAlignment = global::Avalonia.Layout.VerticalAlignment.Center,
+            Margin = new Thickness(4, 0),
+        };
+        _resume.Click += (_, _) => resume();
+        var strip = new DockPanel { Height = AgentStripHeight, LastChildFill = true };
+        strip.Bind(Panel.BackgroundProperty, strip.GetResourceObservable("BcBgBrush"));
+        _agentStatus.Bind(TextBlock.ForegroundProperty, _agentStatus.GetResourceObservable("BcFgBrush"));
+        DockPanel.SetDock(_resume, global::Avalonia.Controls.Dock.Right);
+        strip.Children.Add(_resume);
+        strip.Children.Add(_agentStatus);
+        var layout = new DockPanel { LastChildFill = true };
+        DockPanel.SetDock(strip, global::Avalonia.Controls.Dock.Top);
+        Content = null;
+        layout.Children.Add(strip);
+        layout.Children.Add(View);
+        Content = layout;
+        CanResize = false;
+        _agentOutput = new Size(outputWidth, outputHeight);
+        SetFixedSize(outputWidth, outputHeight + AgentStripHeight);
+        WindowState = WindowState.Normal;
+        View.SizeChanged += (_, _) => FitAgentOutput();
+    }
+
+    private Size? _agentOutput;
+    private int _fits;
+
+    private void SetFixedSize(double width, double height)
+    {
+        MinWidth = 0;
+        MinHeight = 0;
+        MaxWidth = double.PositiveInfinity;
+        MaxHeight = double.PositiveInfinity;
+        Width = width;
+        Height = height;
+        MinWidth = MaxWidth = width;
+        MinHeight = MaxHeight = height;
+    }
+
+    private void FitAgentOutput()
+    {
+        if (_agentOutput is not { } wanted || _fits >= 4)
+        {
+            return;
+        }
+
+        var bounds = View.Bounds.Size;
+        var dx = wanted.Width - bounds.Width;
+        var dy = wanted.Height - bounds.Height;
+        if (Math.Abs(dx) < 0.5 && Math.Abs(dy) < 0.5)
+        {
+            return;
+        }
+
+        _fits++;
+        SetFixedSize(Width + dx, Height + dy);
+    }
+
+    public void SetAgentStatus(string status, bool paused)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+        if (_agentStatus is not null)
+        {
+            _agentStatus.Text = status;
+        }
+
+        if (_resume is not null)
+        {
+            _resume.IsVisible = paused;
+        }
+    }
 
     public void SetTitle(string title)
     {

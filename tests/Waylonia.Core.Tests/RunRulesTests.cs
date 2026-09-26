@@ -72,6 +72,26 @@ public sealed class RunRulesTests : IDisposable
             RunRules.NestedShellProblem(Waylonia.Shell.ShellMode.Nested, null, "/tmp/x"));
     }
 
+    [Theory]
+    [InlineData("host", null, null, null, null, "--agent runs its own applications and --ssh connects a session")]
+    [InlineData(null, "sway", null, null, null, "--agent runs its own applications and --desktop runs a whole desktop session")]
+    [InlineData(null, null, "unix:/tmp/w", null, null, "--agent runs its own applications and --waypipe-listen waits for someone else's")]
+    [InlineData(null, null, null, "foot", null, "--agent starts what the agent asks for through waylonia/launch and a trailing command starts a client of its own")]
+    [InlineData(null, null, null, null, "windows", "--agent holds every window in one nested shell and --shell windows opens one host window per client")]
+    public void Agent_mode_refuses_what_brings_in_other_clients(
+        string? ssh, string? desktop, string? listen, string? command, string? shell, string problem) =>
+        Assert.Equal(problem, RunRules.AgentProblem(Linux, ssh, desktop, listen, command, shell is null ? null : Waylonia.Shell.ShellModes.Parse(shell)));
+
+    [Fact]
+    public void Agent_mode_needs_local_commands_and_takes_the_nested_shell()
+    {
+        Assert.Null(RunRules.AgentProblem(Linux, null, null, null, null, null));
+        Assert.Null(RunRules.AgentProblem(Linux, null, null, null, null, Waylonia.Shell.ShellMode.Nested));
+        Assert.Contains("needs Linux", RunRules.AgentProblem(HostCapabilities.None, null, null, null, null, null), StringComparison.Ordinal);
+    }
+
+    private static readonly HostCapabilities Linux = HostCapabilities.None with { LocalCommands = true };
+
     public void Dispose()
     {
         if (Directory.Exists(_directory))
@@ -79,4 +99,5 @@ public sealed class RunRulesTests : IDisposable
             Directory.Delete(_directory, recursive: true);
         }
     }
+
 }

@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Waylonia.UI/Waylonia.UI.csproj" />
+    <ProjectReference Include="../Waylonia.Agent/Waylonia.Agent.csproj" />
     <ProjectReference Include="../../external/basin/src/Basin.Avalonia/Basin.Avalonia.csproj" />
     <PackageReference Include="BluerCurve" />
   </ItemGroup>

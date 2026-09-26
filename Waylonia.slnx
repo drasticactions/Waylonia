@@ -3,6 +3,8 @@
     <Project Path="src/Waylonia.Core/Waylonia.Core.csproj" />
     <Project Path="src/Waylonia.Ssh.Tmds/Waylonia.Ssh.Tmds.csproj" />
     <Project Path="src/Waylonia.Audio.MiniAudio/Waylonia.Audio.MiniAudio.csproj" />
+    <Project Path="src/Waylonia.Accessibility/Waylonia.Accessibility.csproj" />
+    <Project Path="src/Waylonia.Agent/Waylonia.Agent.csproj" />
     <Project Path="src/Waylonia.UI/Waylonia.UI.csproj" />
     <Project Path="src/Waylonia.UI.Desktop/Waylonia.UI.Desktop.csproj" />
     <Project Path="src/Waylonia.Desktop/Waylonia.Desktop.csproj" />
@@ -10,5 +12,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/Waylonia.Core.Tests/Waylonia.Core.Tests.csproj" />
     <Project Path="tests/Waylonia.UI.Tests/Waylonia.UI.Tests.csproj" />
+    <Project Path="tests/Waylonia.Accessibility.Tests/Waylonia.Accessibility.Tests.csproj" />
   </Folder>
 </Solution>

@@ -10,6 +10,7 @@ using Basin.Diagnostics;
 using Basin.Scene;
 using Basin.Shell.Nested;
 using Basin.UI.Avalonia;
+using Waylonia.Agent;
 using Waylonia.UI;
 
 namespace Waylonia.Shell;
@@ -234,9 +235,52 @@ internal sealed class ShellChrome : IDisposable
         return answered.Task;
     }
 
+    public Action Approve(AgentApprovalPrompt prompt, Action<AgentApprovalChoice> answered)
+    {
+        ArgumentNullException.ThrowIfNull(prompt);
+        ArgumentNullException.ThrowIfNull(answered);
+        if (_disposed)
+        {
+            answered(AgentApprovalChoice.Deny);
+            return static () => { };
+        }
+
+        var view = new ApprovalView(prompt);
+        ChromeSlot? slot = null;
+        var done = false;
+        void Close()
+        {
+            done = true;
+            if (slot is { } open)
+            {
+                CloseChrome(open, _ => { });
+            }
+        }
+
+        view.Answered += choice =>
+        {
+            if (!done)
+            {
+                answered(choice);
+            }
+
+            Close();
+        };
+        OpenChrome(ref slot, "Agent approval", "waylonia.approval", ApprovalView.DefaultWidth, ApprovalView.DefaultHeight,
+            () => view, created =>
+            {
+                if (created is null && !done)
+                {
+                    done = true;
+                    answered(AgentApprovalChoice.Deny);
+                }
+            }, centered: true, minWidth: 400, minHeight: 240, publish: false, excludeFromCapture: true);
+        return Close;
+    }
+
     private void OpenChrome(
         ref ChromeSlot? slot, string title, string appId, int width, int height, Func<Control> view, Action<ChromeSlot?> store,
-        bool centered = false, int minWidth = 320, int minHeight = 240)
+        bool centered = false, int minWidth = 320, int minHeight = 240, bool publish = true, bool excludeFromCapture = false)
     {
         if (_disposed)
         {
@@ -315,7 +359,14 @@ internal sealed class ShellChrome : IDisposable
         slot = created;
         store(created);
         var opened = created;
-        _post(() => opened.Window = _shell.Adopt(content));
+        _post(() =>
+        {
+            opened.Window = _shell.Adopt(content, publish: publish);
+            if (excludeFromCapture && opened.Window.Tree is { } tree)
+            {
+                tree.ExcludedFromCapture = true;
+            }
+        });
     }
 
     private void CloseChrome(ChromeSlot slot, Action<ChromeSlot?> store)

@@ -143,6 +143,9 @@ public sealed class ConfigTests : IDisposable
         Assert.True(defaults.Drag);
         Assert.True(defaults.FollowCursor);
         Assert.True(defaults.GtkDpi);
+        Assert.False(defaults.VirtualInput);
+        Assert.False(defaults.Host.VirtualInput);
+        Assert.True(Load(Write("[host]\nvirtual-input = true")).Host.VirtualInput);
 
         var config = Load(Write("""
             [host]

@@ -1,5 +1,6 @@
 using System.CommandLine;
 using Basin.Diagnostics;
+using Waylonia.Agent;
 using Waylonia.Cli;
 using Waylonia.Sessions;
 using Waylonia.Shell;
@@ -87,6 +88,32 @@ internal static class Program
                 result.AddError($"--shell takes {ShellModes.Names}");
             }
         });
+        var virtualInputOption = cli.Add(new Option<bool>("--virtual-input")
+        {
+            Description = "offer the virtual keyboard and pointer protocols, which let any client type and click into every other one. Overrides [host] virtual-input for this run.",
+        });
+        var agentOption = cli.Add(new Option<string?>("--agent")
+        {
+            Description = "run a compositor that holds only an AI agent's applications, under the profile NAME in " +
+                "$XDG_STATE_HOME/waylonia/agents (default when NAME is left out). An MCP host reaches it through " +
+                "basin-mcp --launch -- waylonia --agent NAME.",
+            HelpName = "NAME",
+            Arity = ArgumentArity.ZeroOrOne,
+        });
+        var headlessOption = cli.Add(new Option<bool>("--headless")
+        {
+            Description = "with --agent, run with no window at all.",
+        });
+        var sizeOption = cli.Add(new Option<string?>("--size")
+        {
+            Description = "with --agent, the fixed output size, WxH. Overrides size in agent.toml.",
+            HelpName = "WxH",
+        });
+        var scaleOption = cli.Add(new Option<double?>("--scale")
+        {
+            Description = "with --agent --headless, the output scale. Overrides scale in agent.toml.",
+            HelpName = "SCALE",
+        });
         var videoOption = cli.Add(CliOptions.Video());
         var compressOption = cli.Add(CliOptions.Compress());
         var command = new Argument<string[]>("command")
@@ -117,8 +144,44 @@ internal static class Program
             var ssh = result.GetValue(sshOption);
             var desktopName = result.GetValue(desktopOption);
             var desktopSize = result.GetValue(desktopSizeOption);
+            var agentResult = result.GetResult(agentOption);
+            var headless = result.GetValue(headlessOption);
+            var agentSize = result.GetValue(sizeOption);
+            var agentScale = result.GetValue(scaleOption);
+            if (agentResult is { Implicit: false })
+            {
+                var explicitShell = result.GetValue(shellOption) is { } agentShellText ? ShellModes.Parse(agentShellText) : null;
+                var trailing = result.GetValue(command) is { Length: > 0 } agentParts ? string.Join(' ', agentParts) : null;
+                if (RunRules.AgentProblem(capabilities, ssh, desktopName, listen, trailing, explicitShell) is { } agentProblem)
+                {
+                    log.Error($"{agentProblem}");
+                    return 1;
+                }
+
+                var agentStatus = DesktopHead.RunAgent(new AgentRequest(
+                    result.GetValue(agentOption) ?? AgentProfile.DefaultName,
+                    headless,
+                    agentSize,
+                    agentScale,
+                    capabilities,
+                    paths,
+                    config,
+                    store,
+                    result.GetValue(socketOption) ?? config.Socket,
+                    result.GetValue(frames),
+                    result.GetValue(screenshot)));
+                cli.ReportFrames(WayloniaApp.Rendered);
+                return agentStatus;
+            }
+
+            if (headless || agentSize is not null || agentScale is not null)
+            {
+                log.Error($"--headless, --size and --scale shape an --agent run, and this run has no --agent");
+                return 1;
+            }
+
             var shell = result.GetValue(shellOption) is { } shellText ? ShellModes.Parse(shellText)!.Value : config.Host.Shell;
-            var host = config.Host with { Shell = shell };
+            var host = config.Host with { Shell = shell, VirtualInput = config.Host.VirtualInput || result.GetValue(virtualInputOption) };
 
             if (desktopName is not null && commandText is not null)
             {

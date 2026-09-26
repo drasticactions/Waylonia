@@ -1,0 +1,42 @@
+The D-Bus introspection files in this directory (Accessible.xml, Action.xml,
+Application.xml, Cache.xml, Collection.xml, Component.xml,
+DeviceEventController.xml, EditableText.xml, Event.xml, Image.xml,
+org.a11y.Bus.xml, Registry.xml, Selection.xml, Socket.xml, Status.xml,
+Text.xml, Types.xml, Value.xml) are copied unchanged from Avalonia,
+src/Avalonia.FreeDesktop.AtSpi/DBusXml, at commit
+d3c867a9e2de379249b03dbeb3495bd7f076a81a. They describe the AT-SPI2
+interfaces of at-spi2-core, trimmed by Avalonia to what applications
+implement. The av: elements are Avalonia's own generator annotations and are
+ignored by Tmds.DBus.Generator.
+
+../AtSpiRole.cs and ../AtSpiState.cs are adapted from the files of the same
+names in src/Avalonia.FreeDesktop.AtSpi at the same commit: the namespace is
+Waylonia.Accessibility and both enums are public. AtSpiRole adds FontChooser
+(22) and renumbers the roles from 80 on to match atspi-constants.h (Avalonia's
+copy lacks Chart and Caption and is off from Heading to Timer), and adds the
+roles through Switch (130).
+
+Avalonia is licensed under the MIT License:
+
+The MIT License (MIT)
+
+Copyright (c) AvaloniaUI OÜ
+All Rights Reserved
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

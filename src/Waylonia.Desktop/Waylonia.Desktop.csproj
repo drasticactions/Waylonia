@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Waylonia.UI.Desktop/Waylonia.UI.Desktop.csproj" />
+    <ProjectReference Include="../Waylonia.Agent/Waylonia.Agent.csproj" />
     <ProjectReference Include="../Waylonia.Ssh.Tmds/Waylonia.Ssh.Tmds.csproj" />
     <ProjectReference Include="../Waylonia.Audio.MiniAudio/Waylonia.Audio.MiniAudio.csproj" />
     <PackageReference Include="Avalonia.Desktop" />

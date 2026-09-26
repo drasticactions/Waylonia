@@ -1,0 +1,25 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Waylonia.Shell.ApprovalView"
+             Background="{DynamicResource BcBgBrush}"
+             Foreground="{DynamicResource BcFgBrush}">
+  <DockPanel Margin="16">
+    <StackPanel DockPanel.Dock="Bottom" Spacing="10" Margin="0,12,0,0">
+      <TextBlock x:Name="CountdownText" FontSize="11" Opacity="0.75" />
+      <WrapPanel HorizontalAlignment="Right">
+        <Button x:Name="NoButton" Content="No" IsCancel="True" Margin="0,0,8,0" />
+        <Button x:Name="YesRunButton" Margin="0,0,8,0" />
+        <Button x:Name="YesButton" Content="Yes" />
+      </WrapPanel>
+    </StackPanel>
+    <StackPanel Spacing="10">
+      <TextBlock x:Name="HeadingText" TextWrapping="Wrap" FontWeight="Bold" FontSize="14" />
+      <SelectableTextBlock x:Name="SubjectText" TextWrapping="Wrap" FontFamily="monospace" Margin="16,0,0,0" />
+      <TextBlock x:Name="DescriptionText" TextWrapping="Wrap" />
+      <TextBlock Text="Do you want to proceed?" TextWrapping="Wrap" />
+      <Expander x:Name="DetailsExpander" Header="Show details">
+        <SelectableTextBlock x:Name="DetailsText" TextWrapping="Wrap" FontFamily="monospace" FontSize="11" />
+      </Expander>
+    </StackPanel>
+  </DockPanel>
+</UserControl>

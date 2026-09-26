@@ -86,6 +86,10 @@
               <CheckBox Content="session-titles" IsChecked="{Binding SessionTitles}" />
               <TextBlock Classes="hint" Text="Include the session title in each window's title." />
             </StackPanel>
+            <StackPanel Classes="toggle">
+              <CheckBox Content="virtual-input" IsChecked="{Binding VirtualInput}" />
+              <TextBlock Classes="hint" Text="Let clients type and click into each other, as wtype needs. Takes effect at restart." />
+            </StackPanel>
             <StackPanel Classes="field">
               <DockPanel>
                 <TextBlock Classes="caption" Text="capture-chord" />

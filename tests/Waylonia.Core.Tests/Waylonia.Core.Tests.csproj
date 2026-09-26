@@ -22,6 +22,8 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Waylonia.Core/Waylonia.Core.csproj" />
     <ProjectReference Include="../../src/Waylonia.Ssh.Tmds/Waylonia.Ssh.Tmds.csproj" />
+    <ProjectReference Include="../../src/Waylonia.Agent/Waylonia.Agent.csproj" />
+    <ProjectReference Include="../../external/basin/src/Basin.Ipc.Client/Basin.Ipc.Client.csproj" />
   </ItemGroup>
 
 </Project>

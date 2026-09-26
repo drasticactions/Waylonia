@@ -10,7 +10,9 @@ using Basin.Freedesktop;
 using Basin.Hosted;
 using Basin.Scene;
 using Basin.Shell.Nested;
+using Basin.Ipc;
 using Wayland.Server;
+using Waylonia.Agent;
 using Waylonia.Sessions;
 using Waylonia.Shell;
 using Waylonia.UI;
@@ -42,6 +44,8 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
     private ToplevelWindow? _screenWindow;
     private string _screenTitle = string.Empty;
     private ShellWindow? _shellWindow;
+    private AgentRuntime? _agent;
+    private string _agentStatus = "Agent: driving";
 
     private static DesktopPlatform Desktop => _desktopPlatform!;
 
@@ -105,6 +109,106 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
             System.Runtime.InteropServices.PosixSignal.SIGINT, OnPosixSignal));
         _signals.Add(System.Runtime.InteropServices.PosixSignalRegistration.Create(
             System.Runtime.InteropServices.PosixSignal.SIGTERM, OnPosixSignal));
+        _signals.Add(System.Runtime.InteropServices.PosixSignalRegistration.Create(
+            System.Runtime.InteropServices.PosixSignal.SIGHUP, OnPosixSignal));
+        _agent = PreparedAgent;
+    }
+
+    public static AgentRuntime? PreparedAgent { get; set; }
+
+    private bool AgentMode => RunSettings.Agent is not null;
+
+    protected override void ConfigureServices(BasinCompositorHost host, BasinServices services)
+    {
+        base.ConfigureServices(host, services);
+        if (OperatingSystem.IsLinux() && _agent is { } agent)
+        {
+            agent.ConfigureServices(host, services);
+        }
+    }
+
+    protected override void OnHostInput(in BasinViewInput input)
+    {
+        if (OperatingSystem.IsLinux() && _agent is { } agent && AgentShell.TakesOver(input))
+        {
+            agent.HostInput(pressOrKey: true);
+        }
+    }
+
+    protected override string ShellTitle(SessionRegistry registry) =>
+        RunSettings.Agent is { } profile ? AgentShell.Title(profile, _agentStatus) : base.ShellTitle(registry);
+
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    private void AttachAgent(NestedShell shell, BasinViewOutput view)
+    {
+        if (_agent is not { } agent || Host is not { } host || OutputView is not { } pump)
+        {
+            return;
+        }
+
+        agent.XDisplay = () => Desktop.XWayland.DisplayName(host);
+        agent.Attach(host, view, shell, new VisibleAgentCompositor(pump, host, shell), () => Dispatcher.UIThread.Post(() => _ = ShutdownAsync(0)));
+        agent.Takeover.Changed += () =>
+        {
+            var status = agent.Takeover.Status;
+            var paused = agent.Takeover.IsPaused;
+            Dispatcher.UIThread.Post(() => ShowAgentStatus(status, paused));
+        };
+        agent.Approvals.Requested += approval =>
+        {
+            var id = approval.Id;
+            var prompt = agent.PromptFor(approval);
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (Chrome is not { } chrome)
+                {
+                    pump.Post(() => agent.Approvals.Answer(id, IpcApprovalAnswer.Deny));
+                    return;
+                }
+
+                var close = chrome.Approve(prompt, choice => pump.Post(() => agent.Approvals.Answer(id, choice switch
+                {
+                    AgentApprovalChoice.AllowOnce => IpcApprovalAnswer.AllowOnce,
+                    AgentApprovalChoice.AllowRun => IpcApprovalAnswer.AllowRun,
+                    _ => IpcApprovalAnswer.Deny,
+                })));
+                pump.Post(() =>
+                {
+                    if (approval.IsAnswered)
+                    {
+                        Dispatcher.UIThread.Post(close);
+                    }
+                    else
+                    {
+                        approval.Answered += _ => Dispatcher.UIThread.Post(close);
+                    }
+                });
+            });
+        };
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    private async Task DetachAgentAsync(AgentRuntime agent)
+    {
+        var detached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (OutputView is { } loop)
+        {
+            loop.Post(() =>
+            {
+                agent.Detach();
+                detached.TrySetResult();
+            });
+            await Task.WhenAny(detached.Task, Task.Delay(5000));
+        }
+
+        await Task.Run(agent.Dispose);
+    }
+
+    private void ShowAgentStatus(string status, bool paused)
+    {
+        _agentStatus = status;
+        _shellWindow?.SetAgentStatus(status, paused);
+        RefreshShellTitle();
     }
 
     private void OnPosixSignal(System.Runtime.InteropServices.PosixSignalContext context)
@@ -165,18 +269,43 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         return host;
     }
 
-    protected override void AttachShell(NestedShell shell)
+    protected override void AttachShell(NestedShell shell, BasinViewOutput view)
     {
         if (_xwayland is { } xwayland)
         {
             Desktop.XWayland.AttachShell(xwayland, shell, IconCache, Log);
         }
+
+        if (OperatingSystem.IsLinux())
+        {
+            AttachAgent(shell, view);
+        }
     }
 
     protected override IShellHost HostShell(BasinCompositorHost host, ShellWindowState state, Func<BasinCompositorHost, BasinViewOutput> createView)
     {
+        var profile = RunSettings.Agent;
+        if (profile is not null)
+        {
+            state = new ShellWindowState(profile.Width, profile.Height, null, null, false);
+        }
+
         var window = new ShellWindow(host, state, createView);
         _shellWindow = window;
+        if (profile is not null)
+        {
+            window.FixForAgent(profile.Width, profile.Height, () =>
+            {
+                if (OperatingSystem.IsLinux() && _agent is { } agent)
+                {
+                    OutputView?.Post(agent.Resume);
+                }
+            });
+            window.SetAgentStatus(_agentStatus, paused: false);
+            window.CloseRequested += () => _ = ShutdownAsync(0);
+            return window;
+        }
+
         window.CloseRequested += () =>
         {
             if (TrayWanted && _tray is not null)
@@ -192,7 +321,13 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         return window;
     }
 
-    protected override void OnShellReady(BasinCompositorHost host) => CreateCapture(host);
+    protected override void OnShellReady(BasinCompositorHost host)
+    {
+        if (!AgentMode)
+        {
+            CreateCapture(host);
+        }
+    }
 
     protected override void OnChannelAttached(WaypipeAcceptor owner, WlClient client)
     {
@@ -261,7 +396,11 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
             }
         }
 
-        StartGlobalHotkeys();
+        if (!AgentMode)
+        {
+            StartGlobalHotkeys();
+        }
+
         if (!Nested)
         {
             CreateCapture(host);
@@ -270,10 +409,13 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         if (Desktop.XWayland.DisplayName(host) is { } xdisplay)
         {
             BasinReport.Line($"XWAYLAND {xdisplay}");
-            Environment.SetEnvironmentVariable("DISPLAY", xdisplay);
+            if (!AgentMode)
+            {
+                Environment.SetEnvironmentVariable("DISPLAY", xdisplay);
+            }
         }
 
-        if (LocalApplicationsWanted(host))
+        if (!AgentMode && LocalApplicationsWanted(host))
         {
             LoadLocalApplications();
         }
@@ -773,6 +915,12 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
 
     protected override async Task OnShuttingDownAsync()
     {
+        if (OperatingSystem.IsLinux() && _agent is { } agent)
+        {
+            await DetachAgentAsync(agent);
+            _agent = null;
+        }
+
         _capture?.Dispose();
         _capture = null;
         _globalHotkeys?.Dispose();

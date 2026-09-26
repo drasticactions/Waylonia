@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <WayloniaPlatforms>linux</WayloniaPlatforms>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Waylonia.Accessibility.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <PackageReference Include="xunit.v3" />
+    <ProjectReference Include="../../external/basin/src/Basin.Core/Basin.Core.csproj" />
+    <ProjectReference Include="../../external/basin/src/Basin.Hosted/Basin.Hosted.csproj" />
+    <ProjectReference Include="../../external/basin/src/Basin.Shell.Xdg/Basin.Shell.Xdg.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Waylonia.Accessibility/Waylonia.Accessibility.csproj" />
+  </ItemGroup>
+
+</Project>

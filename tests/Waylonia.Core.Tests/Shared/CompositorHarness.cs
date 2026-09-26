@@ -43,33 +43,44 @@ internal class CompositorHarness : IDisposable
     public CompositorHarness(
         Action<BasinCompositorHost>? configure = null,
         Action<Wayland.Server.WlClient>? onClient = null,
-        NestedShellOptions? nested = null)
+        NestedShellOptions? nested = null,
+        Action<BasinCompositorHost, Basin.BasinServices>? services = null)
     {
         SkipWithoutWaylandClient();
-        BasinCounters.Reset();
-        Host = new BasinCompositorHost(new BasinCompositorOptions { AppName = "waylonia-tests" });
-        if (nested is { } options)
+        _gate = CompositorGate.Enter();
+        try
         {
-            ShellView = Host.CreateViewOutput(options.Width, options.Height, options.Scale, NestedShell.OutputKey);
-            Shell = new NestedShell(
-                Host,
-                ShellView,
-                options.Settings,
-                PanelArrangement.From(options.Panel, BasinLogger.None).Layout,
-                KeyTable.Build(options.Settings.Keys, []),
-                action => action(),
-                [BundledThemes.Load]);
-        }
-        else
-        {
-            _windows = AttachWindows(Host);
-        }
+            BasinCounters.Reset();
+            Host = new BasinCompositorHost(new BasinCompositorOptions { AppName = "waylonia-tests", ConfigureServices = services });
+            if (nested is { } options)
+            {
+                ShellView = Host.CreateViewOutput(options.Width, options.Height, options.Scale, NestedShell.OutputKey);
+                Shell = new NestedShell(
+                    Host,
+                    ShellView,
+                    options.Settings,
+                    PanelArrangement.From(options.Panel, BasinLogger.None).Layout,
+                    KeyTable.Build(options.Settings.Keys, []),
+                    action => action(),
+                    [BundledThemes.Load]);
+            }
+            else
+            {
+                _windows = AttachWindows(Host);
+            }
 
-        configure?.Invoke(Host);
-        _client = Connect(onClient, client => _client = client);
+            configure?.Invoke(Host);
+            _client = Connect(onClient, client => _client = client);
+        }
+        catch
+        {
+            _gate.Dispose();
+            throw;
+        }
     }
 
     private readonly IDisposable? _windows;
+    private readonly IDisposable _gate;
 
     protected virtual IDisposable? AttachWindows(BasinCompositorHost host) => null;
 
@@ -262,6 +273,7 @@ internal class CompositorHarness : IDisposable
         ShellView?.Dispose();
         Host.Dispose();
         AfterHostDisposed();
+        _gate.Dispose();
     }
 
     protected virtual void AfterClientsClosed()

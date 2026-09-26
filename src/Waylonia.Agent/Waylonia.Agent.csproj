@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <WayloniaPlatforms>portable</WayloniaPlatforms>
+    <RootNamespace>Waylonia.Agent</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Waylonia.UI" />
+    <InternalsVisibleTo Include="Waylonia.UI.Desktop" />
+    <InternalsVisibleTo Include="waylonia" />
+    <InternalsVisibleTo Include="Waylonia" />
+    <InternalsVisibleTo Include="Waylonia.Core.Tests" />
+    <InternalsVisibleTo Include="Waylonia.UI.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Waylonia.Core/Waylonia.Core.csproj" />
+    <ProjectReference Include="../Waylonia.Accessibility/Waylonia.Accessibility.csproj" />
+    <ProjectReference Include="../../external/basin/src/Basin.Ipc/Basin.Ipc.csproj" />
+  </ItemGroup>
+
+</Project>

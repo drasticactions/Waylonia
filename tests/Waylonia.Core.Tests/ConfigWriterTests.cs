@@ -334,9 +334,22 @@ public sealed class ConfigWriterTests : IDisposable
         var running = new ConfigValues();
         Assert.Empty(running.RestartKeysChanged(new ConfigValues(SessionTitles: false, Hotkeys: [Hotkey.Parse("ctrl+t", "foot", BasinLogger.None)!])));
         Assert.Equal(
-            ["xwayland", "tray", "clipboard", "drag", "follow-cursor", "socket", "command"],
+            ["xwayland", "tray", "clipboard", "drag", "follow-cursor", "virtual-input", "socket", "command"],
             running.RestartKeysChanged(new ConfigValues(
-                XWayland: false, Tray: false, Clipboard: false, Drag: false, FollowCursor: false, Socket: "wayland-9", Command: "foot")));
+                XWayland: false, Tray: false, Clipboard: false, Drag: false, FollowCursor: false, Socket: "wayland-9", Command: "foot",
+                VirtualInput: true)));
+    }
+
+    [Fact]
+    public void Virtual_input_is_written_only_when_it_is_on()
+    {
+        var path = PathOf("[host]\ntray = false\n");
+        Assert.Null(ConfigWriter.Save(path, new ConfigValues(Tray: false, VirtualInput: true)));
+        Assert.Contains("virtual-input = true", File.ReadAllText(path), StringComparison.Ordinal);
+        Assert.True(Config.Load(WayloniaPaths.ConfigOnly(path), BasinLogger.None).VirtualInput);
+
+        Assert.Null(ConfigWriter.Save(path, new ConfigValues(Tray: false)));
+        Assert.DoesNotContain("virtual-input", File.ReadAllText(path), StringComparison.Ordinal);
     }
 
     public void Dispose()

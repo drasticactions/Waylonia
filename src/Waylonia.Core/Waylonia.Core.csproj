@@ -11,6 +11,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Waylonia.Ssh.Tmds" />
     <InternalsVisibleTo Include="Waylonia.Audio.MiniAudio" />
+    <InternalsVisibleTo Include="Waylonia.Agent" />
     <InternalsVisibleTo Include="Waylonia.UI" />
     <InternalsVisibleTo Include="Waylonia.UI.Desktop" />
     <InternalsVisibleTo Include="waylonia" />

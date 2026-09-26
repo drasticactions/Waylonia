@@ -38,6 +38,8 @@ internal sealed class Config
 
     public bool SessionTitles { get; private set; } = true;
 
+    public bool VirtualInput { get; private set; }
+
     public int SshTimeout { get; private set; } = ConfigValues.DefaultSshTimeout;
 
     public string CaptureChord { get; private set; } = ConfigValues.DefaultCaptureChord;
@@ -67,12 +69,12 @@ internal sealed class Config
 
     public HostSettings Host => new(
         XWayland, Tray, TrayApps, Clipboard, Drag, FollowCursor, GtkDpi, CaptureChord, SessionTitles, SshTimeout,
-        Hotkeys, Terminal, CurrentDesktop, Shell);
+        Hotkeys, Terminal, CurrentDesktop, Shell, VirtualInput);
 
     public ConfigValues Values => new(
         Compress, Gpu, Audio, Video, Socket, Command, Terminal, CurrentDesktop, Lang,
         XWayland, Tray, TrayApps, Clipboard, Drag, FollowCursor, GtkDpi, SessionTitles, SshTimeout, CaptureChord,
-        Hotkeys, Desktops.Values.ToArray(), Shell, ShellSettings, Panel);
+        Hotkeys, Desktops.Values.ToArray(), Shell, ShellSettings, Panel, VirtualInput);
 
     public static Config Load(WayloniaPaths paths, BasinLogger log)
     {
@@ -140,6 +142,7 @@ internal sealed class Config
             config.FollowCursor = Toggle(hostTable, "follow-cursor", config.FollowCursor);
             config.GtkDpi = Toggle(hostTable, "gtk-dpi", config.GtkDpi);
             config.SessionTitles = Toggle(hostTable, "session-titles", config.SessionTitles);
+            config.VirtualInput = Toggle(hostTable, "virtual-input", config.VirtualInput);
             if (hostTable.TryGetValue("ssh-timeout", out var timeout))
             {
                 if (timeout is long seconds && seconds >= 1 && seconds <= ConfigValues.MaxSshTimeout)
@@ -318,6 +321,10 @@ internal sealed class Config
             #session-titles = true
             # How long a session waits for its ssh server to answer, in seconds.
             #ssh-timeout = 30
+            # Offer the virtual keyboard and virtual pointer protocols, which let
+            # any client type and click into every other one. wtype and similar
+            # tools need them. Off by default.
+            #virtual-input = false
             # One host window per client window ("windows"), or one window
             # holding a Waylonia-managed desktop with frames and a panel
             # ("nested"). Takes effect when waylonia restarts.

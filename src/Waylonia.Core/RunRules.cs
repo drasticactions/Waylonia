@@ -148,6 +148,40 @@ internal static class RunRules
             : "--desktop with no --ssh runs the session on this machine, which needs Linux";
     }
 
+    internal static string? AgentProblem(
+        HostCapabilities capabilities, string? ssh, string? desktop, string? listen, string? command, ShellMode? shell)
+    {
+        ArgumentNullException.ThrowIfNull(capabilities);
+        if (!capabilities.LocalCommands)
+        {
+            return "--agent runs local Linux applications for an agent, which needs Linux";
+        }
+
+        if (ssh is not null)
+        {
+            return "--agent runs its own applications and --ssh connects a session";
+        }
+
+        if (desktop is not null)
+        {
+            return "--agent runs its own applications and --desktop runs a whole desktop session";
+        }
+
+        if (listen is not null)
+        {
+            return "--agent runs its own applications and --waypipe-listen waits for someone else's";
+        }
+
+        if (command is not null)
+        {
+            return "--agent starts what the agent asks for through waylonia/launch and a trailing command starts a client of its own";
+        }
+
+        return shell == ShellMode.Windows
+            ? "--agent holds every window in one nested shell and --shell windows opens one host window per client"
+            : null;
+    }
+
     internal static string? LocalCommandProblem(HostCapabilities capabilities, string? command)
     {
         ArgumentNullException.ThrowIfNull(capabilities);
