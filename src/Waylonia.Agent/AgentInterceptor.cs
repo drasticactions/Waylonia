@@ -116,7 +116,7 @@ internal sealed class AgentInterceptor : IIpcInterceptor
         string? launchKey = null;
         if (method == "waylonia/launch")
         {
-            if (_planLaunch(parameters) is not { Listed: false } plan)
+            if (_planLaunch(parameters) is not { } plan)
             {
                 return IpcDecision.Allow;
             }

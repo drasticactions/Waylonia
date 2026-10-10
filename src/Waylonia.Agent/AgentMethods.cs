@@ -39,14 +39,6 @@ internal static class AgentMethods
         w.WriteString("wayland_display", runtime.WaylandSocket);
         WriteNullable(w, "xwayland_display", runtime.XDisplay?.Invoke());
         WriteNullable(w, "session_bus", runtime.BusAddress);
-        w.WriteStartArray("allowlist");
-        foreach (var entry in profile.Allow.Entries)
-        {
-            w.WriteStringValue(entry.ToString());
-        }
-
-        w.WriteEndArray();
-        w.WriteBoolean("ask", profile.Ask);
         w.WriteString("launch", profile.LaunchSummary);
         w.WriteStartArray("approve");
         foreach (var action in profile.Approve)
@@ -79,37 +71,19 @@ internal static class AgentMethods
         w.WriteStartObject();
         w.WriteString("launch", runtime.Profile.LaunchSummary);
         w.WriteStartArray("entries");
-        foreach (var entry in runtime.Profile.Allow.Entries)
+        foreach (var desktop in runtime.ListableDesktop())
         {
             w.WriteStartObject();
-            w.WriteString("entry", entry.ToString());
-            if (entry.IsDesktop)
+            w.WriteString("desktop_id", desktop.Id);
+            w.WriteString("name", desktop.Name);
+            WriteNullable(w, "comment", desktop.Comment);
+            w.WriteStartArray("categories");
+            foreach (var category in desktop.Categories)
             {
-                w.WriteString("desktop_id", entry.DesktopId);
-                var desktop = runtime.FindDesktop(entry.DesktopId);
-                WriteNullable(w, "name", desktop?.Name);
-                WriteNullable(w, "comment", desktop?.Comment);
-                w.WriteStartArray("categories");
-                foreach (var category in desktop?.Categories ?? [])
-                {
-                    w.WriteStringValue(category);
-                }
-
-                w.WriteEndArray();
-                w.WriteBoolean("installed", desktop is not null);
-            }
-            else
-            {
-                w.WriteString("command", entry.Program);
-                w.WriteStartArray("args");
-                foreach (var argument in entry.Arguments)
-                {
-                    w.WriteStringValue(argument);
-                }
-
-                w.WriteEndArray();
+                w.WriteStringValue(category);
             }
 
+            w.WriteEndArray();
             w.WriteEndObject();
         }
 
@@ -128,17 +102,15 @@ internal static class AgentMethods
         }
 
         var profile = runtime.Profile;
-        if (AgentLauncher.Plan(profile.Allow, command, args, desktopId, runtime.FindDesktop, out var error) is not { } plan)
+        if (AgentLauncher.Plan(command, args, desktopId, runtime.FindDesktop, out var error) is not { } plan)
         {
             reply.Error(IpcErrorCodes.InvalidParams, error!);
             return;
         }
 
-        if (!plan.Listed && !runtime.Interceptor.ConsumeLaunchApproval(AgentLauncher.Key(plan)))
+        if (profile.Gates(AgentApprovals.Launch) && !runtime.Interceptor.ConsumeLaunchApproval(AgentLauncher.Key(plan)))
         {
-            reply.Error(IpcErrorCodes.Refused, profile.Gates(AgentApprovals.LaunchUnlisted)
-                ? $"{AgentLauncher.Key(plan)} is not in the allowlist and no one approved it"
-                : $"{AgentLauncher.Key(plan)} is not in the allowlist of agent profile {profile.Name}; add it to [launch] allow in {profile.File}, or set ask = true there to ask a person");
+            reply.Error(IpcErrorCodes.Refused, $"agent profile {profile.Name} holds every launch for approval, and no one approved {AgentLauncher.Key(plan)}");
             return;
         }
 
@@ -165,7 +137,6 @@ internal static class AgentMethods
 
         w.WriteEndArray();
         w.WriteString("log", log);
-        w.WriteBoolean("listed", plan.Listed);
         w.WriteEndObject();
     }
 

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "waylonia": {
+      "command": "basin-mcp",
+      "args": ["--launch", "--", "waylonia", "--agent", "claude", "--headless"]
+    }
+  }
+}

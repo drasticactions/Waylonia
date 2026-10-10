@@ -1,0 +1,12 @@
+{
+  "name": "waylonia-agent",
+  "description": "Drive Linux desktop applications inside a private Waylonia agent session: launch, read accessibility trees, type, click and take screenshots.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Tim Miller",
+    "url": "https://github.com/drasticactions"
+  },
+  "repository": "https://github.com/drasticactions/Waylonia-private",
+  "license": "GPL-3.0-only",
+  "keywords": ["wayland", "compositor", "gui", "accessibility", "at-spi", "desktop", "linux"]
+}

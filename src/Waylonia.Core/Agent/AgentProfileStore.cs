@@ -66,7 +66,7 @@ internal static class AgentProfileStore
             if (!File.Exists(file))
             {
                 File.WriteAllText(file, Placeholder);
-                log.Info($"wrote a placeholder {file}; its allowlist is empty");
+                log.Info($"wrote a placeholder {file}");
             }
         }
         catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
@@ -132,9 +132,9 @@ internal static class AgentProfileStore
             };
         }
 
-        if (table.TryGetValue("launch", out var launchValue) && launchValue is TomlTable launch)
+        if (table.ContainsKey("launch"))
         {
-            profile = profile with { Ask = TomlConfig.Flag(launch, "ask", profile.Ask), Allow = Allowlist(launch, log) };
+            log.Warn($"agent.toml [launch] is gone and ignored: waylonia/launch starts any program; add \"launch\" to [approve] actions to ask a person first");
         }
 
         if (table.TryGetValue("approve", out var approveValue) && approveValue is TomlTable approve
@@ -212,40 +212,6 @@ internal static class AgentProfileStore
         }
     }
 
-    private static AgentAllowlist Allowlist(TomlTable launch, BasinLogger log)
-    {
-        if (!launch.TryGetValue("allow", out var value))
-        {
-            return AgentAllowlist.Empty;
-        }
-
-        if (value is not TomlArray array)
-        {
-            log.Warn($"agent.toml [launch] allow is a list of commands and .desktop ids");
-            return AgentAllowlist.Empty;
-        }
-
-        var entries = new List<AgentAllowEntry>();
-        foreach (var item in array)
-        {
-            var entry = item switch
-            {
-                string text => AgentAllowlist.Parse(text),
-                TomlArray argv when argv.All(static part => part is string) => AgentAllowlist.Parse(argv.Cast<string>().ToArray()),
-                _ => null,
-            };
-            if (entry is null)
-            {
-                log.Warn($"agent.toml [launch] allow has an entry that is neither a command nor an argv list, ignoring '{item}'");
-                continue;
-            }
-
-            entries.Add(entry);
-        }
-
-        return new AgentAllowlist(entries);
-    }
-
     private static double? Number(object? value) => value switch
     {
         double number => number,
@@ -288,18 +254,11 @@ internal static class AgentProfileStore
         # The keyboard layout of a headless run.
         #keymap = "us"
 
-        [launch]
-        # What waylonia/launch may start: a command, matched by the basename of
-        # its first word, or a .desktop id. Words after the command are always
-        # passed first, for example "chromium --force-renderer-accessibility".
-        allow = []
-        # Ask a person about anything else instead of refusing it.
-        ask = true
-
         [approve]
-        # What waits for a person: launch-unlisted, clipboard-read,
-        # clipboard-write, close-window, kill.
-        #actions = ["launch-unlisted", "clipboard-read", "close-window"]
+        # What waits for a person: launch, clipboard-read, clipboard-write,
+        # close-window, kill. waylonia/launch starts any program at once
+        # unless launch is listed here.
+        #actions = ["launch", "clipboard-read", "close-window"]
 
         [audit]
         # Screenshots in audit/: none, acting (before and after each call that

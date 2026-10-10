@@ -43,7 +43,7 @@ public sealed class AgentHeadlessHostTests
     [Fact]
     public async Task The_socket_leaves_out_spawn_and_seat_and_offers_the_agent_methods()
     {
-        await using var run = await AgentRun.StartAsync("[launch]\nallow = [\"sleep\"]\n");
+        await using var run = await AgentRun.StartAsync("");
         var methods = await MethodsAsync(run);
         Assert.DoesNotContain("process/spawn", methods);
         Assert.DoesNotContain(methods, static name => name.StartsWith("seat/", StringComparison.Ordinal));
@@ -63,39 +63,39 @@ public sealed class AgentHeadlessHostTests
     }
 
     [Fact]
-    public async Task An_allowlisted_program_starts_and_an_unlisted_one_is_refused()
+    public async Task Any_program_starts_at_once_and_is_recorded()
     {
-        await using var run = await AgentRun.StartAsync("[launch]\nallow = [\"sleep\"]\nask = false\n");
+        await using var run = await AgentRun.StartAsync("");
+        Assert.Equal("any program starts at once", (await run.CallAsync("waylonia/describe")).GetProperty("launch").GetString());
         var launched = await run.CallAsync("waylonia/launch", """{"command":"sleep","args":["30"]}""");
         var launch = launched.GetProperty("launch_id").GetInt64();
-        Assert.True(launched.GetProperty("listed").GetBoolean());
         Assert.StartsWith(run.Profile.Logs, launched.GetProperty("log").GetString(), StringComparison.Ordinal);
         Assert.True(await RunningAsync(run, launch));
 
-        var refused = await run.RefusedAsync("waylonia/launch", """{"command":"true"}""");
-        Assert.Equal("refused", refused.Code);
-        Assert.Contains("not in the allowlist", refused.Reason, StringComparison.Ordinal);
+        var other = await run.CallAsync("waylonia/launch", """{"command":"true"}""");
+        Assert.True(other.GetProperty("pid").GetInt32() > 0);
 
         await run.CallAsync("process/kill", $$"""{"launch_id":{{launch}}}""");
         await UntilAsync(async () => !await RunningAsync(run, launch), "the killed launch never exited");
 
         var audit = run.AuditText();
         Assert.Contains("\"method\":\"waylonia/launch\",\"params\":{\"command\":\"sleep\"", audit, StringComparison.Ordinal);
-        Assert.Contains("not in the allowlist", audit, StringComparison.Ordinal);
+        Assert.Contains("\"method\":\"waylonia/launch\",\"params\":{\"command\":\"true\"", audit, StringComparison.Ordinal);
+        Assert.DoesNotContain("approval-requested", audit, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task With_no_one_to_ask_an_unlisted_launch_is_denied_at_once()
+    public async Task With_no_one_to_ask_a_held_launch_is_denied_at_once()
     {
-        await using var run = await AgentRun.StartAsync("[launch]\nallow = []\nask = true\n");
+        await using var run = await AgentRun.StartAsync("[approve]\nactions = [\"launch\"]\n");
         var refused = await run.RefusedAsync("waylonia/launch", """{"command":"true"}""");
         Assert.Contains("approval/requested", refused.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task An_unlisted_launch_waits_for_approval_and_runs_once_allowed()
+    public async Task A_held_launch_waits_for_approval_and_runs_once_allowed()
     {
-        await using var run = await AgentRun.StartAsync("[launch]\nallow = []\nask = true\n");
+        await using var run = await AgentRun.StartAsync("[approve]\nactions = [\"launch\"]\n");
         await using var person = await BasinIpcClient.ConnectAsync(run.Runtime.SocketPath, TestContext.Current.CancellationToken);
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         stop.CancelAfter(TimeSpan.FromSeconds(20));
@@ -124,7 +124,6 @@ public sealed class AgentHeadlessHostTests
         await subscribed.Task.WaitAsync(stop.Token);
 
         var launched = await run.CallAsync("waylonia/launch", """{"command":"sleep","args":["20"]}""");
-        Assert.False(launched.GetProperty("listed").GetBoolean());
         var denied = await run.RefusedAsync("waylonia/launch", """{"command":"sleep","args":["20"]}""");
         Assert.Contains("denied", denied.Reason, StringComparison.Ordinal);
         await answering.WaitAsync(stop.Token);
@@ -142,7 +141,7 @@ public sealed class AgentHeadlessHostTests
     [Fact]
     public async Task Input_is_refused_while_a_person_holds_the_window()
     {
-        await using var run = await AgentRun.StartAsync("[launch]\nallow = []\n");
+        await using var run = await AgentRun.StartAsync("");
         await run.CallAsync("input/pointer-move", """{"x":10,"y":10}""");
         run.Host.Post(() => run.Runtime.HostInput(pressOrKey: true));
         await UntilAsync(() => Task.FromResult(run.Runtime.Takeover.IsPaused), "the host press never paused the agent");
@@ -163,7 +162,7 @@ public sealed class AgentHeadlessHostTests
     public async Task Window_info_names_the_launch_that_owns_a_window()
     {
         Assert.SkipUnless(AgentRun.Has("foot"), "this row launches foot");
-        await using var run = await AgentRun.StartAsync("[launch]\nallow = [\"foot\"]\n");
+        await using var run = await AgentRun.StartAsync("");
         var launch = (await run.CallAsync("waylonia/launch", """{"command":"foot"}""")).GetProperty("launch_id").GetInt64();
         var window = await run.CallAsync("windows/wait", """{"app_id":"foot","timeout_ms":10000}""");
         var id = window.GetProperty("id").GetUInt64();

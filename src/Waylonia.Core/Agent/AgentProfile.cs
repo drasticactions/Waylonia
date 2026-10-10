@@ -9,8 +9,6 @@ internal sealed record AgentProfile(
     int Height = AgentProfile.DefaultHeight,
     double Scale = 1.0,
     bool Headless = false,
-    AgentAllowlist? Allow = null,
-    bool Ask = true,
     IReadOnlyList<string>? Approve = null,
     AgentScreenshots Screenshots = AgentScreenshots.Acting,
     bool AuditText = false,
@@ -29,8 +27,6 @@ internal sealed record AgentProfile(
 
     public const string FileName = "agent.toml";
 
-    public AgentAllowlist Allow { get; init; } = Allow ?? AgentAllowlist.Empty;
-
     public IReadOnlyList<string> Approve { get; init; } = Approve ?? [];
 
     public string File => Path.Combine(Directory, FileName);
@@ -43,14 +39,9 @@ internal sealed record AgentProfile(
 
     public string LockFile => Path.Combine(Directory, ".lock");
 
-    public bool Gates(string action) =>
-        action == AgentApprovals.LaunchUnlisted ? Ask || Approve.Contains(action) : Approve.Contains(action);
+    public bool Gates(string action) => Approve.Contains(action);
 
-    public bool CanLaunchAnything => !Allow.IsEmpty || Gates(AgentApprovals.LaunchUnlisted);
-
-    public string LaunchSummary => !CanLaunchAnything
-        ? $"the agent can launch nothing: the allowlist in {File} is empty and [launch] ask is false"
-        : Gates(AgentApprovals.LaunchUnlisted)
-            ? "the allowlist starts at once; anything else waits for a person's approval"
-            : "the allowlist starts at once; anything else is refused";
+    public string LaunchSummary => Gates(AgentApprovals.Launch)
+        ? "every launch waits for a person's approval"
+        : "any program starts at once";
 }

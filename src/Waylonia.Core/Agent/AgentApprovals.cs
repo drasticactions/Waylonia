@@ -2,7 +2,7 @@ namespace Waylonia.Agent;
 
 internal static class AgentApprovals
 {
-    public const string LaunchUnlisted = "launch-unlisted";
+    public const string Launch = "launch";
 
     public const string ClipboardRead = "clipboard-read";
 
@@ -12,11 +12,11 @@ internal static class AgentApprovals
 
     public const string Kill = "kill";
 
-    public static IReadOnlyList<string> Names { get; } = [LaunchUnlisted, ClipboardRead, ClipboardWrite, CloseWindow, Kill];
+    public static IReadOnlyList<string> Names { get; } = [Launch, ClipboardRead, ClipboardWrite, CloseWindow, Kill];
 
     public static string? MethodOf(string action) => action switch
     {
-        LaunchUnlisted => "waylonia/launch",
+        Launch => "waylonia/launch",
         ClipboardRead => "clipboard/read",
         ClipboardWrite => "clipboard/write",
         CloseWindow => "windows/close",
@@ -26,7 +26,7 @@ internal static class AgentApprovals
 
     public static string? ActionOf(string method) => method switch
     {
-        "waylonia/launch" => LaunchUnlisted,
+        "waylonia/launch" => Launch,
         "clipboard/read" => ClipboardRead,
         "clipboard/write" => ClipboardWrite,
         "windows/close" => CloseWindow,
@@ -36,7 +36,7 @@ internal static class AgentApprovals
 
     public static string Reason(string action) => action switch
     {
-        LaunchUnlisted => "the agent wants to start a program that the profile's allowlist does not name",
+        Launch => "the agent wants to start a program",
         ClipboardRead => "the agent wants to read the clipboard of its own session",
         ClipboardWrite => "the agent wants to put text on the clipboard of its own session",
         CloseWindow => "the agent wants to close a window",

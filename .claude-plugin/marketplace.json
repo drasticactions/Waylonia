@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "drasticactions",
+  "description": "Claude Code plugins for Waylonia and Basin.",
+  "owner": {
+    "name": "Tim Miller",
+    "url": "https://github.com/drasticactions"
+  },
+  "plugins": [
+    {
+      "name": "waylonia-agent",
+      "source": "./plugins/waylonia-agent",
+      "description": "Drive Linux desktop applications inside a private Waylonia agent session: launch, read accessibility trees, type, click and take screenshots.",
+      "version": "0.1.0",
+      "category": "productivity"
+    }
+  ]
+}

@@ -25,12 +25,8 @@ public sealed class AgentProfileTests : IDisposable
             takeover-timeout = 0
             keymap = "de"
 
-            [launch]
-            allow = ["foot", "gnome-calculator", "org.gnome.TextEditor.desktop", ["chromium", "--force-renderer-accessibility"]]
-            ask = false
-
             [approve]
-            actions = ["launch-unlisted", "clipboard-read", "close-window"]
+            actions = ["launch", "clipboard-read", "close-window"]
 
             [audit]
             screenshots = "all"
@@ -46,10 +42,7 @@ public sealed class AgentProfileTests : IDisposable
         Assert.Equal(PlacementMode.Automatic, profile.Placement);
         Assert.Equal(0, profile.TakeoverTimeout);
         Assert.Equal("de", profile.Keymap);
-        Assert.Equal(["foot", "gnome-calculator", "org.gnome.TextEditor.desktop", "chromium --force-renderer-accessibility"],
-            profile.Allow.Entries.Select(static entry => entry.ToString()));
-        Assert.False(profile.Ask);
-        Assert.Equal(["launch-unlisted", "clipboard-read", "close-window"], profile.Approve);
+        Assert.Equal(["launch", "clipboard-read", "close-window"], profile.Approve);
         Assert.Equal(AgentScreenshots.All, profile.Screenshots);
         Assert.True(profile.AuditText);
         Assert.False(profile.Accessibility);
@@ -64,8 +57,11 @@ public sealed class AgentProfileTests : IDisposable
             scale = 9.0
             placement = "sideways"
 
+            [launch]
+            allow = ["foot"]
+
             [approve]
-            actions = ["launch-unlisted", "format-disk"]
+            actions = ["launch", "format-disk"]
 
             [audit]
             screenshots = "sometimes"
@@ -74,16 +70,16 @@ public sealed class AgentProfileTests : IDisposable
         Assert.Equal((AgentProfile.DefaultWidth, AgentProfile.DefaultHeight), (profile.Width, profile.Height));
         Assert.Equal(1.0, profile.Scale);
         Assert.Equal(PlacementMode.Maximize, profile.Placement);
-        Assert.Equal(["launch-unlisted"], profile.Approve);
+        Assert.Equal(["launch"], profile.Approve);
         Assert.Equal(AgentScreenshots.Acting, profile.Screenshots);
-        Assert.True(profile.Ask);
         Assert.True(profile.Accessibility);
         Assert.Contains(capture.Lines, line => line.Contains("format-disk", StringComparison.Ordinal));
         Assert.Contains(capture.Lines, line => line.Contains("size takes WxH", StringComparison.Ordinal));
+        Assert.Contains(capture.Lines, line => line.Contains("[launch] is gone", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void A_missing_profile_is_created_with_a_placeholder_that_launches_nothing_without_asking()
+    public void A_missing_profile_is_created_with_a_placeholder_that_launches_anything_at_once()
     {
         var profile = AgentProfileStore.Load(_root, "fresh", BasinLogger.None, out var error);
 
@@ -96,14 +92,10 @@ public sealed class AgentProfileTests : IDisposable
             Assert.True(Directory.Exists(directory), directory);
         }
 
-        Assert.True(profile.Allow.IsEmpty);
-        Assert.True(profile.Ask);
-        Assert.True(profile.CanLaunchAnything);
-        Assert.Contains("approval", profile.LaunchSummary, StringComparison.Ordinal);
-
-        var locked = profile with { Ask = false };
-        Assert.False(locked.CanLaunchAnything);
-        Assert.Contains("launch nothing", locked.LaunchSummary, StringComparison.Ordinal);
+        Assert.Empty(profile.Approve);
+        Assert.False(profile.Gates(AgentApprovals.Launch));
+        Assert.Equal("any program starts at once", profile.LaunchSummary);
+        Assert.Contains("approval", (profile with { Approve = [AgentApprovals.Launch] }).LaunchSummary, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -134,16 +126,14 @@ public sealed class AgentProfileTests : IDisposable
     }
 
     [Fact]
-    public void Launch_unlisted_is_gated_by_ask_or_by_the_approve_list()
+    public void Only_the_approve_list_gates_an_action()
     {
-        var asking = new AgentProfile("a", "/a");
-        Assert.True(asking.Gates(AgentApprovals.LaunchUnlisted));
-        Assert.False(asking.Gates(AgentApprovals.ClipboardRead));
+        var open = new AgentProfile("a", "/a");
+        Assert.False(open.Gates(AgentApprovals.Launch));
+        Assert.False(open.Gates(AgentApprovals.ClipboardRead));
 
-        var strict = asking with { Ask = false };
-        Assert.False(strict.Gates(AgentApprovals.LaunchUnlisted));
-        Assert.True((strict with { Approve = [AgentApprovals.LaunchUnlisted] }).Gates(AgentApprovals.LaunchUnlisted));
-        Assert.True((strict with { Approve = [AgentApprovals.Kill] }).Gates(AgentApprovals.Kill));
+        Assert.True((open with { Approve = [AgentApprovals.Launch] }).Gates(AgentApprovals.Launch));
+        Assert.True((open with { Approve = [AgentApprovals.Kill] }).Gates(AgentApprovals.Kill));
     }
 
     [Fact]

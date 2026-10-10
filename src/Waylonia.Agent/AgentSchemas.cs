@@ -5,17 +5,17 @@ namespace Waylonia.Agent;
 internal static class AgentSchemas
 {
     public static IpcMethodInfo Describe { get; } = new(
-        "Describe this agent session: the profile, headless or visible, the output size and scale, the Wayland socket and X display the launched applications use, the launch allowlist, which methods this compositor leaves out and whether accessibility is up.",
+        "Describe this agent session: the profile, headless or visible, the output size and scale, the Wayland socket and X display the launched applications use, whether launches wait for approval, which methods this compositor leaves out and whether accessibility is up.",
         "{\"type\":\"object\",\"properties\":{}}",
         IpcMethodTraits.ReadOnly | IpcMethodTraits.Idempotent);
 
     public static IpcMethodInfo Launchable { get; } = new(
-        "List what waylonia/launch may start: each allowlist entry, and for a .desktop entry its name and categories.",
+        "List the applications installed on this machine that waylonia/launch can start by desktop_id: each .desktop id with its name, comment and categories. Any other program on PATH starts by command.",
         "{\"type\":\"object\",\"properties\":{}}",
         IpcMethodTraits.ReadOnly | IpcMethodTraits.Idempotent);
 
     public static IpcMethodInfo Launch { get; } = new(
-        "Start a program in this agent session: command plus args, or desktop_id. There is no shell. A command matches the allowlist by the basename of its first word; anything else is refused or waits for a person's approval, as the profile says. The program gets the profile's own home, session bus and accessibility bus, and its output goes to a log that process/log reads. Returns the launch id and the pid; wait for its window with windows/wait.",
+        "Start a program in this agent session: command plus args, or desktop_id. There is no shell. Any program starts at once unless the profile holds launches for a person's approval. The program gets the profile's own home, session bus and accessibility bus, and its output goes to a log that process/log reads. Returns the launch id and the pid; wait for its window with windows/wait.",
         "{\"type\":\"object\",\"properties\":{\"command\":{\"type\":\"string\",\"description\":\"The program, such as foot or /usr/bin/foot. Not with desktop_id.\"},\"args\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Arguments after the program.\"},\"desktop_id\":{\"type\":\"string\",\"description\":\"A .desktop id, such as org.gnome.TextEditor or org.gnome.TextEditor.desktop. Not with command.\"}},\"examples\":[{\"command\":\"foot\"}]}",
         IpcMethodTraits.None);
 

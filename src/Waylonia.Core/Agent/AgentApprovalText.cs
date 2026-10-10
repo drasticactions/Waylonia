@@ -17,7 +17,7 @@ internal static class AgentApprovalText
             "waylonia/launch" => new(
                 "Start a program",
                 commandLine,
-                "The agent wants to start a program that is not on this profile's allowlist.",
+                "The agent wants to start this program.",
                 $"Yes, and don't ask again for {commandKey ?? "this program"} this run",
                 method, arguments, timeout),
             "windows/close" => new(

@@ -13,7 +13,7 @@ public sealed class AgentApprovalTextTests
         var prompt = AgentApprovalText.For("waylonia/launch", """{"command":"xterm"}""", Two, commandLine: "xterm -hold", commandKey: "xterm");
         Assert.Equal("Start a program", prompt.Heading);
         Assert.Equal("xterm -hold", prompt.Subject);
-        Assert.Equal("The agent wants to start a program that is not on this profile's allowlist.", prompt.Description);
+        Assert.Equal("The agent wants to start this program.", prompt.Description);
         Assert.Equal("Yes, and don't ask again for xterm this run", prompt.DontAskAgain);
     }
 

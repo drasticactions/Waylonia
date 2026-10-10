@@ -34,11 +34,17 @@ public sealed class ShellWindowTests
         window.Close();
     }
 
+    private static BasinCompositorHost NestedHost() => new(new BasinCompositorOptions
+    {
+        AppName = "waylonia-tests",
+        ConfigureServices = static (_, services) => ShellGlobals.WithoutLayerShell(ShellGlobals.WithoutSessionLock(services)),
+    });
+
     [AvaloniaFact]
     public void The_shell_window_maximizes_on_a_title_bar_double_click()
     {
         WayloniaHostHarness.SkipWithoutWaylandClient();
-        using var host = new BasinCompositorHost(new BasinCompositorOptions { AppName = "waylonia-tests" });
+        using var host = NestedHost();
         var window = new ShellWindow(host, ShellWindowState.Default, h => h.CreateViewOutput(400, 300, 1.0, "shell"));
         window.Show();
         var point = TitleBarPoint(window);
@@ -55,7 +61,7 @@ public sealed class ShellWindowTests
     public void An_agent_shell_window_keeps_its_output_size_and_shows_resume_only_while_paused()
     {
         WayloniaHostHarness.SkipWithoutWaylandClient();
-        using var host = new BasinCompositorHost(new BasinCompositorOptions { AppName = "waylonia-tests" });
+        using var host = NestedHost();
         var window = new ShellWindow(host, new ShellWindowState(640, 400, null, null, false), h => h.CreateViewOutput(640, 400, 1.0, "shell"));
         var resumed = 0;
         window.FixForAgent(640, 400, () => resumed++);

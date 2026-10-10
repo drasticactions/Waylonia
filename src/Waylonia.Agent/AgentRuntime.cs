@@ -202,8 +202,8 @@ internal sealed class AgentRuntime : IDisposable
     public DesktopEntry? FindDesktop(string id) =>
         (_desktopEntries ??= new DesktopEntries(DesktopLocale.FromEnvironment())).Find(id);
 
-    public IReadOnlyList<DesktopEntry> AllDesktop() =>
-        (_desktopEntries ??= new DesktopEntries(DesktopLocale.FromEnvironment())).All();
+    public IReadOnlyList<DesktopEntry> ListableDesktop() =>
+        (_desktopEntries ??= new DesktopEntries(DesktopLocale.FromEnvironment())).Listable();
 
     public string NextLogPath(string name)
     {
@@ -376,7 +376,7 @@ internal sealed class AgentRuntime : IDisposable
                 }
             }
 
-            return AgentLauncher.Plan(Profile.Allow, command, args, desktop, FindDesktop, out _);
+            return AgentLauncher.Plan(command, args, desktop, FindDesktop, out _);
         }
         catch (System.Text.Json.JsonException)
         {

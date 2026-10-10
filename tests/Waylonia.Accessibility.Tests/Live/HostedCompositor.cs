@@ -26,7 +26,11 @@ internal sealed class HostedCompositor : IDisposable
         BasinCompositorHost host;
         try
         {
-            host = new BasinCompositorHost(new BasinCompositorOptions { AppName = "a11y-tests" });
+            host = new BasinCompositorHost(new BasinCompositorOptions
+            {
+                AppName = "a11y-tests",
+                ConfigureServices = static (_, services) => services.Without("zwlr_layer_shell_v1").Without("ext_session_lock_manager_v1"),
+            });
             host.Shell.NewToplevel += window =>
             {
                 _toplevels.Add(window);

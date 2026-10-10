@@ -5,9 +5,8 @@ namespace Waylonia.Agent;
 internal static class AgentLauncher
 {
     public static AgentLaunchPlan? Plan(
-        AgentAllowlist allowlist, string? command, IReadOnlyList<string> args, string? desktopId, Func<string, DesktopEntry?> findDesktop, out string? error)
+        string? command, IReadOnlyList<string> args, string? desktopId, Func<string, DesktopEntry?> findDesktop, out string? error)
     {
-        ArgumentNullException.ThrowIfNull(allowlist);
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(findDesktop);
         if (command is null == desktopId is null)
@@ -31,7 +30,6 @@ internal static class AgentLauncher
                 return null;
             }
 
-            var entry = allowlist.MatchDesktop(fullId);
             if (findDesktop(fullId) is not { } desktop)
             {
                 error = $"no .desktop entry is named {fullId} on this machine";
@@ -45,7 +43,7 @@ internal static class AgentLauncher
             }
 
             error = null;
-            return new AgentLaunchPlan(argv, Stem(fullId), entry is not null, entry, fullId);
+            return new AgentLaunchPlan(argv, Stem(fullId), fullId);
         }
 
         var program = command!.Trim();
@@ -61,12 +59,8 @@ internal static class AgentLauncher
             return null;
         }
 
-        var listed = allowlist.MatchCommand(program);
-        var full = listed is null
-            ? (IReadOnlyList<string>)[program, .. args]
-            : [listed.Program, .. listed.Arguments, .. args];
         error = null;
-        return new AgentLaunchPlan(full, Path.GetFileName(full[0]), listed is not null, listed, null);
+        return new AgentLaunchPlan([program, .. args], Path.GetFileName(program), null);
     }
 
     public static string Key(AgentLaunchPlan plan)
