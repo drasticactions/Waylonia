@@ -10,7 +10,7 @@ internal interface ISshLink : IAsyncDisposable
 
     Task ConnectAsync(CancellationToken cancellation);
 
-    Task<ISshListener> ListenUnixAsync(string remotePath, CancellationToken cancellation);
+    Task<ISshListener> ListenAsync(string remotePath, CancellationToken cancellation);
 
     Task<ISshCommand> RunAsync(string script, CancellationToken cancellation);
 }

@@ -173,6 +173,8 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
 
     ISshLinkFactory ISessionHost.Links => _platform!.Links;
 
+    ISshLinkFactory? ISessionHost.WslLinks => _platform!.WslLinks;
+
     ISshPrompter ISessionHost.Prompter => this;
 
     public static long Rendered => Interlocked.Read(ref _rendered);
@@ -881,7 +883,8 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
                 DisconnectSessionAsync,
                 run.Config.Path is null ? null : OpenSettings,
                 run.Capabilities.KeyImport ? PickKeysAsync : null,
-                run.Paths.SshDirectory);
+                run.Paths.SshDirectory,
+                run.Capabilities.Wsl && _platform!.WslLinks is { } wsl ? wsl.DistrosAsync : null);
         }
         else
         {

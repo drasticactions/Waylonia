@@ -103,12 +103,12 @@ internal sealed class TmdsSshLink : ISshLink
         _client.Disconnected.Register(() => _lost.Cancel());
     }
 
-    public async Task<ISshListener> ListenUnixAsync(string remotePath, CancellationToken cancellation)
+    public async Task<ISshListener> ListenAsync(string remotePath, CancellationToken cancellation)
     {
         ArgumentNullException.ThrowIfNull(remotePath);
         try
         {
-            return new TmdsSshListener(await _client.ListenUnixAsync(remotePath, cancellation).ConfigureAwait(false));
+            return new TmdsSshListener(await _client.ListenUnixAsync(remotePath, cancellation).ConfigureAwait(false), remotePath);
         }
         catch (SshChannelException error)
         {

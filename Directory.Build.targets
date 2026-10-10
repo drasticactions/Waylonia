@@ -4,11 +4,13 @@
     <WayloniaPlatforms Condition="'$(WayloniaPlatforms)' == '' and '$(TargetPlatformIdentifier)' != ''">none</WayloniaPlatforms>
     <WayloniaPlatforms Condition="'$(WayloniaPlatforms)' == ''">linux;macos;windows</WayloniaPlatforms>
     <WayloniaPlatforms Condition="'$(WayloniaPlatforms)' == 'portable'">linux;macos;windows;ios;maccatalyst;android;browser</WayloniaPlatforms>
-    <WayloniaExternal>$(MSBuildThisFileDirectory)external/</WayloniaExternal>
+    <WayloniaExternal>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', 'external'))</WayloniaExternal>
+    <WayloniaProjectDirectory>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)'))</WayloniaProjectDirectory>
+    <TargetFrameworks Condition="$(WayloniaProjectDirectory.StartsWith('$([MSBuild]::NormalizeDirectory('$(WayloniaExternal)', 'Tmds.Ssh'))'))">net10.0</TargetFrameworks>
   </PropertyGroup>
 
   <Target Name="VerifySubmodules" BeforeTargets="CollectPackageReferences;Restore;CoreCompile"
-          Condition="!$(MSBuildProjectDirectory.StartsWith('$(WayloniaExternal)'))">
+          Condition="!$(WayloniaProjectDirectory.StartsWith('$(WayloniaExternal)'))">
     <Error Condition="!Exists('$(WayloniaExternal)basin/basin.slnx')"
            Text="external/basin is empty, so the Basin projects $(MSBuildProjectName) references cannot be built. Run: git submodule update --init --recursive" />
     <Error Condition="!Exists('$(WayloniaExternal)Tmds.Ssh/src/Tmds.Ssh/Tmds.Ssh.csproj')"

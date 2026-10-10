@@ -7,9 +7,15 @@ internal sealed class TomlDocument
 {
     private readonly DocumentSyntax _document;
 
-    private TomlDocument(DocumentSyntax document) => _document = document;
+    private readonly bool _crlf;
 
-    public static TomlDocument Empty() => new(new DocumentSyntax());
+    private TomlDocument(DocumentSyntax document, bool crlf)
+    {
+        _document = document;
+        _crlf = crlf;
+    }
+
+    public static TomlDocument Empty() => new(new DocumentSyntax(), crlf: false);
 
     public static TomlDocument? Parse(string text, out string? error)
     {
@@ -26,7 +32,7 @@ internal sealed class TomlDocument
         }
 
         error = null;
-        return new TomlDocument(document);
+        return new TomlDocument(document, text.Contains("\r\n", StringComparison.Ordinal));
     }
 
     public TomlSection Root => new(_document.KeyValues, TakeDocumentTrivia, GiveDocumentTrivia);
@@ -144,7 +150,10 @@ internal sealed class TomlDocument
     {
         using var writer = new StringWriter();
         _document.WriteTo(writer);
-        return writer.ToString();
+        var text = writer.ToString();
+        return _crlf
+            ? text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\n", "\r\n", StringComparison.Ordinal)
+            : text;
     }
 
     private TableSyntaxBase? FindTable(string name)

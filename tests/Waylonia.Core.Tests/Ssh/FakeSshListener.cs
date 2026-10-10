@@ -9,6 +9,8 @@ internal sealed class FakeSshListener(string remotePath) : ISshListener
 
     public string RemotePath => remotePath;
 
+    public string WaypipeArgument => $"--socket {remotePath}";
+
     public bool Disposed { get; private set; }
 
     public void Inject(Stream stream) => _streams.Writer.TryWrite(stream);

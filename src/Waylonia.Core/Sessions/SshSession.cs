@@ -33,6 +33,7 @@ internal sealed class SshSession : IDisposable
     private ISshCommand? _master;
     private ISshListener? _listener;
     private TaskCompletionSource? _scriptStarted;
+    private Task _masterDrained = Task.CompletedTask;
     private WaypipeAcceptor? _acceptor;
     private WayloniaAudio? _audio;
     private Task<bool>? _connecting;
@@ -77,6 +78,8 @@ internal sealed class SshSession : IDisposable
     public string RemoteSocket => _remoteSocket;
 
     internal TimeSpan ScriptStartLimit { get; set; } = TimeSpan.FromSeconds(20);
+
+    internal static TimeSpan OutputSettleLimit { get; } = TimeSpan.FromSeconds(1);
 
     public IReadOnlyList<ApplicationMenuItem>? Applications { get; private set; }
 
@@ -135,8 +138,22 @@ internal sealed class SshSession : IDisposable
         CommandFinished = false;
         LastError = null;
         _output.Clear();
-        SetStatus(SessionStatus.Connecting, $"logging in to {Ssh}");
-        var link = _host.Links.Create(Ssh, _host.Prompter);
+        var wsl = WslDestination.IsWsl(Ssh);
+        if ((wsl ? _host.WslLinks : _host.Links) is not { } links)
+        {
+            LastError = $"{Ssh} names a WSL distribution, and only waylonia on Windows reaches one";
+            Log.Error($"{LastError}");
+            SetStatus(SessionStatus.Disconnected, LastError);
+            if (!_host.ShuttingDown)
+            {
+                Ended?.Invoke(this, 1);
+            }
+
+            return false;
+        }
+
+        SetStatus(SessionStatus.Connecting, wsl ? $"starting {Ssh}" : $"logging in to {Ssh}");
+        var link = links.Create(Ssh, _host.Prompter);
         _link = link;
         try
         {
@@ -156,7 +173,7 @@ internal sealed class SshSession : IDisposable
         ISshListener listener;
         try
         {
-            listener = await link.ListenUnixAsync(_remoteSocket, CancellationToken.None);
+            listener = await link.ListenAsync(_remoteSocket, CancellationToken.None);
         }
         catch (SshLinkException error)
         {
@@ -180,10 +197,15 @@ internal sealed class SshSession : IDisposable
         _master = master;
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _scriptStarted = started;
-        _ = DrainAsync(master, _output, line => line == LoggedIn && started.TrySetResult());
+        _masterDrained = DrainAsync(master, _output, line => line == LoggedIn && started.TrySetResult());
         if (!await WaitForScriptAsync(master, started))
         {
             var exited = master.Exited.IsCompleted;
+            if (exited)
+            {
+                await SettleOutputAsync();
+            }
+
             var message = exited
                 ? $"the session script on {Ssh} exited with {master.Exited.Result}" + Detail()
                 : started.Task.IsCompleted
@@ -259,6 +281,8 @@ internal sealed class SshSession : IDisposable
 
         return false;
     }
+
+    private Task SettleOutputAsync() => Task.WhenAny(_masterDrained, Task.Delay(OutputSettleLimit));
 
     private string Detail() => _output.LastLine() is { } line ? $": {line}" : string.Empty;
 
@@ -764,14 +788,7 @@ internal sealed class SshSession : IDisposable
 
     internal string RemoteScript()
     {
-        var compress = Settings.Compression switch
-        {
-            Basin.Transport.Waypipe.WaypipeCompression.None => "none",
-            Basin.Transport.Waypipe.WaypipeCompression.Zstd => "zstd",
-            _ => "lz4",
-        };
-        var gpuArgument = Settings.Gpu ? string.Empty : "--no-gpu ";
-        var videoArgument = Settings.Video is { } codec ? $"--video={codec} " : string.Empty;
+        var arguments = ListenHint.Arguments(Settings.Compression, Settings.Gpu, Settings.Video);
         var xwayland = _host.Settings.XWayland
             ? "if command -v xwayland-satellite >/dev/null 2>&1; then w=--xwls; else w=; fi; "
               + "export XCURSOR_SIZE=\"${XCURSOR_SIZE:-24}\"; "
@@ -802,7 +819,7 @@ internal sealed class SshSession : IDisposable
             xwayland +
             gtkConfig +
             sink +
-            $"waypipe --compress {compress} {gpuArgument}{videoArgument}--socket {_remoteSocket} " +
+            $"waypipe {arguments}{_listener?.WaypipeArgument ?? $"--socket {_remoteSocket}"} " +
             $"--display {_displayName} $w server -- " +
             $"sh -c 'printf %s \"$DISPLAY\" > {_xDisplayFile}; exec cat >/dev/null'; " +
             $"status=$?; rm -f {_remoteSocket} \"$d\" {_xDisplayFile}; " +
@@ -826,6 +843,11 @@ internal sealed class SshSession : IDisposable
         }
 
         var hadClients = HadClients;
+        if (master.Exited.IsCompleted)
+        {
+            await SettleOutputAsync();
+        }
+
         var code = master.Exited.IsCompleted ? master.Exited.Result : -1;
         var clean = code == 0;
         LastError = code > 0

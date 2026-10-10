@@ -153,6 +153,7 @@ public sealed class AgentProfileTests : IDisposable
     [Fact]
     public void The_profile_root_is_beside_the_shell_state()
     {
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "agent mode builds Linux paths and runs only on Linux");
         var paths = WayloniaPaths.Xdg() with { StateFile = "/state/waylonia/shell.toml" };
         Assert.Equal("/state/waylonia/agents", AgentProfileStore.RootFor(paths));
     }

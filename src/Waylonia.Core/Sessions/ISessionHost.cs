@@ -14,6 +14,8 @@ internal interface ISessionHost
 
     ISshLinkFactory Links { get; }
 
+    ISshLinkFactory? WslLinks { get; }
+
     ISshPrompter Prompter { get; }
 
     IconCache? Icons => null;

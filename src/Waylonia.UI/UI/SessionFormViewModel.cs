@@ -22,6 +22,10 @@ internal sealed partial class SessionFormViewModel : FormViewModel
 
     public static IReadOnlyList<string> CompressChoices { get; } = ["default", "lz4", "zstd", "none"];
 
+    public static IReadOnlyList<string> KindChoices { get; } = ["ssh", "WSL"];
+
+    public const int WslKind = 1;
+
     public static IReadOnlyList<string> DesktopChoices { get; } =
         ["none", .. DesktopRecipes.All.Select(static recipe => recipe.Name), "custom"];
 
@@ -29,7 +33,18 @@ internal sealed partial class SessionFormViewModel : FormViewModel
     private string _name = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWsl), nameof(IsSsh), nameof(ShowsKind))]
+    private int _kindIndex;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsKind))]
+    private bool _wslAvailable;
+
+    [ObservableProperty]
     private string _ssh = string.Empty;
+
+    [ObservableProperty]
+    private string _distro = string.Empty;
 
     [ObservableProperty]
     private string _command = string.Empty;
@@ -73,6 +88,14 @@ internal sealed partial class SessionFormViewModel : FormViewModel
     [ObservableProperty]
     private string _hotkeys = string.Empty;
 
+    public System.Collections.ObjectModel.ObservableCollection<string> Distros { get; } = [];
+
+    public bool IsWsl => KindIndex == WslKind;
+
+    public bool IsSsh => !IsWsl;
+
+    public bool ShowsKind => WslAvailable || IsWsl;
+
     public string? NameProblem => ProblemFor(NameField);
 
     public string? SshProblem => ProblemFor(SshField);
@@ -97,7 +120,10 @@ internal sealed partial class SessionFormViewModel : FormViewModel
     {
         ArgumentNullException.ThrowIfNull(profile);
         Name = profile.Name;
-        Ssh = profile.Ssh;
+        var wsl = WslDestination.TryParse(profile.Ssh, out var distro);
+        KindIndex = wsl ? WslKind : 0;
+        Ssh = wsl ? string.Empty : profile.Ssh;
+        Distro = distro;
         Command = profile.Command ?? string.Empty;
         Autostart = profile.Autostart is { } autostart ? string.Join('\n', autostart) : string.Empty;
         CompressIndex = Math.Max(0, IndexOf(CompressChoices, profile.Compress ?? "default"));
@@ -130,10 +156,27 @@ internal sealed partial class SessionFormViewModel : FormViewModel
             Complain(NameField, "Use only letters, digits, '.', '_' and '-' in the name.");
         }
 
-        var ssh = Blank(Ssh);
-        if (ssh is null)
+        string? ssh;
+        if (IsWsl)
         {
-            Complain(SshField, "Give the ssh destination, such as user@host.");
+            var distro = Distro.Trim();
+            ssh = WslDestination.For(distro);
+            if (WslDestination.DistroProblem(distro) is not null)
+            {
+                Complain(SshField, "Use the distribution name wsl -l shows, or leave it empty for the default one.");
+            }
+        }
+        else
+        {
+            ssh = Blank(Ssh);
+            if (ssh is null)
+            {
+                Complain(SshField, "Give the ssh destination, such as user@host.");
+            }
+            else if (WslDestination.IsWsl(ssh))
+            {
+                Complain(SshField, "Choose WSL as the kind to start a WSL distribution.");
+            }
         }
 
         var video = Blank(Video);

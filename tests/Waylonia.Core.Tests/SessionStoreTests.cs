@@ -53,6 +53,35 @@ public sealed class SessionStoreTests : IDisposable
     }
 
     [Fact]
+    public void A_wsl_session_writes_its_distribution_and_reads_back_as_a_wsl_destination()
+    {
+        Assert.Equal("wsl = \"Ubuntu\"\n", SessionStore.Render(new SessionProfile("x", "wsl:Ubuntu")));
+        Store.Save(new SessionProfile("ubuntu", "wsl:Ubuntu", "foot"));
+        Store.Save(new SessionProfile("default", "wsl:"));
+
+        var catalog = Store.Load(BasinLogger.None);
+
+        Assert.Empty(catalog.Broken);
+        Assert.Equal("wsl:Ubuntu", catalog.Find("ubuntu")!.Ssh);
+        Assert.Equal("foot", catalog.Find("ubuntu")!.Command);
+        Assert.Equal("wsl:", catalog.Find("default")!.Ssh);
+    }
+
+    [Fact]
+    public void A_session_with_both_ssh_and_wsl_or_a_bad_distribution_is_broken()
+    {
+        Directory.CreateDirectory(_directory);
+        File.WriteAllText(Path.Combine(_directory, "both.toml"), "ssh = \"h\"\nwsl = \"Ubuntu\"");
+        File.WriteAllText(Path.Combine(_directory, "spaced.toml"), "wsl = \"my distro\"");
+
+        var catalog = Store.Load(BasinLogger.None);
+
+        Assert.Empty(catalog.Profiles);
+        Assert.Contains(catalog.Broken, broken => broken.Name == "both" && broken.Error.Contains("one of them", StringComparison.Ordinal));
+        Assert.Contains(catalog.Broken, broken => broken.Name == "spaced" && broken.Error.Contains("WSL distribution name", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void An_empty_lang_means_leave_the_remote_alone_and_a_missing_one_means_the_config_default()
     {
         Store.Save(new SessionProfile("bare", "user@bare", Lang: string.Empty));

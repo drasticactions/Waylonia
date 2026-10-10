@@ -18,6 +18,10 @@ internal sealed class StubSessionHost : ISessionHost
 
     ISshLinkFactory ISessionHost.Links => Links;
 
+    public FakeSshLinkFactory? WslLinks { get; set; }
+
+    ISshLinkFactory? ISessionHost.WslLinks => WslLinks;
+
     ISshPrompter ISessionHost.Prompter => Prompter;
 
     public List<Action> Posted { get; } = [];

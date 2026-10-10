@@ -12,7 +12,8 @@ internal sealed record HostPlatform(
     IHostCursor Cursor,
     IHostScreenScales ScreenScales,
     IHostWindowing Windowing,
-    IKeyPicker Keys)
+    IKeyPicker Keys,
+    IWslLinkFactory? WslLinks = null)
 {
     public static HostPlatform Minimal(WayloniaPaths paths, ISshLinkFactory links)
     {

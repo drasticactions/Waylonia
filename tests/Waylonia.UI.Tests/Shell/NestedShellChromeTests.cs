@@ -188,7 +188,7 @@ public sealed class NestedShellChromeTests
             Assert.False(session.IsSubMenuOpen);
             Assert.Same(surface, shell.Router.KeyboardFocus);
 
-            var combo = view.GetVisualDescendants().OfType<ComboBox>().First();
+            var combo = view.GetVisualDescendants().OfType<ComboBox>().First(box => box.IsEffectivelyVisible);
             combo.IsDropDownOpen = true;
             harness.PumpInput();
             Assert.True(shell.HasOpenPopups, "the dropdown was not registered");

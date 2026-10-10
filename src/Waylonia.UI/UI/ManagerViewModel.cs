@@ -50,7 +50,8 @@ internal sealed partial class ManagerViewModel : ObservableObject
         Func<string, Task> disconnect,
         Action? openSettings = null,
         Func<Task<IReadOnlyList<PickedKey>>>? pickKeys = null,
-        string? sshDirectory = null)
+        string? sshDirectory = null,
+        Func<CancellationToken, Task<IReadOnlyList<string>>>? listDistros = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(registry);
@@ -64,8 +65,23 @@ internal sealed partial class ManagerViewModel : ObservableObject
         _openSettings = openSettings;
         _pickKeys = pickKeys;
         _sshDirectory = sshDirectory is { Length: > 0 } ? sshDirectory : null;
+        Form.WslAvailable = listDistros is not null;
         _registry.Changed += OnRegistryChanged;
         Reload();
+        if (listDistros is not null)
+        {
+            _ = LoadDistrosAsync(listDistros);
+        }
+    }
+
+    private async Task LoadDistrosAsync(Func<CancellationToken, Task<IReadOnlyList<string>>> listDistros)
+    {
+        var distros = await listDistros(CancellationToken.None);
+        Form.Distros.Clear();
+        foreach (var distro in distros)
+        {
+            Form.Distros.Add(distro);
+        }
     }
 
     public SessionFormViewModel Form { get; } = new();

@@ -18,6 +18,7 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
     private readonly IVideoDecoder? _decoder;
     private readonly List<WaypipeChannel> _channels = [];
     private IDisposable? _listener;
+    private IWaypipeListener? _waypipeListener;
     private LinuxDmabufGlobal? _dmabuf;
     private int _attached;
     private bool _disposed;
@@ -104,6 +105,29 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
         return listener;
     }
 
+    public WaypipeChannelOptions ChannelOptions => new()
+    {
+        CarriesDmabuf = _gpu,
+        AcceptsVideo = _video is not null,
+        VideoDecoder = _decoder,
+    };
+
+    public WaypipeCompression Compression => _compression;
+
+    public void Accept(IWaypipeListener listener)
+    {
+        ArgumentNullException.ThrowIfNull(listener);
+        if (_disposed)
+        {
+            listener.Dispose();
+            return;
+        }
+
+        _waypipeListener = listener;
+        listener.ChannelAccepted += Adopt;
+        listener.Failed += Fail;
+    }
+
     [UnsupportedOSPlatform("browser")]
     public void Accept(Socket listener)
     {
@@ -151,15 +175,18 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
             return;
         }
 
-        var channel = WaypipeChannel.AttachChannel(
-            stream,
-            _compression,
-            options: new WaypipeChannelOptions
-            {
-                CarriesDmabuf = _gpu,
-                AcceptsVideo = _video is not null,
-                VideoDecoder = _decoder,
-            });
+        Adopt(WaypipeChannel.AttachChannel(stream, _compression, options: ChannelOptions));
+    }
+
+    public void Adopt(WaypipeChannel channel)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+        if (_disposed)
+        {
+            channel.Dispose();
+            return;
+        }
+
         int index;
         lock (_channels)
         {
@@ -237,6 +264,11 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
 
         _disposed = true;
         _listener?.Dispose();
+        if (_waypipeListener is { } waypipeListener)
+        {
+            _host.Post(waypipeListener.Dispose);
+        }
+
         CloseChannels();
         if (_dmabuf is { } dmabuf)
         {

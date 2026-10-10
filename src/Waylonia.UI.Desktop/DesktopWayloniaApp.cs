@@ -10,6 +10,7 @@ using Basin.Freedesktop;
 using Basin.Hosted;
 using Basin.Scene;
 using Basin.Shell.Nested;
+using Basin.Transport.Waypipe;
 using Basin.Ipc;
 using Wayland.Server;
 using Waylonia.Agent;
@@ -454,7 +455,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         }
         else if (run.WaypipeListen is { } listen)
         {
-            StartListening(listen);
+            StartListening(host, listen);
         }
 
         base.StartInitialWork(host);
@@ -486,13 +487,70 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         return DesktopShellPolicy.DefaultSize(screen, scaling);
     }
 
-    private void StartListening(ListenSettings listen)
+    private void StartListening(BasinCompositorHost host, ListenSettings listen)
     {
         var acceptor = new WaypipeAcceptor(
             listen.Endpoint, this, listen.Compression, listen.Gpu, listen.Video, listen.VideoDecoder, session: null);
         acceptor.Failed += failure => Dispatcher.UIThread.Post(() => _ = ShutdownAsync(1));
         _listen = acceptor;
         UpdateStatus($"waiting for a waypipe channel on {listen.Endpoint}");
+        if (OperatingSystem.IsWindows() && !ListenHint.IsVsock(listen.Endpoint))
+        {
+            ListenOnSocket(acceptor, listen);
+            return;
+        }
+
+        var post = ((ISessionHost)this).Post;
+        post(() => _ = BindListenerAsync(host, acceptor, listen, post));
+    }
+
+    private async Task BindListenerAsync(BasinCompositorHost host, WaypipeAcceptor acceptor, ListenSettings listen, Action<Action> post)
+    {
+        IWaypipeListener listener;
+        try
+        {
+            listener = await WaypipeListeners.BindAsync(
+                listen.Endpoint,
+                new WaypipeListenerHost(host.Loop, post),
+                listen.Vm,
+                acceptor.Compression,
+                options: acceptor.ChannelOptions);
+        }
+        catch (Exception error) when (error is System.Net.Sockets.SocketException or IOException or FormatException
+            or ArgumentException or UnauthorizedAccessException or PlatformNotSupportedException or WslVmException)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                Log.Error($"the channel listener failed: {error.Message}");
+                _ = ShutdownAsync(1);
+            });
+            return;
+        }
+
+        post(() => acceptor.Accept(listener));
+        var wsl = false;
+        var bound = listener.LocalEndPoint.ToString() ?? listen.Endpoint;
+        if (OperatingSystem.IsWindows() && listener is HyperVWaypipeListener hyperV)
+        {
+            wsl = hyperV.Vm.Kind == HyperVVmKind.Wsl;
+            bound = $"{bound} ({(wsl ? "WSL VM" : "VM")} {hyperV.LocalEndPoint.VmId})";
+            hyperV.Rebound += local => Dispatcher.UIThread.Post(() =>
+                UpdateStatus($"waiting for a waypipe channel on {local} (rebound on {(wsl ? "WSL VM" : "VM")} {local.VmId})"));
+        }
+
+        var hint = ListenHint.GuestCommand(listen.Endpoint, wsl, listen.Compression, listen.Gpu, listen.Video);
+        Dispatcher.UIThread.Post(() =>
+        {
+            UpdateStatus($"waiting for a waypipe channel on {bound}");
+            if (hint is not null)
+            {
+                Log.Info($"listening on {bound}; start a client with: {hint}");
+            }
+        });
+    }
+
+    private void ListenOnSocket(WaypipeAcceptor acceptor, ListenSettings listen)
+    {
         try
         {
             var endpoint = WaypipeAcceptor.ParseEndpoint(listen.Endpoint, out var error);

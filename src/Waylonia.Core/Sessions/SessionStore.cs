@@ -104,15 +104,34 @@ internal sealed class SessionStore(string? directory)
 
     public static SessionProfile? FromTable(string name, TomlTable table, BasinLogger log, out string? error)
     {
-        if (Config.Text(table, "ssh") is not { } ssh)
+        var wsl = table.TryGetValue("wsl", out var wslValue) && wslValue is string distroText ? distroText.Trim() : null;
+        var ssh = Config.Text(table, "ssh");
+        if (wsl is not null && ssh is not null)
         {
-            error = "it has no ssh destination";
+            error = "ssh logs in to a host and wsl starts a WSL distribution; a session takes one of them";
+            return null;
+        }
+
+        if (wsl is not null)
+        {
+            if (WslDestination.DistroProblem(wsl) is { } distroProblem)
+            {
+                error = distroProblem;
+                return null;
+            }
+
+            ssh = WslDestination.For(wsl);
+        }
+
+        if (ssh is null)
+        {
+            error = "it has no ssh destination or wsl distribution";
             return null;
         }
 
         foreach (var (key, _) in table)
         {
-            if (key is not ("ssh" or "command" or "autostart" or "compress" or "gpu" or "video" or "audio"
+            if (key is not ("ssh" or "wsl" or "command" or "autostart" or "compress" or "gpu" or "video" or "audio"
                 or "terminal" or "current-desktop" or "lang" or "autoconnect" or "desktop" or "desktop-size"
                 or "desktop-env" or "hotkeys"))
             {
@@ -181,7 +200,15 @@ internal sealed class SessionStore(string? directory)
     {
         ArgumentNullException.ThrowIfNull(profile);
         var text = new StringBuilder();
-        Line(text, "ssh", profile.Ssh);
+        if (WslDestination.TryParse(profile.Ssh, out var distro))
+        {
+            Line(text, "wsl", distro);
+        }
+        else
+        {
+            Line(text, "ssh", profile.Ssh);
+        }
+
         Line(text, "command", profile.Command);
         Line(text, "autostart", profile.Autostart);
         Line(text, "compress", profile.Compress);

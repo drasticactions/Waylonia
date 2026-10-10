@@ -47,7 +47,7 @@ internal sealed class FakeSshLink(string destination, ISshPrompter prompter) : I
         _connected = true;
     }
 
-    public Task<ISshListener> ListenUnixAsync(string remotePath, CancellationToken cancellation)
+    public Task<ISshListener> ListenAsync(string remotePath, CancellationToken cancellation)
     {
         Events.Add($"listen {remotePath}");
         Listener = new FakeSshListener(remotePath);

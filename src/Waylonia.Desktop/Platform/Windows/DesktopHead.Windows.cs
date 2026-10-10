@@ -13,7 +13,8 @@ internal static partial class DesktopHead
         LocalDesktops: false,
         XWayland: false,
         LocalApplications: false,
-        ChannelsOnly: true);
+        ChannelsOnly: true,
+        Wsl: true);
 
     private static partial WayloniaPaths PlatformPaths() => LocalApplicationDataPaths();
 
@@ -31,7 +32,8 @@ internal static partial class DesktopHead
                 new WindowsHostCursor(),
                 NullHostScreenScales.Instance,
                 new WindowsHostWindowing(),
-                NullKeyPicker.Instance),
+                NullKeyPicker.Instance,
+                new WslLinkFactory()),
             new WindowsGlobalHotkeys(),
             new WindowsHostCapture(),
             NullXWaylandHost.Instance);

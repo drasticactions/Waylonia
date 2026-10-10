@@ -59,9 +59,35 @@ public static class CliOptions
 
     public static Option<string?> WaypipeListen() => new("--waypipe-listen")
     {
-        Description = "bind this endpoint and replay one waypipe channel into the compositor",
-        HelpName = "ADDRESS:PORT|PATH",
+        Description = "bind this endpoint and replay every waypipe channel that connects into the compositor",
+        HelpName = "ADDRESS:PORT|PATH|vsock:PORT",
     };
+
+    public static Option<string?> HyperVVm()
+    {
+        var option = new Option<string?>("--hyperv-vm")
+        {
+            Description = $"the Hyper-V VM a vsock: listener binds on Windows: {Basin.Transport.Waypipe.HyperVVm.Words}. Defaults to wsl; ignored elsewhere.",
+            HelpName = "VM",
+        };
+
+        option.Validators.Add(result =>
+        {
+            if (result.GetValueOrDefault<string?>() is { } value)
+            {
+                try
+                {
+                    Basin.Transport.Waypipe.HyperVVm.Parse(value);
+                }
+                catch (FormatException error)
+                {
+                    result.AddError(error.Message);
+                }
+            }
+        });
+
+        return option;
+    }
 
     public static Option<bool> Gpu() => new("--gpu")
     {

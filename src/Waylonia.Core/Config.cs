@@ -351,6 +351,13 @@ internal sealed class Config
             # PKCS#11 token need an agent. keyboard-interactive (PAM one-time
             # codes) and ProxyCommand are not supported.
             #
+            #   wsl = "Ubuntu"
+            #
+            # On Windows, wsl in place of ssh starts a WSL distribution instead
+            # of logging in anywhere ("" is the default one). Its channels cross
+            # a Hyper-V socket, so the distribution needs waypipe, and WSL needs
+            # to be 2.6.1 or later.
+            #
             #   command = "tmux new -A -s main"
             #   autostart = ["foot", "firefox"]
             #   compress = "none"
@@ -443,7 +450,7 @@ internal sealed class Config
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
             using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
             using var writer = new StreamWriter(stream);
-            writer.Write(placeholder);
+            writer.Write(placeholder.Replace("\r\n", "\n", StringComparison.Ordinal));
             log.Info($"wrote a placeholder config to {path}");
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)

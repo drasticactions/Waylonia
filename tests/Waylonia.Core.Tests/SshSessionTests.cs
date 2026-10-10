@@ -53,6 +53,39 @@ public sealed class SshSessionTests
     }
 
     [Fact]
+    public async Task A_wsl_session_connects_through_the_wsl_links_and_waypipe_takes_the_listener_argument()
+    {
+        var wslLinks = new FakeSshLinkFactory();
+        var host = new StubSessionHost { Settings = new HostSettings(TrayApps: false), WslLinks = wslLinks };
+        var session = new SshSession(StubSessionHost.For("ubuntu") with { Ssh = "wsl:Ubuntu" }, host);
+
+        var connecting = session.ConnectAsync();
+        await WaitUntilAsync(() => wslLinks.Last?.Commands.Count > 0, "the session script was started");
+
+        Assert.Empty(host.Links.Links);
+        Assert.Equal("wsl:Ubuntu", wslLinks.Last!.Destination);
+        Assert.Contains($"waypipe --compress lz4 --no-gpu {wslLinks.Last.Listener!.WaypipeArgument} ", wslLinks.Last.Command(0).Script, StringComparison.Ordinal);
+        await wslLinks.Last.Command(0).WriteOutputAsync(LoggedIn);
+        Assert.True(await connecting);
+    }
+
+    [Fact]
+    public async Task A_wsl_session_on_a_host_without_wsl_fails_with_a_sentence()
+    {
+        var host = new StubSessionHost { Settings = new HostSettings(TrayApps: false) };
+        var session = new SshSession(StubSessionHost.For("ubuntu") with { Ssh = "wsl:Ubuntu" }, host);
+        var ended = new List<int>();
+        session.Ended += (_, code) => ended.Add(code);
+
+        Assert.False(await session.ConnectAsync());
+
+        Assert.Empty(host.Links.Links);
+        Assert.Equal(SessionStatus.Disconnected, session.Status);
+        Assert.Equal("wsl:Ubuntu names a WSL distribution, and only waylonia on Windows reaches one", session.LastError);
+        Assert.Equal([1], ended);
+    }
+
+    [Fact]
     public async Task A_script_that_exits_before_the_marker_fails_the_login_with_its_last_line()
     {
         var host = new StubSessionHost { Settings = new HostSettings(TrayApps: false) };
@@ -133,6 +166,7 @@ public sealed class SshSessionTests
         using var channel = new DuplexStream();
         link.Listener!.Inject(channel);
         await WaitUntilAsync(() => session.HadClients, "the stream was adopted");
+        await WaitUntilAsync(() => host.Posted.Count > 0, "the client was posted to the compositor");
 
         Assert.Equal(1, session.Acceptor!.Attached);
         Assert.Single(host.Posted);

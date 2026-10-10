@@ -72,7 +72,7 @@ public sealed class TmdsSshLinkTests
         }
 
         var remotePath = $"/tmp/waylonia-test-{Environment.ProcessId}-{Guid.NewGuid():n}.sock";
-        using (var listener = await link.ListenUnixAsync(remotePath, Ct))
+        using (var listener = await link.ListenAsync(remotePath, Ct))
         {
             var (tools, _) = await RunToEndAsync(
                 link, "if command -v socat >/dev/null 2>&1; then echo socat; elif command -v nc >/dev/null 2>&1 && nc -h 2>&1 | grep -q -- -U; then echo nc; fi",

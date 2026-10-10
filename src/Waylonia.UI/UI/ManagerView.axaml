@@ -70,10 +70,22 @@
               <TextBlock Classes="problem" Text="{Binding NameProblem}"
                          IsVisible="{Binding NameProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
             </StackPanel>
-            <StackPanel Classes="field">
+            <StackPanel Classes="field" IsVisible="{Binding ShowsKind}">
               <DockPanel>
+                <TextBlock Classes="caption" Text="kind" />
+                <ComboBox x:Name="KindBox" ItemsSource="{x:Static ui:SessionFormViewModel.KindChoices}"
+                          SelectedIndex="{Binding KindIndex}" />
+              </DockPanel>
+            </StackPanel>
+            <StackPanel Classes="field">
+              <DockPanel IsVisible="{Binding IsSsh}">
                 <TextBlock Classes="caption" Text="ssh" />
                 <TextBox Text="{Binding Ssh}" PlaceholderText="user@host" />
+              </DockPanel>
+              <DockPanel IsVisible="{Binding IsWsl}">
+                <TextBlock Classes="caption" Text="distribution" />
+                <ComboBox x:Name="DistroBox" IsEditable="True" ItemsSource="{Binding Distros}"
+                          Text="{Binding Distro}" PlaceholderText="the default distribution" />
               </DockPanel>
               <TextBlock Classes="problem" Text="{Binding SshProblem}"
                          IsVisible="{Binding SshProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />

@@ -10,6 +10,7 @@ public sealed class AgentEnvironmentTests
     [Fact]
     public void A_launched_application_gets_the_profile_home_and_its_own_runtime()
     {
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "agent mode builds Linux paths and runs only on Linux");
         var environment = AgentEnvironment.Build(Profile, "/run/user/1000/waylonia-agent-test-42", ":3", "unix:path=/tmp/dbus-x");
         var env = environment.Env;
         Assert.Equal("/state/agents/test/home", env["HOME"]);
@@ -37,6 +38,7 @@ public sealed class AgentEnvironmentTests
     [Fact]
     public void Without_an_x_display_or_a_bus_the_host_ones_are_removed()
     {
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "agent mode builds Linux paths and runs only on Linux");
         var environment = AgentEnvironment.Build(Profile, "/run/agent", null, null);
         Assert.False(environment.Env.ContainsKey("DISPLAY"));
         Assert.Contains("DISPLAY", environment.Unset);

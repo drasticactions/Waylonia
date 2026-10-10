@@ -8,4 +8,5 @@ internal sealed record ListenSettings(
     WaypipeCompression Compression,
     bool Gpu,
     string? Video,
-    IVideoDecoder? VideoDecoder);
+    IVideoDecoder? VideoDecoder,
+    HyperVVm? Vm = null);

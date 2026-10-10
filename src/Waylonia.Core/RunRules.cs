@@ -88,20 +88,15 @@ internal static class RunRules
             : null;
     }
 
-    internal static string? NestedShellProblem(ShellMode shell, string? desktop, string? listen)
+    internal static string? NestedShellProblem(ShellMode shell, string? desktop)
     {
         if (shell != ShellMode.Nested)
         {
             return null;
         }
 
-        if (desktop is not null)
-        {
-            return $"--shell nested manages the windows itself and --desktop hands the screen to {desktop}";
-        }
-
-        return listen is not null
-            ? "--shell nested manages the windows itself and --waypipe-listen hands them to whoever started the channel"
+        return desktop is not null
+            ? $"--shell nested manages the windows itself and --desktop hands the screen to {desktop}"
             : null;
     }
 

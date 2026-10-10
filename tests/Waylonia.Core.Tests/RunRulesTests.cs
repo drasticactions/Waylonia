@@ -60,16 +60,13 @@ public sealed class RunRulesTests : IDisposable
     }
 
     [Fact]
-    public void The_nested_shell_refuses_a_desktop_and_a_listener()
+    public void The_nested_shell_refuses_a_desktop_and_takes_a_listener()
     {
-        Assert.Null(RunRules.NestedShellProblem(Waylonia.Shell.ShellMode.Windows, "sway", "/tmp/x"));
-        Assert.Null(RunRules.NestedShellProblem(Waylonia.Shell.ShellMode.Nested, null, null));
+        Assert.Null(RunRules.NestedShellProblem(Waylonia.Shell.ShellMode.Windows, "sway"));
+        Assert.Null(RunRules.NestedShellProblem(Waylonia.Shell.ShellMode.Nested, null));
         Assert.Equal(
             "--shell nested manages the windows itself and --desktop hands the screen to sway",
-            RunRules.NestedShellProblem(Waylonia.Shell.ShellMode.Nested, "sway", null));
-        Assert.Equal(
-            "--shell nested manages the windows itself and --waypipe-listen hands them to whoever started the channel",
-            RunRules.NestedShellProblem(Waylonia.Shell.ShellMode.Nested, null, "/tmp/x"));
+            RunRules.NestedShellProblem(Waylonia.Shell.ShellMode.Nested, "sway"));
     }
 
     [Theory]

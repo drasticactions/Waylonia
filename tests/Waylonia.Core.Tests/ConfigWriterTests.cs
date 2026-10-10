@@ -231,7 +231,7 @@ public sealed class ConfigWriterTests : IDisposable
             top = ["menu-bar", "spacer", "clock"]
             bottom = []
 
-            """, text);
+            """.Replace("\r\n", "\n", StringComparison.Ordinal), text);
         Assert.Equal(text, Apply(text, new ConfigValues(Shell: ShellMode.Nested, ShellSettings: EveryShellValue(), Panel: new PanelSettings(32, ["menu-bar", "spacer", "clock"], []))));
     }
 
@@ -257,11 +257,22 @@ public sealed class ConfigWriterTests : IDisposable
             top = ["menu-bar"]
 
             # end
-            """,
+            """.Replace("\r\n", "\n", StringComparison.Ordinal),
             new ConfigValues());
 
         Assert.Equal("[host]\n\n# frames\n\n# end", text);
         Assert.NotNull(TomlDocument.Parse(text, out _));
+    }
+
+    [Fact]
+    public void A_file_with_crlf_lines_keeps_them_for_the_lines_a_save_adds()
+    {
+        var text = Apply("# mine\r\ngpu = true\r\n", new ConfigValues(Gpu: true, Compress: "zstd", Tray: false));
+
+        Assert.Contains("compress = \"zstd\"\r\n", text, StringComparison.Ordinal);
+        Assert.Contains("[host]\r\ntray = false\r\n", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("\r\r", text, StringComparison.Ordinal);
+        Assert.Equal(text.Split('\n').Length - 1, text.Split("\r\n").Length - 1);
     }
 
     [Fact]

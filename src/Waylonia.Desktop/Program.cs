@@ -24,6 +24,7 @@ internal static class Program
             Description = "the Wayland socket name to bind, where the platform has one.",
         });
         var listenOption = cli.Add(CliOptions.WaypipeListen());
+        var hyperVOption = cli.Add(CliOptions.HyperVVm());
         var sshOption = cli.Add(new Option<string?>("--ssh")
         {
             Description = "connect this session at start. A saved session in sessions/NAME.toml matches first; " +
@@ -207,7 +208,7 @@ internal static class Program
                 return 1;
             }
 
-            if (RunRules.NestedShellProblem(shell, desktopName, listen) is { } shellProblem)
+            if (RunRules.NestedShellProblem(shell, desktopName) is { } shellProblem)
             {
                 log.Error($"{shellProblem}");
                 return 1;
@@ -323,7 +324,8 @@ internal static class Program
                     return 1;
                 }
 
-                listenSettings = new ListenSettings(listen, settings.Compression, settings.Gpu, settings.Video, settings.VideoDecoder);
+                var vm = result.GetValue(hyperVOption) is { } word ? Basin.Transport.Waypipe.HyperVVm.Parse(word) : (Basin.Transport.Waypipe.HyperVVm?)null;
+                listenSettings = new ListenSettings(listen, settings.Compression, settings.Gpu, settings.Video, settings.VideoDecoder, vm);
             }
             else if (explicitAudio == true && adHoc is null && commandText is not null)
             {

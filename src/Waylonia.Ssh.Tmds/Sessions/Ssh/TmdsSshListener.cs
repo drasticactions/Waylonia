@@ -2,8 +2,10 @@ using Tmds.Ssh;
 
 namespace Waylonia.Sessions;
 
-internal sealed class TmdsSshListener(RemoteListener listener) : ISshListener
+internal sealed class TmdsSshListener(RemoteListener listener, string remotePath) : ISshListener
 {
+    public string WaypipeArgument => $"--socket {remotePath}";
+
     public async ValueTask<Stream?> AcceptAsync(CancellationToken cancellation)
     {
         try

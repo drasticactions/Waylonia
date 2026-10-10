@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Threading;
 using Basin.Diagnostics;
 using Waylonia.Sessions;
 using Waylonia.UI;
@@ -380,6 +381,35 @@ public sealed class ManagerWindowTests : IDisposable
         window.AllowClose();
         window.Close();
         Assert.False(window.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public void Where_wsl_is_reachable_the_form_offers_the_kind_and_lists_the_distributions()
+    {
+        var model = new ManagerViewModel(
+            new SessionStore(_directory),
+            new SessionRegistry(new StubSessionHost()),
+            BasinLogger.None,
+            _ => Task.FromResult<string?>(null),
+            _ => Task.CompletedTask,
+            listDistros: _ => Task.FromResult<IReadOnlyList<string>>(["Ubuntu-26.04", "Debian"]));
+        var window = new ManagerWindow(model);
+        window.Show();
+        model.NewSession();
+        var kind = window.View.FindControl<ComboBox>("KindBox")!;
+        var distro = window.View.FindControl<ComboBox>("DistroBox")!;
+        Assert.True(kind.IsEffectivelyVisible);
+        Assert.False(distro.IsEffectivelyVisible);
+
+        kind.SelectedIndex = SessionFormViewModel.WslKind;
+        model.Form.Name = "ubuntu";
+        model.Form.Distro = "Ubuntu-26.04";
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(distro.IsEffectivelyVisible);
+        Assert.Equal(["Ubuntu-26.04", "Debian"], model.Form.Distros);
+        Assert.Equal("wsl:Ubuntu-26.04", model.Form.Validate()!.Ssh);
+        window.Close();
     }
 
     public void Dispose()
