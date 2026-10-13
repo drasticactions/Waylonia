@@ -25,12 +25,15 @@ internal sealed class XWaylandShell
         _shell = shell;
         _icons = icons;
         _log = log;
-        if (module.WindowManager is { } wm)
+        foreach (var display in module.Displays)
         {
-            Attach(wm);
-        }
+            if (display.WindowManager is { } wm)
+            {
+                Attach(wm);
+            }
 
-        module.WindowManagerReady += Attach;
+            display.WindowManagerReady += Attach;
+        }
     }
 
     private void Attach(XWaylandWm wm)
@@ -90,7 +93,7 @@ internal sealed class XWaylandShell
         }
 
         var content = new XWaylandContent(
-            xwindow, surface, parent => _managed.GetValueOrDefault(parent)?.Window.Content, _module.Toplevels);
+            xwindow, surface, parent => _managed.GetValueOrDefault(parent)?.Window.Content, _module.DisplayOf(xwindow)?.Toplevels);
         var window = _shell.Adopt(content, StoreIcon(xwindow));
         var managed = new Managed(window);
         _managed[xwindow] = managed;

@@ -10,7 +10,9 @@ namespace Waylonia;
 
 internal sealed class LinuxXWayland : IXWaylandHost
 {
-    public IProtocolModule? TryCreateModule() => new XWaylandModule();
+    private XWaylandModule? _module;
+
+    public IProtocolModule? TryCreateModule() => _module = new XWaylandModule();
 
     public void Attach(IProtocolModule module, BasinCompositorHost host, ToplevelWindows windows)
     {
@@ -19,11 +21,14 @@ internal sealed class LinuxXWayland : IXWaylandHost
             return;
         }
 
-        xwayland.WindowManagerReady += wm =>
+        foreach (var display in xwayland.Displays)
         {
-            wm.WindowMapped += window => Add(windows, window, overrideRedirect: false);
-            wm.OverrideRedirectMapped += window => Add(windows, window, overrideRedirect: true);
-        };
+            display.WindowManagerReady += wm =>
+            {
+                wm.WindowMapped += window => Add(windows, window, overrideRedirect: false);
+                wm.OverrideRedirectMapped += window => Add(windows, window, overrideRedirect: true);
+            };
+        }
     }
 
     public void AttachShell(IProtocolModule module, NestedShell shell, IconCache icons, BasinLogger log)
@@ -34,8 +39,7 @@ internal sealed class LinuxXWayland : IXWaylandHost
         }
     }
 
-    public string? DisplayName(BasinCompositorHost host) =>
-        host.Services.Find<XWaylandServer>()?.DisplayName;
+    public string? DisplayName(BasinCompositorHost host) => _module?.Native?.DisplayName;
 
     private static void Add(ToplevelWindows windows, XWaylandWindow window, bool overrideRedirect)
     {
