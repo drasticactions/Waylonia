@@ -57,6 +57,7 @@ internal sealed class RemoteAudioSource : IDisposable
         var parecFormat = sixteenBit ? "s16le" : "float32le";
         var pipewireFormat = sixteenBit ? "s16" : "f32";
         _remote =
+            SshSession.RemoteRuntimeDir +
             "if command -v pactl >/dev/null 2>&1 && " +
             $"! pactl list short sources 2>/dev/null | cut -f2 | grep -qx {_monitor}; then " +
             $"echo 'no {_monitor}' >&2; exit {NoMonitorExit}; fi; " +

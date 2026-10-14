@@ -15,7 +15,15 @@ public sealed class ChannelClientsTests
 
         public WaypipeGlobals Globals { get; } = new(carriesDmabuf: true);
 
-        public bool OwnsDmabuf(WlGlobal global) => dmabuf.Owns(global);
+        public SshSession? Session => null;
+
+        public int Attached => 0;
+
+        public bool Carries(string interfaceName) => Globals.Carries(interfaceName);
+
+        public bool ExclusiveDmabuf(WlGlobal global) => dmabuf.Owns(global);
+
+        public bool SeesDmabuf(WlGlobal global) => dmabuf.Owns(global);
     }
 
     [Fact]
@@ -46,6 +54,40 @@ public sealed class ChannelClientsTests
         Assert.DoesNotContain(firstSeen[0], localSeen);
         Assert.DoesNotContain(secondSeen[0], localSeen);
         Assert.Equal(2, map.Count);
+    }
+
+    [Fact]
+    public void A_direct_client_sees_every_global_and_the_host_dmabuf_which_stays_visible_to_local_clients()
+    {
+        CompositorHarness.SkipWithoutWaylandClient();
+        var map = new ChannelClients();
+        Owner? channel = null;
+        LinuxDmabufGlobal? hostDmabuf = null;
+        DirectOwner? direct = null;
+        using var harness = new CompositorHarness(
+            configure: host =>
+            {
+                host.Display.SetGlobalFilter(map.Filter);
+                channel = new Owner("channel", Dmabuf(host));
+                hostDmabuf = Dmabuf(host);
+                direct = new DirectOwner("box", null, global => hostDmabuf.Owns(global));
+            },
+            onClient: client => map.Add(client, channel!));
+        var boxed = harness.AddClient(client => map.Add(client, direct!));
+        var local = harness.AddClient();
+
+        var channelSeen = DmabufNames(harness.Client);
+        var boxedSeen = DmabufNames(boxed);
+        var localSeen = DmabufNames(local);
+
+        Assert.Single(boxedSeen);
+        Assert.Equal(boxedSeen, localSeen);
+        Assert.DoesNotContain(channelSeen[0], boxedSeen);
+        var hidden = new WaypipeGlobals(carriesDmabuf: true);
+        var refused = local.Globals.Select(entry => entry.Interface).Where(name => !hidden.Carries(name)).ToList();
+        Assert.NotEmpty(refused);
+        Assert.All(refused, name => Assert.Contains(boxed.Globals, entry => entry.Interface == name));
+        Assert.All(refused, name => Assert.DoesNotContain(harness.Client.Globals, entry => entry.Interface == name));
     }
 
     private static LinuxDmabufGlobal Dmabuf(BasinCompositorHost host) => new(

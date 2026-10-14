@@ -27,6 +27,10 @@ internal sealed record SessionSettings(
 {
     public bool IsDesktop => Desktop is not null;
 
+    public string? User { get; init; }
+
+    public DestinationKind Kind => DestinationKinds.For(Ssh);
+
     public const string NoDecoder = "the host registered no video decoder";
 
     public static Func<bool, (IVideoDecoder? Decoder, string WhyNot)> CreateDecoder { get; set; } = static _ => (null, NoDecoder);
@@ -37,6 +41,17 @@ internal sealed record SessionSettings(
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(overrides);
         ArgumentNullException.ThrowIfNull(config);
+        var kind = DestinationKinds.For(profile.Ssh);
+        if (kind.TryParse(profile.Ssh, out var target) && kind.NameProblem(target) is { } targetProblem)
+        {
+            return new(null, targetProblem);
+        }
+
+        if (profile.User is not null && !kind.TakesUser)
+        {
+            return new(null, $"user names the account inside an Incus instance; {kind.UserNote}");
+        }
+
         DesktopRecipe? recipe = null;
         var desktopName = overrides.Desktop ?? profile.Desktop;
         if (desktopName is not null)
@@ -51,6 +66,11 @@ internal sealed record SessionSettings(
             if (desktopCommand is null)
             {
                 return new(null, $"session {profile.Name} has desktop = \"custom\" and no command");
+            }
+
+            if (kind.DesktopProblem is { } kindProblem)
+            {
+                return new(null, kindProblem);
             }
 
             recipe = (found ?? new DesktopRecipe(
@@ -129,6 +149,6 @@ internal sealed record SessionSettings(
             recipe,
             profile.DesktopEnv ?? [],
             desktopSize,
-            adHoc), null);
+            adHoc) { User = profile.User }, null);
     }
 }

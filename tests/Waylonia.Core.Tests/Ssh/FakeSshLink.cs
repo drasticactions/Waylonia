@@ -25,6 +25,15 @@ internal sealed class FakeSshLink(string destination, ISshPrompter prompter) : I
 
     public FakeSshListener? Listener { get; private set; }
 
+    public ChannelShape Shape { get; set; } = ChannelShape.Waypipe;
+
+    public string? DisplayDirectory { get; set; }
+
+    [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
+    public UnixSessionDisplay? Display { get; private set; }
+
+    public DisplayRequest? DisplayRequest { get; private set; }
+
     public bool Disposed { get; private set; }
 
     public IReadOnlyList<string> Scripts => Commands.Select(static command => command.Script).ToList();
@@ -52,6 +61,20 @@ internal sealed class FakeSshLink(string destination, ISshPrompter prompter) : I
         Events.Add($"listen {remotePath}");
         Listener = new FakeSshListener(remotePath);
         return Task.FromResult<ISshListener>(Listener);
+    }
+
+    [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]
+    public Task<ISessionDisplay> OpenDisplayAsync(DisplayRequest request, CancellationToken cancellation)
+    {
+        Events.Add($"display {request.Name}");
+        DisplayRequest = request;
+        var directory = DisplayDirectory ?? throw new InvalidOperationException("the fake link has no display directory");
+        Display = UnixSessionDisplay.Bind(
+            Path.Combine(directory, request.Name),
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute,
+            request.Name,
+            request.XDisplay);
+        return Task.FromResult<ISessionDisplay>(Display);
     }
 
     public Task<ISshCommand> RunAsync(string script, CancellationToken cancellation)

@@ -8,9 +8,16 @@ internal interface ISshLink : IAsyncDisposable
 
     CancellationToken Lost { get; }
 
+    ChannelShape Shape => ChannelShape.Waypipe;
+
+    string? Notice => null;
+
     Task ConnectAsync(CancellationToken cancellation);
 
     Task<ISshListener> ListenAsync(string remotePath, CancellationToken cancellation);
+
+    Task<ISessionDisplay> OpenDisplayAsync(DisplayRequest request, CancellationToken cancellation) =>
+        throw new NotSupportedException($"{Destination} carries waypipe channels, not a display socket");
 
     Task<ISshCommand> RunAsync(string script, CancellationToken cancellation);
 }

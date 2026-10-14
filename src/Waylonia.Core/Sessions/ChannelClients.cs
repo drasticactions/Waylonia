@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using Basin.Transport.Waypipe;
 using Wayland.Server;
 
 namespace Waylonia.Sessions;
@@ -37,12 +36,12 @@ internal sealed class ChannelClients
         {
             if (owner is not null)
             {
-                return owner.OwnsDmabuf(global);
+                return owner.SeesDmabuf(global);
             }
 
             foreach (var channelOwner in _owners)
             {
-                if (channelOwner.OwnsDmabuf(global))
+                if (channelOwner.ExclusiveDmabuf(global))
                 {
                     return false;
                 }
@@ -51,6 +50,6 @@ internal sealed class ChannelClients
             return true;
         }
 
-        return owner is null || owner.Globals.Carries(interfaceName);
+        return owner is null || owner.Carries(interfaceName);
     }
 }

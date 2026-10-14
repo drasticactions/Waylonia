@@ -1,5 +1,6 @@
 using Waylonia.Audio;
 using Waylonia.Tests.Ssh;
+using Waylonia.Sessions;
 using Xunit;
 
 namespace Waylonia.Tests;
@@ -33,6 +34,7 @@ public sealed class RemoteAudioSourceTests
         await WaitUntilAsync(() => link.Commands.Count == 1, "the capture started");
         var capture = link.Command(0);
         Assert.Contains("parec --format=s16le --rate=48000 --channels=2", capture.Script, StringComparison.Ordinal);
+        Assert.StartsWith(SshSession.RemoteRuntimeDir, capture.Script, StringComparison.Ordinal);
 
         var pcm = new byte[4 * 6000];
         for (var i = 0; i < pcm.Length; i += 2)

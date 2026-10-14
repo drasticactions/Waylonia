@@ -25,6 +25,38 @@ public sealed class SessionSettingsTests : IDisposable
         return resolution.Settings!;
     }
 
+    [Theory]
+    [InlineData("distrobox:dev", "a distrobox container shares this machine's session bus and runtime directory, so a desktop session in it would fight the one you are in; use an Incus instance")]
+    [InlineData("toolbox:dev", "a toolbox container shares this machine's session bus and runtime directory, so a desktop session in it would fight the one you are in; use an Incus instance")]
+    public void A_desktop_in_a_distrobox_or_toolbox_container_is_refused(string destination, string error)
+    {
+        var resolution = SessionSettings.Resolve(
+            new SessionProfile("dev", destination, Desktop: "sway"),
+            new SessionOverrides(),
+            Config.Load(WayloniaPaths.Xdg().WithConfig(null), BasinLogger.None),
+            BasinLogger.None);
+
+        Assert.Equal(error, resolution.Error);
+    }
+
+    [Fact]
+    public void An_incus_session_runs_a_desktop_and_carries_its_user_and_a_bad_name_is_refused()
+    {
+        var config = Config.Load(WayloniaPaths.Xdg().WithConfig(null), BasinLogger.None);
+
+        var settings = Resolve(new SessionProfile("web", "incus:web", Desktop: "sway", User: "ubuntu"), new SessionOverrides(), config);
+        Assert.Equal(DestinationKinds.Incus, settings.Kind);
+        Assert.Equal("ubuntu", settings.User);
+        Assert.NotNull(settings.Desktop);
+
+        Assert.Equal(
+            "an Incus instance needs a name; there is no default one",
+            SessionSettings.Resolve(new SessionProfile("x", "incus:"), new SessionOverrides(), config, BasinLogger.None).Error);
+        Assert.Equal(
+            "user names the account inside an Incus instance; distrobox and toolbox run as you",
+            SessionSettings.Resolve(new SessionProfile("x", "distrobox:dev", User: "u"), new SessionOverrides(), config, BasinLogger.None).Error);
+    }
+
     [Fact]
     public void A_flag_beats_the_session_file_which_beats_the_config_which_beats_the_default()
     {

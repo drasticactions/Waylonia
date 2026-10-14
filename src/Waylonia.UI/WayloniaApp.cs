@@ -173,7 +173,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
 
     ISshLinkFactory ISessionHost.Links => _platform!.Links;
 
-    ISshLinkFactory? ISessionHost.WslLinks => _platform!.WslLinks;
+    ITargetLinkFactory? ISessionHost.LinksFor(DestinationKind kind) => _platform!.TargetLinks.GetValueOrDefault(kind);
 
     ISshPrompter ISessionHost.Prompter => this;
 
@@ -205,7 +205,52 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
 
     void ISessionHost.Status(string text) => UpdateStatus(text);
 
-    void ISessionHost.Attach(WaypipeAcceptor owner, WlClient client)
+    string? ISessionHost.XDisplay => _host is { } host ? XDisplayOf(host) : null;
+
+    protected virtual string? XDisplayOf(BasinCompositorHost host) => null;
+
+    IDisposable ISessionHost.AdoptDisplay(int listenFd, DirectOwner owner)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        var fd = DisplayAdoption.Duplicate(listenFd);
+        var adoption = new DisplayAdoptionHandle(this, fd, owner);
+        _view!.Post(adoption.Start);
+        return adoption;
+    }
+
+    private sealed class DisplayAdoptionHandle(WayloniaApp app, int fd, DirectOwner owner) : IDisposable
+    {
+        private DisplayAdoption? _adoption;
+        private bool _disposed;
+
+        public void Start()
+        {
+            if (_disposed || app._host is not { } host)
+            {
+                DisplayAdoption.Close(fd);
+                return;
+            }
+
+            _adoption = DisplayAdoption.Start(host.Loop, host.Display, fd, client =>
+            {
+                owner.Adopted(client);
+                ((ISessionHost)app).Attach(owner, client);
+            });
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            app._view?.Post(() => _adoption?.Dispose());
+        }
+    }
+
+    void ISessionHost.Attach(IChannelOwner owner, WlClient client)
     {
         _channelClients.Add(client, owner);
         _wireClock?.Add(client);
@@ -218,7 +263,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
         Protocol($"CHANNEL {owner.Name} {owner.Attached} attached");
     }
 
-    protected virtual void OnChannelAttached(WaypipeAcceptor owner, WlClient client)
+    protected virtual void OnChannelAttached(IChannelOwner owner, WlClient client)
     {
     }
 
@@ -884,7 +929,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
                 run.Config.Path is null ? null : OpenSettings,
                 run.Capabilities.KeyImport ? PickKeysAsync : null,
                 run.Paths.SshDirectory,
-                run.Capabilities.Wsl && _platform!.WslLinks is { } wsl ? wsl.DistrosAsync : null);
+                _platform!.TargetLinks);
         }
         else
         {
@@ -973,7 +1018,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
     }
 
     protected string? SessionNameOf(WlClient client) =>
-        _channelClients.OwnerOf(client) is WaypipeAcceptor { Session: not null } owner ? owner.Name : null;
+        _channelClients.OwnerOf(client) is { Session: not null } owner ? owner.Name : null;
 
     protected void Launch(string? session, string label, string command)
     {

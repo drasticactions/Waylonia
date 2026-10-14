@@ -10,6 +10,8 @@ internal sealed partial class SessionFormViewModel : FormViewModel
 
     public const string SshField = "ssh";
 
+    public const string UserField = "user";
+
     public const string CommandField = "command";
 
     public const string VideoField = "video";
@@ -22,29 +24,24 @@ internal sealed partial class SessionFormViewModel : FormViewModel
 
     public static IReadOnlyList<string> CompressChoices { get; } = ["default", "lz4", "zstd", "none"];
 
-    public static IReadOnlyList<string> KindChoices { get; } = ["ssh", "WSL"];
-
-    public const int WslKind = 1;
-
     public static IReadOnlyList<string> DesktopChoices { get; } =
         ["none", .. DesktopRecipes.All.Select(static recipe => recipe.Name), "custom"];
 
     [ObservableProperty]
     private string _name = string.Empty;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsWsl), nameof(IsSsh), nameof(ShowsKind))]
-    private int _kindIndex;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsKind))]
-    private bool _wslAvailable;
+    private readonly Dictionary<DestinationKind, IReadOnlyList<string>> _listed = [];
+    private IReadOnlyList<DestinationKind> _available = [];
+    private DestinationKind _kind = DestinationKinds.Ssh;
 
     [ObservableProperty]
     private string _ssh = string.Empty;
 
     [ObservableProperty]
-    private string _distro = string.Empty;
+    private string _target = string.Empty;
+
+    [ObservableProperty]
+    private string _user = string.Empty;
 
     [ObservableProperty]
     private string _command = string.Empty;
@@ -88,17 +85,111 @@ internal sealed partial class SessionFormViewModel : FormViewModel
     [ObservableProperty]
     private string _hotkeys = string.Empty;
 
-    public System.Collections.ObjectModel.ObservableCollection<string> Distros { get; } = [];
+    public System.Collections.ObjectModel.ObservableCollection<string> Targets { get; } = [];
 
-    public bool IsWsl => KindIndex == WslKind;
+    public System.Collections.ObjectModel.ObservableCollection<DestinationKind> Kinds { get; } = [DestinationKinds.Ssh];
 
-    public bool IsSsh => !IsWsl;
+    public IReadOnlyList<DestinationKind> AvailableKinds
+    {
+        get => _available;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _available = value;
+            RefreshKinds();
+        }
+    }
 
-    public bool ShowsKind => WslAvailable || IsWsl;
+    public DestinationKind? Kind
+    {
+        get => _kind;
+        set
+        {
+            if (value is null || value == _kind)
+            {
+                return;
+            }
+
+            _kind = value;
+            RefreshKinds();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsSsh));
+            OnPropertyChanged(nameof(IsTarget));
+            OnPropertyChanged(nameof(ShowsUser));
+            OnPropertyChanged(nameof(TargetCaption));
+            OnPropertyChanged(nameof(TargetPlaceholder));
+            RefreshTargets();
+        }
+    }
+
+    public bool IsSsh => _kind.IsSsh;
+
+    public bool IsTarget => !_kind.IsSsh;
+
+    public bool ShowsUser => _kind.TakesUser;
+
+    public bool ShowsKind => Kinds.Count > 1;
+
+    public string TargetCaption => _kind.Caption;
+
+    public string? TargetPlaceholder => _kind.Placeholder;
+
+    public void SetListed(DestinationKind kind, IReadOnlyList<string> names)
+    {
+        ArgumentNullException.ThrowIfNull(kind);
+        ArgumentNullException.ThrowIfNull(names);
+        _listed[kind] = names;
+        if (kind == _kind)
+        {
+            RefreshTargets();
+        }
+    }
+
+    private void RefreshKinds()
+    {
+        var wanted = new List<DestinationKind> { DestinationKinds.Ssh };
+        foreach (var kind in DestinationKinds.Targets)
+        {
+            if (_available.Contains(kind) || kind == _kind)
+            {
+                wanted.Add(kind);
+            }
+        }
+
+        if (wanted.SequenceEqual(Kinds))
+        {
+            return;
+        }
+
+        var kept = _kind;
+        Kinds.Clear();
+        foreach (var kind in wanted)
+        {
+            Kinds.Add(kind);
+        }
+
+        _kind = kept;
+        OnPropertyChanged(nameof(Kind));
+        OnPropertyChanged(nameof(ShowsKind));
+    }
+
+    private void RefreshTargets()
+    {
+        var target = Target;
+        Targets.Clear();
+        foreach (var name in _listed.GetValueOrDefault(_kind) ?? [])
+        {
+            Targets.Add(name);
+        }
+
+        Target = target;
+    }
 
     public string? NameProblem => ProblemFor(NameField);
 
     public string? SshProblem => ProblemFor(SshField);
+
+    public string? UserProblem => ProblemFor(UserField);
 
     public string? CommandProblem => ProblemFor(CommandField);
 
@@ -112,7 +203,7 @@ internal sealed partial class SessionFormViewModel : FormViewModel
 
     protected override IReadOnlyList<string> ProblemProperties { get; } =
     [
-        nameof(NameProblem), nameof(SshProblem), nameof(CommandProblem), nameof(VideoProblem),
+        nameof(NameProblem), nameof(SshProblem), nameof(UserProblem), nameof(CommandProblem), nameof(VideoProblem),
         nameof(LangProblem), nameof(DesktopSizeProblem), nameof(HotkeysProblem),
     ];
 
@@ -120,10 +211,12 @@ internal sealed partial class SessionFormViewModel : FormViewModel
     {
         ArgumentNullException.ThrowIfNull(profile);
         Name = profile.Name;
-        var wsl = WslDestination.TryParse(profile.Ssh, out var distro);
-        KindIndex = wsl ? WslKind : 0;
-        Ssh = wsl ? string.Empty : profile.Ssh;
-        Distro = distro;
+        var kind = DestinationKinds.For(profile.Ssh);
+        kind.TryParse(profile.Ssh, out var target);
+        Target = target;
+        Kind = kind;
+        Ssh = kind.IsSsh ? profile.Ssh : string.Empty;
+        User = profile.User ?? string.Empty;
         Command = profile.Command ?? string.Empty;
         Autostart = profile.Autostart is { } autostart ? string.Join('\n', autostart) : string.Empty;
         CompressIndex = Math.Max(0, IndexOf(CompressChoices, profile.Compress ?? "default"));
@@ -157,13 +250,13 @@ internal sealed partial class SessionFormViewModel : FormViewModel
         }
 
         string? ssh;
-        if (IsWsl)
+        if (IsTarget)
         {
-            var distro = Distro.Trim();
-            ssh = WslDestination.For(distro);
-            if (WslDestination.DistroProblem(distro) is not null)
+            var target = Target.Trim();
+            ssh = _kind.For(target);
+            if (_kind.NameProblem(target) is not null)
             {
-                Complain(SshField, "Use the distribution name wsl -l shows, or leave it empty for the default one.");
+                Complain(SshField, _kind.FormHint!);
             }
         }
         else
@@ -173,10 +266,16 @@ internal sealed partial class SessionFormViewModel : FormViewModel
             {
                 Complain(SshField, "Give the ssh destination, such as user@host.");
             }
-            else if (WslDestination.IsWsl(ssh))
+            else if (DestinationKinds.For(ssh) is { IsSsh: false } other)
             {
-                Complain(SshField, "Choose WSL as the kind to start a WSL distribution.");
+                Complain(SshField, $"Choose {other.Label} as the kind to reach {other.Noun}.");
             }
+        }
+
+        var user = ShowsUser ? Blank(User) : null;
+        if (user is not null && SessionStore.UserProblem(user) is not null)
+        {
+            Complain(UserField, "Use the account name inside the instance, or leave it empty for uid 1000.");
         }
 
         var video = Blank(Video);
@@ -234,7 +333,8 @@ internal sealed partial class SessionFormViewModel : FormViewModel
             desktop,
             size,
             env.Count > 0 ? env : null,
-            hotkeys is { Count: > 0 } ? hotkeys : null);
+            hotkeys is { Count: > 0 } ? hotkeys : null,
+            user);
     }
 
 }

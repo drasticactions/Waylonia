@@ -18,9 +18,21 @@ internal sealed class StubSessionHost : ISessionHost
 
     ISshLinkFactory ISessionHost.Links => Links;
 
-    public FakeSshLinkFactory? WslLinks { get; set; }
+    public Dictionary<DestinationKind, FakeSshLinkFactory> Targets { get; } = [];
 
-    ISshLinkFactory? ISessionHost.WslLinks => WslLinks;
+    public FakeSshLinkFactory? WslLinks
+    {
+        get => Targets.GetValueOrDefault(DestinationKinds.Wsl);
+        init
+        {
+            if (value is not null)
+            {
+                Targets[DestinationKinds.Wsl] = value;
+            }
+        }
+    }
+
+    ITargetLinkFactory? ISessionHost.LinksFor(DestinationKind kind) => Targets.GetValueOrDefault(kind);
 
     ISshPrompter ISessionHost.Prompter => Prompter;
 
@@ -36,7 +48,24 @@ internal sealed class StubSessionHost : ISessionHost
 
     public void Post(Action action) => Posted.Add(action);
 
-    public void Attach(WaypipeAcceptor owner, WlClient client) => Attached++;
+    public void Attach(IChannelOwner owner, WlClient client) => Attached++;
+
+    public List<(int Fd, DirectOwner Owner)> Adopted { get; } = [];
+
+    public int Released { get; private set; }
+
+    public string? XDisplay { get; set; }
+
+    public IDisposable AdoptDisplay(int listenFd, DirectOwner owner)
+    {
+        Adopted.Add((listenFd, owner));
+        return new Release(() => Released++);
+    }
+
+    private sealed class Release(Action action) : IDisposable
+    {
+        public void Dispose() => action();
+    }
 
     public void Status(string text) => StatusLines.Add(text);
 

@@ -13,8 +13,13 @@ internal sealed record HostPlatform(
     IHostScreenScales ScreenScales,
     IHostWindowing Windowing,
     IKeyPicker Keys,
-    IWslLinkFactory? WslLinks = null)
+    IReadOnlyDictionary<DestinationKind, ITargetLinkFactory>? Targets = null)
 {
+    public IReadOnlyDictionary<DestinationKind, ITargetLinkFactory> TargetLinks => Targets ?? NoTargets;
+
+    private static readonly IReadOnlyDictionary<DestinationKind, ITargetLinkFactory> NoTargets =
+        new Dictionary<DestinationKind, ITargetLinkFactory>();
+
     public static HostPlatform Minimal(WayloniaPaths paths, ISshLinkFactory links)
     {
         ArgumentNullException.ThrowIfNull(paths);

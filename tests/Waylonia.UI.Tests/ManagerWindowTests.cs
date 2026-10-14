@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using Basin.Diagnostics;
 using Waylonia.Sessions;
+using Waylonia.Tests.Ssh;
 using Waylonia.UI;
 using Xunit;
 
@@ -392,22 +393,28 @@ public sealed class ManagerWindowTests : IDisposable
             BasinLogger.None,
             _ => Task.FromResult<string?>(null),
             _ => Task.CompletedTask,
-            listDistros: _ => Task.FromResult<IReadOnlyList<string>>(["Ubuntu-26.04", "Debian"]));
+            targets: new Dictionary<DestinationKind, ITargetLinkFactory>
+            {
+                [DestinationKinds.Wsl] = new FakeSshLinkFactory { Listed = ["Ubuntu-26.04", "Debian"] },
+                [DestinationKinds.Incus] = new FakeSshLinkFactory { IsAvailable = false },
+            });
         var window = new ManagerWindow(model);
         window.Show();
         model.NewSession();
         var kind = window.View.FindControl<ComboBox>("KindBox")!;
-        var distro = window.View.FindControl<ComboBox>("DistroBox")!;
+        var distro = window.View.FindControl<ComboBox>("TargetBox")!;
         Assert.True(kind.IsEffectivelyVisible);
         Assert.False(distro.IsEffectivelyVisible);
 
-        kind.SelectedIndex = SessionFormViewModel.WslKind;
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal([DestinationKinds.Ssh, DestinationKinds.Wsl], model.Form.Kinds);
+        kind.SelectedIndex = 1;
         model.Form.Name = "ubuntu";
-        model.Form.Distro = "Ubuntu-26.04";
+        model.Form.Target = "Ubuntu-26.04";
         Dispatcher.UIThread.RunJobs();
 
         Assert.True(distro.IsEffectivelyVisible);
-        Assert.Equal(["Ubuntu-26.04", "Debian"], model.Form.Distros);
+        Assert.Equal(["Ubuntu-26.04", "Debian"], model.Form.Targets);
         Assert.Equal("wsl:Ubuntu-26.04", model.Form.Validate()!.Ssh);
         window.Close();
     }

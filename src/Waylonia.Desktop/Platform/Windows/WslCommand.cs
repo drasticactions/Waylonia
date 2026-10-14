@@ -47,7 +47,7 @@ internal sealed class WslCommand : ISshCommand
         {
             while (await _process.StandardError.ReadLineAsync().ConfigureAwait(false) is { } line)
             {
-                if (_pid == 0 && WslDestination.ParsePid(line) is { } pid)
+                if (_pid == 0 && PidMarker.Parse(line) is { } pid)
                 {
                     Volatile.Write(ref _pid, pid);
                     continue;

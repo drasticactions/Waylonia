@@ -2,12 +2,12 @@ using System.ComponentModel;
 
 namespace Waylonia.Sessions;
 
-internal sealed class WslLinkFactory : IWslLinkFactory
+internal sealed class WslLinkFactory : ITargetLinkFactory
 {
     public ISshLink Create(string destination, ISshPrompter prompter)
     {
         ArgumentNullException.ThrowIfNull(destination);
-        if (!WslDestination.TryParse(destination, out var distro))
+        if (!DestinationKinds.Wsl.TryParse(destination, out var distro))
         {
             throw new ArgumentException($"'{destination}' is not a WSL destination", nameof(destination));
         }
@@ -15,7 +15,7 @@ internal sealed class WslLinkFactory : IWslLinkFactory
         return new WslLink(destination, distro);
     }
 
-    public async Task<IReadOnlyList<string>> DistrosAsync(CancellationToken cancellation)
+    public async Task<IReadOnlyList<string>> ListAsync(CancellationToken cancellation)
     {
         try
         {

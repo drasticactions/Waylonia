@@ -81,6 +81,46 @@ public sealed class SessionStoreTests : IDisposable
         Assert.Contains(catalog.Broken, broken => broken.Name == "spaced" && broken.Error.Contains("WSL distribution name", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("distrobox", "dev")]
+    [InlineData("toolbox", "fedora-toolbox-42")]
+    [InlineData("incus", "web")]
+    public void A_container_session_writes_its_own_key_and_reads_back_as_a_prefixed_destination(string key, string name)
+    {
+        Assert.Equal($"{key} = \"{name}\"\n", SessionStore.Render(new SessionProfile("x", $"{key}:{name}")));
+        Store.Save(new SessionProfile("box", $"{key}:{name}", "foot"));
+
+        var catalog = Store.Load(BasinLogger.None);
+
+        Assert.Empty(catalog.Broken);
+        Assert.Equal($"{key}:{name}", catalog.Find("box")!.Ssh);
+    }
+
+    [Fact]
+    public void An_incus_session_keeps_its_user()
+    {
+        Assert.Equal("incus = \"web\"\nuser = \"ubuntu\"\n", SessionStore.Render(new SessionProfile("x", "incus:web", User: "ubuntu")));
+        Store.Save(new SessionProfile("web", "incus:web", User: "ubuntu"));
+
+        Assert.Equal("ubuntu", Store.Load(BasinLogger.None).Find("web")!.User);
+    }
+
+    [Theory]
+    [InlineData("ssh = \"h\"\ndistrobox = \"dev\"", "ssh logs in to a host and distrobox enters a local container; a session takes one of them")]
+    [InlineData("ssh = \"h\"\nwsl = \"Ubuntu\"", "ssh logs in to a host and wsl starts a WSL distribution; a session takes one of them")]
+    [InlineData("toolbox = \"a\"\nincus = \"b\"", "toolbox enters a local container and incus enters a local Incus instance; a session takes one of them")]
+    [InlineData("distrobox = \"dev\"\nuser = \"ubuntu\"", "user names the account inside an Incus instance; distrobox and toolbox run as you")]
+    [InlineData("ssh = \"h\"\nuser = \"ubuntu\"", "user names the account inside an Incus instance; an ssh destination names it as user@host")]
+    [InlineData("distrobox = \"\"", "a distrobox container needs a name; there is no default one")]
+    [InlineData("incus = \"\"", "an Incus instance needs a name; there is no default one")]
+    [InlineData("incus = \"web_1\"", "'web_1' is not an Incus instance name; one starts with a letter, holds letters, digits and '-', and has at most 63 characters")]
+    [InlineData("incus = \"web\"\nuser = \"-x\"", "user '-x' is not an account name; one is letters, digits, '.', '_' and '-'")]
+    public void A_session_with_two_kinds_a_stray_user_or_a_bad_name_is_broken(string text, string error)
+    {
+        Assert.Null(SessionStore.Parse("x", text, BasinLogger.None, out var problem));
+        Assert.Equal(error, problem);
+    }
+
     [Fact]
     public void An_empty_lang_means_leave_the_remote_alone_and_a_missing_one_means_the_config_default()
     {

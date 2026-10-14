@@ -30,7 +30,7 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
         bool gpu,
         string? video,
         IVideoDecoder? decoder,
-        SessionSettings? session)
+        SshSession? session)
     {
         Name = name;
         _host = host;
@@ -44,9 +44,13 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
 
     public string Name { get; }
 
-    public SessionSettings? Session { get; }
+    public SshSession? Session { get; }
 
     public WaypipeGlobals Globals { get; }
+
+    public bool Carries(string interfaceName) => Globals.Carries(interfaceName);
+
+    public bool SeesDmabuf(WlGlobal global) => ExclusiveDmabuf(global);
 
     public int Attached => Volatile.Read(ref _attached);
 
@@ -65,7 +69,7 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
 
     public event Action<Exception>? Failed;
 
-    public bool OwnsDmabuf(WlGlobal global) => _dmabuf is { } dmabuf && dmabuf.Owns(global);
+    public bool ExclusiveDmabuf(WlGlobal global) => _dmabuf is { } dmabuf && dmabuf.Owns(global);
 
     [UnsupportedOSPlatform("browser")]
     public static EndPoint? ParseEndpoint(string text, out string? error)

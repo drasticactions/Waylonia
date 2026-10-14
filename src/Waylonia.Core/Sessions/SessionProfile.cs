@@ -16,4 +16,5 @@ internal sealed record SessionProfile(
     string? Desktop = null,
     string? DesktopSize = null,
     IReadOnlyList<string>? DesktopEnv = null,
-    IReadOnlyList<Hotkey>? Hotkeys = null);
+    IReadOnlyList<Hotkey>? Hotkeys = null,
+    string? User = null);

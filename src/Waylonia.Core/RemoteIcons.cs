@@ -14,14 +14,17 @@ internal sealed record RemoteIcons(IReadOnlyList<RemoteIcon> Icons, IReadOnlySet
         name.Length > 0 && name.Length < 256
         && name.All(static c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-' or '/' or '+' or '@');
 
-    public static string Script(IEnumerable<string> names)
+    public static string Script(IEnumerable<string> names, bool skipHome = false)
     {
         ArgumentNullException.ThrowIfNull(names);
         var list = string.Join(' ', names.Where(IsSafeName).Distinct(StringComparer.Ordinal).Select(static name => $"'{name}'"));
         var sizes = string.Join(' ', Sizes);
         return
-            "roots=\"$HOME/.icons\"; IFS=:; for d in ${XDG_DATA_HOME:-$HOME/.local/share} ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do " +
-            "case $d in /*) roots=\"$roots $d/icons\";; esac; done; IFS=' '; " +
+            (skipHome
+                ? "roots=; IFS=:; for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do " +
+                  "case $d in \"$HOME\"/*) continue;; /*) roots=\"$roots $d/icons\";; esac; done; IFS=' '; "
+                : "roots=\"$HOME/.icons\"; IFS=:; for d in ${XDG_DATA_HOME:-$HOME/.local/share} ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do " +
+                  "case $d in /*) roots=\"$roots $d/icons\";; esac; done; IFS=' '; ") +
             "emit() { case $2 in *.png) e=png;; *.svg) e=svg;; *) return 1;; esac; " +
             "printf '\\001%s\\001%s\\n' \"$1\" \"$e\"; base64 \"$2\"; printf '\\002\\n'; return 0; }; " +
             "find_icon() { n=$1; case $n in /*) [ -f \"$n\" ] && emit \"$n\" \"$n\" && return; printf '\\001%s\\001-\\n' \"$n\"; return;; esac; " +

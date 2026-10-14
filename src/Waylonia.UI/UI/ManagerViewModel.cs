@@ -51,7 +51,7 @@ internal sealed partial class ManagerViewModel : ObservableObject
         Action? openSettings = null,
         Func<Task<IReadOnlyList<PickedKey>>>? pickKeys = null,
         string? sshDirectory = null,
-        Func<CancellationToken, Task<IReadOnlyList<string>>>? listDistros = null)
+        IReadOnlyDictionary<DestinationKind, ITargetLinkFactory>? targets = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(registry);
@@ -65,23 +65,32 @@ internal sealed partial class ManagerViewModel : ObservableObject
         _openSettings = openSettings;
         _pickKeys = pickKeys;
         _sshDirectory = sshDirectory is { Length: > 0 } ? sshDirectory : null;
-        Form.WslAvailable = listDistros is not null;
+        var available = (targets ?? new Dictionary<DestinationKind, ITargetLinkFactory>())
+            .Where(static pair => pair.Value.IsAvailable)
+            .ToList();
+        Form.AvailableKinds = [.. available.Select(static pair => pair.Key)];
         _registry.Changed += OnRegistryChanged;
         Reload();
-        if (listDistros is not null)
+        foreach (var (kind, links) in available)
         {
-            _ = LoadDistrosAsync(listDistros);
+            _ = ListTargetsAsync(kind, links);
         }
     }
 
-    private async Task LoadDistrosAsync(Func<CancellationToken, Task<IReadOnlyList<string>>> listDistros)
+    private async Task ListTargetsAsync(DestinationKind kind, ITargetLinkFactory links)
     {
-        var distros = await listDistros(CancellationToken.None);
-        Form.Distros.Clear();
-        foreach (var distro in distros)
+        IReadOnlyList<string> names;
+        try
         {
-            Form.Distros.Add(distro);
+            names = await links.ListAsync(CancellationToken.None);
         }
+        catch (Exception error) when (error is IOException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            _log.Debug($"listing the {kind.Label} targets failed: {error.Message}");
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() => Form.SetListed(kind, names));
     }
 
     public SessionFormViewModel Form { get; } = new();

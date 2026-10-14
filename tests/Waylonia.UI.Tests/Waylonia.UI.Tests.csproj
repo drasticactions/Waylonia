@@ -31,6 +31,7 @@
 
   <ItemGroup>
     <Compile Remove="Platform/Windows/**" Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+    <Compile Remove="Platform/Linux/**" Condition="!$([MSBuild]::IsOSPlatform('Linux'))" />
     <Compile Include="../Waylonia.Core.Tests/Shared/CompositorHarness.cs" Link="Shared/CompositorHarness.cs" />
     <Compile Include="../Waylonia.Core.Tests/Shared/CompositorGate.cs" Link="Shared/CompositorGate.cs" />
     <Compile Include="../Waylonia.Core.Tests/Shared/ShmTestClient.cs" Link="Shared/ShmTestClient.cs" />

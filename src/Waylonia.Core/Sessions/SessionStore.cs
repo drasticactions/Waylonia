@@ -104,34 +104,62 @@ internal sealed class SessionStore(string? directory)
 
     public static SessionProfile? FromTable(string name, TomlTable table, BasinLogger log, out string? error)
     {
-        var wsl = table.TryGetValue("wsl", out var wslValue) && wslValue is string distroText ? distroText.Trim() : null;
-        var ssh = Config.Text(table, "ssh");
-        if (wsl is not null && ssh is not null)
+        var named = new List<(DestinationKind Kind, string Name)>();
+        foreach (var kind in DestinationKinds.All)
         {
-            error = "ssh logs in to a host and wsl starts a WSL distribution; a session takes one of them";
+            var text = kind.IsSsh
+                ? Config.Text(table, kind.Key)
+                : table.TryGetValue(kind.Key, out var value) && value is string raw ? raw.Trim() : null;
+            if (text is not null)
+            {
+                named.Add((kind, text));
+            }
+        }
+
+        if (named.Count > 1)
+        {
+            error = DestinationKinds.BothProblem(named[0].Kind, named[1].Kind);
             return null;
         }
 
-        if (wsl is not null)
+        if (named.Count == 0)
         {
-            if (WslDestination.DistroProblem(wsl) is { } distroProblem)
+            error = "it has no ssh destination, wsl distribution, distrobox or toolbox container or incus instance";
+            return null;
+        }
+
+        var (destinationKind, targetName) = named[0];
+        var ssh = targetName;
+        if (!destinationKind.IsSsh)
+        {
+            if (destinationKind.NameProblem(targetName) is { } nameProblem)
             {
-                error = distroProblem;
+                error = nameProblem;
                 return null;
             }
 
-            ssh = WslDestination.For(wsl);
+            ssh = destinationKind.For(targetName);
         }
 
-        if (ssh is null)
+        var user = Config.Text(table, "user");
+        if (user is not null)
         {
-            error = "it has no ssh destination or wsl distribution";
-            return null;
+            if (!destinationKind.TakesUser)
+            {
+                error = $"user names the account inside an Incus instance; {destinationKind.UserNote}";
+                return null;
+            }
+
+            if (UserProblem(user) is { } userProblem)
+            {
+                error = userProblem;
+                return null;
+            }
         }
 
         foreach (var (key, _) in table)
         {
-            if (key is not ("ssh" or "wsl" or "command" or "autostart" or "compress" or "gpu" or "video" or "audio"
+            if (key is not ("ssh" or "wsl" or "distrobox" or "toolbox" or "incus" or "user" or "command" or "autostart" or "compress" or "gpu" or "video" or "audio"
                 or "terminal" or "current-desktop" or "lang" or "autoconnect" or "desktop" or "desktop-size"
                 or "desktop-env" or "hotkeys"))
             {
@@ -193,21 +221,25 @@ internal sealed class SessionStore(string? directory)
             desktop,
             Config.Text(table, "desktop-size"),
             table.ContainsKey("desktop-env") ? Config.Assignments(table, "desktop-env") : null,
-            hotkeys);
+            hotkeys,
+            user);
+    }
+
+    public static string? UserProblem(string user)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        return user.Length == 0 || user[0] == '-' || !user.All(static c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-')
+            ? $"user '{user}' is not an account name; one is letters, digits, '.', '_' and '-'"
+            : null;
     }
 
     public static string Render(SessionProfile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
         var text = new StringBuilder();
-        if (WslDestination.TryParse(profile.Ssh, out var distro))
-        {
-            Line(text, "wsl", distro);
-        }
-        else
-        {
-            Line(text, "ssh", profile.Ssh);
-        }
+        var kind = DestinationKinds.For(profile.Ssh);
+        Line(text, kind.Key, kind.TryParse(profile.Ssh, out var target) ? target : profile.Ssh);
+        Line(text, "user", profile.User);
 
         Line(text, "command", profile.Command);
         Line(text, "autostart", profile.Autostart);

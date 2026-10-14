@@ -1,4 +1,3 @@
-using Basin.Transport.Waypipe;
 using Wayland.Server;
 
 namespace Waylonia.Sessions;
@@ -7,7 +6,13 @@ internal interface IChannelOwner
 {
     string Name { get; }
 
-    WaypipeGlobals Globals { get; }
+    SshSession? Session { get; }
 
-    bool OwnsDmabuf(WlGlobal global);
+    int Attached { get; }
+
+    bool Carries(string interfaceName);
+
+    bool ExclusiveDmabuf(WlGlobal global);
+
+    bool SeesDmabuf(WlGlobal global);
 }

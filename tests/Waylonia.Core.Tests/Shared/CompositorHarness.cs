@@ -17,6 +17,9 @@ internal class CompositorHarness : IDisposable
     [DllImport("libc", SetLastError = true)]
     private static extern unsafe int socketpair(int domain, int type, int protocol, int* fds);
 
+    [DllImport("libc", SetLastError = true)]
+    private static extern int dup(int fd);
+
     [DllImport("libc")]
     private static extern unsafe int poll(PollFd* fds, nuint count, int timeoutMs);
 
@@ -137,6 +140,24 @@ internal class CompositorHarness : IDisposable
     public ShmTestClient AddClient(Action<Wayland.Server.WlClient>? onClient = null) =>
         Connect(onClient, _extraClients.Add);
 
+    public ShmTestClient ConnectTo(string socketPath, Func<bool> accepted)
+    {
+        int fd;
+        using (var socket = new System.Net.Sockets.Socket(
+            System.Net.Sockets.AddressFamily.Unix, System.Net.Sockets.SocketType.Stream, System.Net.Sockets.ProtocolType.Unspecified))
+        {
+            socket.Connect(new System.Net.Sockets.UnixDomainSocketEndPoint(socketPath));
+            fd = dup((int)socket.SafeHandle.DangerousGetHandle());
+            Assert.True(fd >= 0, "the connected socket could not be duplicated");
+        }
+
+        var client = new ShmTestClient(fd);
+        _extraClients.Add(client);
+        PumpUntil(accepted, "the compositor never accepted the connection");
+        client.BindGlobals(Pump);
+        return client;
+    }
+
     private IEnumerable<ShmTestClient> Clients()
     {
         if (_client is { } client)
@@ -201,11 +222,13 @@ internal class CompositorHarness : IDisposable
         int height = 90,
         string title = "waylonia",
         string appId = "waylonia.test",
-        bool serverDecorated = false)
+        bool serverDecorated = false,
+        ShmTestClient? client = null)
     {
+        var on = client ?? Client;
         var existing = WindowCount;
-        var surface = Client.Compositor.CreateSurface();
-        var xdgSurface = Client.WmBase!.GetXdgSurface(surface);
+        var surface = on.Compositor.CreateSurface();
+        var xdgSurface = on.WmBase!.GetXdgSurface(surface);
         var toplevel = xdgSurface.GetToplevel();
         toplevel.SetTitle(title);
         toplevel.SetAppId(appId);
@@ -225,7 +248,7 @@ internal class CompositorHarness : IDisposable
 
         surface.Commit();
         PumpUntil(() => mapped.Configured, "the compositor never configured the toplevel");
-        if (serverDecorated && Client.DecorationManager is { } decorations)
+        if (serverDecorated && on.DecorationManager is { } decorations)
         {
             var decoration = decorations.GetToplevelDecoration(toplevel);
             mapped.Decoration = decoration;
@@ -235,7 +258,7 @@ internal class CompositorHarness : IDisposable
             PumpUntil(() => configuredMode, "the compositor never answered the decoration mode");
         }
 
-        var buffer = Client.CreateBuffer(width, height, Fill(width, height, 0xFF3366AA));
+        var buffer = on.CreateBuffer(width, height, Fill(width, height, 0xFF3366AA));
         mapped.Buffer = buffer;
         surface.Attach(buffer.Proxy, 0, 0);
         surface.Damage(0, 0, width, height);

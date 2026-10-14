@@ -358,6 +358,21 @@ internal sealed class Config
             # a Hyper-V socket, so the distribution needs waypipe, and WSL needs
             # to be 2.6.1 or later.
             #
+            #   distrobox = "dev"
+            #   toolbox = "fedora-toolbox-42"
+            #   incus = "web"
+            #   user = "ubuntu"
+            #
+            # On Linux, distrobox, toolbox or incus in place of ssh reaches a
+            # container or instance on this machine that already exists, and
+            # starts it when it is stopped. distrobox and toolbox clients connect
+            # straight to a Wayland socket in your runtime directory and need
+            # nothing installed; they share your home and sound, so audio is
+            # ignored and desktop is refused. An Incus container gets its socket
+            # through a disk device and X11 through a proxy device; an Incus VM
+            # runs waypipe 0.11 or later over vsock. user, Incus only, names the
+            # account scripts run as; without it uid 1000 is used, else root.
+            #
             #   command = "tmux new -A -s main"
             #   autostart = ["foot", "firefox"]
             #   compress = "none"

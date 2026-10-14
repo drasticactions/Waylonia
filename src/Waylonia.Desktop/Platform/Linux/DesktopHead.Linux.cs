@@ -31,8 +31,17 @@ internal static partial class DesktopHead
                 new LinuxHostCursor(),
                 NullHostScreenScales.Instance,
                 new LinuxHostWindowing(),
-                NullKeyPicker.Instance),
+                NullKeyPicker.Instance,
+                OperatingSystem.IsLinux() ? LinuxTargets() : null),
             new LinuxGlobalHotkeys(),
             new LinuxHostCapture(),
             new LinuxXWayland());
+
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    private static Dictionary<DestinationKind, ITargetLinkFactory> LinuxTargets() => new()
+    {
+        [DestinationKinds.Distrobox] = new PodmanBoxLinkFactory(PodmanBox.Distrobox),
+        [DestinationKinds.Toolbox] = new PodmanBoxLinkFactory(PodmanBox.Toolbox),
+        [DestinationKinds.Incus] = new IncusLinkFactory(),
+    };
 }

@@ -73,8 +73,8 @@
             <StackPanel Classes="field" IsVisible="{Binding ShowsKind}">
               <DockPanel>
                 <TextBlock Classes="caption" Text="kind" />
-                <ComboBox x:Name="KindBox" ItemsSource="{x:Static ui:SessionFormViewModel.KindChoices}"
-                          SelectedIndex="{Binding KindIndex}" />
+                <ComboBox x:Name="KindBox" ItemsSource="{Binding Kinds}"
+                          SelectedItem="{Binding Kind}" />
               </DockPanel>
             </StackPanel>
             <StackPanel Classes="field">
@@ -82,13 +82,21 @@
                 <TextBlock Classes="caption" Text="ssh" />
                 <TextBox Text="{Binding Ssh}" PlaceholderText="user@host" />
               </DockPanel>
-              <DockPanel IsVisible="{Binding IsWsl}">
-                <TextBlock Classes="caption" Text="distribution" />
-                <ComboBox x:Name="DistroBox" IsEditable="True" ItemsSource="{Binding Distros}"
-                          Text="{Binding Distro}" PlaceholderText="the default distribution" />
+              <DockPanel IsVisible="{Binding IsTarget}">
+                <TextBlock Classes="caption" Text="{Binding TargetCaption}" />
+                <ComboBox x:Name="TargetBox" IsEditable="True" ItemsSource="{Binding Targets}"
+                          Text="{Binding Target}" PlaceholderText="{Binding TargetPlaceholder}" />
               </DockPanel>
               <TextBlock Classes="problem" Text="{Binding SshProblem}"
                          IsVisible="{Binding SshProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <StackPanel Classes="field" IsVisible="{Binding ShowsUser}">
+              <DockPanel>
+                <TextBlock Classes="caption" Text="user" />
+                <TextBox x:Name="UserBox" Text="{Binding User}" PlaceholderText="uid 1000, else root" />
+              </DockPanel>
+              <TextBlock Classes="problem" Text="{Binding UserProblem}"
+                         IsVisible="{Binding UserProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
             </StackPanel>
             <StackPanel Classes="field">
               <DockPanel>

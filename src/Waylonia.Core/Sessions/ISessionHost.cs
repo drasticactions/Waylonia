@@ -14,7 +14,7 @@ internal interface ISessionHost
 
     ISshLinkFactory Links { get; }
 
-    ISshLinkFactory? WslLinks { get; }
+    ITargetLinkFactory? LinksFor(DestinationKind kind);
 
     ISshPrompter Prompter { get; }
 
@@ -28,9 +28,13 @@ internal interface ISessionHost
 
     bool ShuttingDown { get; }
 
+    string? XDisplay => null;
+
     void Post(Action action);
 
-    void Attach(WaypipeAcceptor owner, WlClient client);
+    void Attach(IChannelOwner owner, WlClient client);
+
+    IDisposable AdoptDisplay(int listenFd, DirectOwner owner);
 
     void Status(string text);
 }

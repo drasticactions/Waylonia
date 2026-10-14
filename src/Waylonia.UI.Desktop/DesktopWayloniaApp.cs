@@ -335,9 +335,12 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         }
     }
 
-    protected override void OnChannelAttached(WaypipeAcceptor owner, WlClient client)
+    protected override string? XDisplayOf(BasinCompositorHost host) =>
+        AgentMode ? null : Desktop.XWayland.DisplayName(host);
+
+    protected override void OnChannelAttached(IChannelOwner owner, WlClient client)
     {
-        if (owner.Session is { IsDesktop: true } && _desktop is { HasClaimed: false } desktop)
+        if (owner.Session is { Settings.IsDesktop: true } && _desktop is { HasClaimed: false } desktop)
         {
             desktop.Declare(client);
         }
@@ -855,7 +858,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
 
     private void OnWindowOpened(ToplevelWindow window, WlClient? client)
     {
-        if (client is null || ChannelClients.OwnerOf(client) is not WaypipeAcceptor { Session: not null } owner)
+        if (client is null || ChannelClients.OwnerOf(client) is not { Session: not null } owner)
         {
             return;
         }

@@ -9,7 +9,7 @@ internal sealed class SshSession : IDisposable
 {
     private const string LoggedIn = "waylonia: logged in";
 
-    private const string RemoteRuntimeDir =
+    internal const string RemoteRuntimeDir =
         "if [ -z \"$XDG_RUNTIME_DIR\" ] || [ ! -d \"$XDG_RUNTIME_DIR\" ]; then " +
         "r=/run/user/$(id -u); " +
         "if [ ! -d \"$r\" ]; then r=/tmp/waylonia-run-$(id -u); mkdir -p \"$r\" && chmod 700 \"$r\"; fi; " +
@@ -25,6 +25,7 @@ internal sealed class SshSession : IDisposable
     private readonly string _xDisplayFile;
     private readonly string? _configDir;
     private readonly string _sinkName;
+    private readonly string _groupsDir;
     private readonly string _tag;
     private readonly List<ISshCommand> _launched = [];
     private readonly object _gate = new();
@@ -35,6 +36,10 @@ internal sealed class SshSession : IDisposable
     private TaskCompletionSource? _scriptStarted;
     private Task _masterDrained = Task.CompletedTask;
     private WaypipeAcceptor? _acceptor;
+    private DirectOwner? _direct;
+    private IChannelOwner? _owner;
+    private ISessionDisplay? _display;
+    private IDisposable? _adoption;
     private WayloniaAudio? _audio;
     private Task<bool>? _connecting;
     private bool _disconnecting;
@@ -53,6 +58,7 @@ internal sealed class SshSession : IDisposable
         _xDisplayFile = $"/tmp/waylonia-x-{_tag}";
         _configDir = host.Settings.GtkDpi ? $"/tmp/waylonia-config-{_tag}" : null;
         _sinkName = $"waylonia-{_tag}";
+        _groupsDir = $"/tmp/waylonia-groups-{_tag}";
     }
 
     public SessionSettings Settings { get; private set; }
@@ -69,7 +75,13 @@ internal sealed class SshSession : IDisposable
 
     public bool IsLive => Status != SessionStatus.Disconnected;
 
-    public bool HadClients => _acceptor is { Attached: > 0 };
+    public bool HadClients => _owner is { Attached: > 0 };
+
+    public IChannelOwner? ChannelOwner => _owner;
+
+    public ISessionDisplay? Display => _display;
+
+    private bool AudioWanted => Settings.Audio && !Settings.Kind.SharesHome;
 
     public bool CommandFinished { get; private set; }
 
@@ -138,10 +150,11 @@ internal sealed class SshSession : IDisposable
         CommandFinished = false;
         LastError = null;
         _output.Clear();
-        var wsl = WslDestination.IsWsl(Ssh);
-        if ((wsl ? _host.WslLinks : _host.Links) is not { } links)
+        var kind = Settings.Kind;
+        var targets = kind.IsSsh ? null : _host.LinksFor(kind);
+        if (!kind.IsSsh && targets is null)
         {
-            LastError = $"{Ssh} names a WSL distribution, and only waylonia on Windows reaches one";
+            LastError = kind.Unreachable(Ssh);
             Log.Error($"{LastError}");
             SetStatus(SessionStatus.Disconnected, LastError);
             if (!_host.ShuttingDown)
@@ -152,8 +165,8 @@ internal sealed class SshSession : IDisposable
             return false;
         }
 
-        SetStatus(SessionStatus.Connecting, wsl ? $"starting {Ssh}" : $"logging in to {Ssh}");
-        var link = links.Create(Ssh, _host.Prompter);
+        SetStatus(SessionStatus.Connecting, kind.IsSsh ? $"logging in to {Ssh}" : $"starting {Ssh}");
+        var link = targets is null ? _host.Links.Create(Ssh, _host.Prompter) : targets.Create(Ssh, Settings.User, _host.Prompter);
         _link = link;
         try
         {
@@ -169,28 +182,44 @@ internal sealed class SshSession : IDisposable
             return await FailAsync(link, "the login was interrupted", report: false);
         }
 
-        var acceptor = EnsureAcceptor();
-        ISshListener listener;
-        try
+        if (Settings.Audio && Settings.Kind.SharesHome)
         {
-            listener = await link.ListenAsync(_remoteSocket, CancellationToken.None);
-        }
-        catch (SshLinkException error)
-        {
-            return await FailAsync(link, error.Message, report: true);
+            Log.Warn($"{Name}: audio = true is ignored, because {Settings.Kind.Noun} already plays through this machine's sound server");
         }
 
-        _listener = listener;
-        _ = AcceptLoopAsync(link, listener, acceptor);
+        ISshListener? listener = null;
+        if (link.Shape == ChannelShape.Direct)
+        {
+            if (await OpenDirectAsync(link) is { } problem)
+            {
+                return await FailAsync(link, problem, report: true);
+            }
+        }
+        else
+        {
+            var acceptor = EnsureAcceptor();
+            try
+            {
+                listener = await link.ListenAsync(_remoteSocket, CancellationToken.None);
+            }
+            catch (SshLinkException error)
+            {
+                return await FailAsync(link, error.Message, report: true);
+            }
+
+            _listener = listener;
+            _owner = acceptor;
+            _ = AcceptLoopAsync(link, listener, acceptor);
+        }
 
         ISshCommand master;
         try
         {
-            master = await link.RunAsync(RemoteScript(), CancellationToken.None);
+            master = await link.RunAsync(_display is null ? RemoteScript() : DirectScript(), CancellationToken.None);
         }
         catch (SshLinkException error)
         {
-            listener.Dispose();
+            listener?.Dispose();
             return await FailAsync(link, error.Message, report: true);
         }
 
@@ -211,22 +240,22 @@ internal sealed class SshSession : IDisposable
                 : started.Task.IsCompleted
                     ? "the login was interrupted"
                     : $"the session script on {Ssh} did not start within {ScriptStartLimit.TotalSeconds:0} seconds" + Detail();
-            listener.Dispose();
+            listener?.Dispose();
             master.Dispose();
             return await FailAsync(link, message, report: !_disconnecting && !_host.ShuttingDown);
         }
 
-        if (Settings.Audio && _audio is null)
+        if (AudioWanted && _audio is null)
         {
             _audio = WayloniaAudio.TryStart(_host.Audio, Ssh, link, _sinkName, Settings.AudioFormat);
         }
 
-        SetStatus(SessionStatus.Connected, $"connected to {Ssh}");
+        SetStatus(SessionStatus.Connected, link.Notice is { } notice ? $"connected to {Ssh}; {notice}" : $"connected to {Ssh}");
         _ = WatchLinkAsync(link, master);
         if (Settings.Desktop is { } recipe)
         {
             var environment = DesktopSession.Environment(recipe, Settings.DesktopEnv, Settings.Gpu);
-            var wrapper = DesktopSession.Wrapper(recipe, _displayName, recipe.Command, environment);
+            var wrapper = DesktopSession.Wrapper(recipe, _display?.ClientDisplay ?? _displayName, recipe.Command, environment);
             _commandClient = await StartRemoteClientAsync(wrapper, exportDisplay: false);
             SetStatus(SessionStatus.Connected, $"starting {recipe.Name} on {Ssh}");
             _ = WatchArrivalAsync(link, master, recipe.Name);
@@ -270,6 +299,7 @@ internal sealed class SshSession : IDisposable
             _master = null;
             _listener = null;
             _scriptStarted = null;
+            ReleaseDisplay();
         }
 
         await link.DisposeAsync();
@@ -294,7 +324,7 @@ internal sealed class SshSession : IDisposable
         }
 
         var acceptor = new WaypipeAcceptor(
-            Name, _host, Settings.Compression, Settings.Gpu, Settings.Video, Settings.VideoDecoder, Settings);
+            Name, _host, Settings.Compression, Settings.Gpu, Settings.Video, Settings.VideoDecoder, this);
         acceptor.Changed += () => Changed?.Invoke(this);
         acceptor.Failed += error =>
         {
@@ -303,6 +333,46 @@ internal sealed class SshSession : IDisposable
         };
         _acceptor = acceptor;
         return acceptor;
+    }
+
+    private async Task<string?> OpenDirectAsync(ISshLink link)
+    {
+        var direct = _direct ??= new DirectOwner(Name, this, global => _host.Compositor.Dmabuf?.Owns(global) ?? false);
+        ISessionDisplay display;
+        try
+        {
+            display = await link.OpenDisplayAsync(new DisplayRequest(_displayName, _host.XDisplay, Settings.Gpu), CancellationToken.None);
+        }
+        catch (SshLinkException error)
+        {
+            return error.Message;
+        }
+
+        _display = display;
+        try
+        {
+            _adoption = _host.AdoptDisplay(display.ListenFd, direct);
+        }
+        catch (IOException error)
+        {
+            return $"the display socket for {Ssh} could not be adopted: {error.Message}";
+        }
+
+        _owner = direct;
+        return null;
+    }
+
+    private void ReleaseDisplay()
+    {
+        _adoption?.Dispose();
+        _adoption = null;
+        if (_direct is { } direct && _display is not null)
+        {
+            _host.Post(direct.CloseClients);
+        }
+
+        _display?.Dispose();
+        _display = null;
     }
 
     private async Task AcceptLoopAsync(ISshLink link, ISshListener listener, WaypipeAcceptor acceptor)
@@ -375,6 +445,13 @@ internal sealed class SshSession : IDisposable
     private async Task<bool> WaitForScriptAsync(ISshCommand master, TaskCompletionSource started)
     {
         await Task.WhenAny(started.Task, master.Exited, Task.Delay(ScriptStartLimit));
+        if (Settings.Kind.SlowFirstStart && !started.Task.IsCompleted && !master.Exited.IsCompleted
+            && !_host.ShuttingDown && !_disconnecting)
+        {
+            SetStatus(SessionStatus.Connecting, $"setting up {DestinationKinds.Name(Ssh)} ({Settings.Kind.Key}'s first start)");
+            await Task.WhenAny(started.Task, master.Exited);
+        }
+
         return started.Task.IsCompleted && !master.Exited.IsCompleted && !_host.ShuttingDown && !_disconnecting;
     }
 
@@ -387,7 +464,7 @@ internal sealed class SshSession : IDisposable
 
     private async Task WatchArrivalAsync(ISshLink link, ISshCommand master, string what)
     {
-        var acceptor = _acceptor!;
+        var acceptor = _owner!;
         var attachedTask = Task.Run(async () =>
         {
             while (acceptor.Attached == 0 && !_host.ShuttingDown && !_disconnecting)
@@ -406,7 +483,9 @@ internal sealed class SshSession : IDisposable
             return;
         }
 
-        LastError = $"no channel arrived from {Ssh} within 30 seconds of starting '{what}'";
+        LastError = _display is null
+            ? $"no channel arrived from {Ssh} within 30 seconds of starting '{what}'"
+            : $"no client connected from {Ssh} within 30 seconds of starting '{what}'";
         Log.Error($"{LastError}");
         Report(_output);
         SetStatus(SessionStatus.Connected, LastError);
@@ -603,7 +682,7 @@ internal sealed class SshSession : IDisposable
         string? output;
         try
         {
-            output = await ReadRemoteAsync("icons", RemoteIcons.Script(names), TimeSpan.FromSeconds(120));
+            output = await ReadRemoteAsync("icons", RemoteIcons.Script(names, Settings.Kind.SharesHome), TimeSpan.FromSeconds(120));
         }
         catch (Exception error) when (error is IOException or InvalidOperationException)
         {
@@ -642,7 +721,7 @@ internal sealed class SshSession : IDisposable
     }
 
     private Task<string?> ReadRemoteApplicationsAsync(DesktopLocale locale) =>
-        ReadRemoteAsync("applications", RemoteApplications.Script(locale), TimeSpan.FromSeconds(90));
+        ReadRemoteAsync("applications", RemoteApplications.Script(locale, Settings.Kind.SharesHome), TimeSpan.FromSeconds(90));
 
     private async Task<string?> ReadRemoteAsync(string what, string script, TimeSpan limit)
     {
@@ -702,7 +781,7 @@ internal sealed class SshSession : IDisposable
     internal string ClientScript(string command, bool exportDisplay = true)
     {
         var quoted = command.Replace("'", "'\\''", StringComparison.Ordinal);
-        var pulse = Settings.Audio
+        var pulse = AudioWanted
             ? $"PULSE_SINK={_sinkName} PIPEWIRE_NODE={_sinkName} "
             : string.Empty;
         var gtkConfig = _configDir is { } configDir
@@ -711,6 +790,21 @@ internal sealed class SshSession : IDisposable
         var display = exportDisplay
             ? $"if [ -s {_xDisplayFile} ]; then DISPLAY=$(cat {_xDisplayFile}); export DISPLAY; fi; "
             : string.Empty;
+        if (_display is { } direct)
+        {
+            var x = !exportDisplay ? string.Empty
+                : direct.ClientXDisplay is { } xDisplay ? $"DISPLAY={xDisplay}; export DISPLAY; "
+                : "unset DISPLAY; ";
+            return
+                $"mkdir -p {_groupsDir} && : > {_groupsDir}/$$; " +
+                RemoteRuntimeDir +
+                RemoteLang +
+                x +
+                gtkConfig +
+                $"{pulse}XDG_SESSION_TYPE=wayland WAYLAND_DISPLAY={direct.ClientDisplay} sh -c '{quoted}'; " +
+                $"s=$?; rm -f {_groupsDir}/$$; exit $s";
+        }
+
         return
             RemoteRuntimeDir +
             RemoteLang +
@@ -786,6 +880,40 @@ internal sealed class SshSession : IDisposable
         }
     }
 
+    private string SinkLoad => AudioWanted
+        ? $"m=$(pactl load-module module-null-sink sink_name={_sinkName} " +
+          $"sink_properties=device.description=Waylonia 2>/dev/null) || m=; "
+        : string.Empty;
+
+    private string SinkUnload => AudioWanted ? "[ -n \"$m\" ] && pactl unload-module \"$m\"; " : string.Empty;
+
+    private string GtkConfigStage => _configDir is { } configDir
+        ? $"c=\"${{XDG_CONFIG_HOME:-$HOME/.config}}\"; g={configDir}; rm -rf \"$g\"; " +
+          "if mkdir -p \"$g\" 2>/dev/null; then " +
+          "for e in \"$c\"/* \"$c\"/.[!.]*; do " +
+          "if [ -e \"$e\" ]; then ln -s \"$e\" \"$g/${e##*/}\"; fi; done; " +
+          "for v in 3.0 4.0; do rm -f \"$g/gtk-$v\"; mkdir -p \"$g/gtk-$v\"; " +
+          "for e in \"$c/gtk-$v\"/*; do " +
+          "if [ -e \"$e\" ]; then ln -s \"$e\" \"$g/gtk-$v/${e##*/}\"; fi; done; " +
+          "if [ -f \"$c/gtk-$v/settings.ini\" ]; then rm -f \"$g/gtk-$v/settings.ini\"; " +
+          "sed \"s/^gtk-xft-dpi[[:space:]]*=.*/gtk-xft-dpi=98304/\" " +
+          "\"$c/gtk-$v/settings.ini\" > \"$g/gtk-$v/settings.ini\"; fi; done; fi; "
+        : string.Empty;
+
+    private string GtkConfigRemove => _configDir is { } staged ? $"rm -rf {staged}; " : string.Empty;
+
+    internal string DirectScript() =>
+        $"echo '{LoggedIn}'; " +
+        RemoteRuntimeDir +
+        RemoteLang +
+        GtkConfigStage +
+        SinkLoad +
+        "cat >/dev/null; status=$?; " +
+        $"for g in {_groupsDir}/*; do [ -f \"$g\" ] && kill -s KILL -- \"-${{g##*/}}\" 2>/dev/null; done; rm -rf {_groupsDir}; " +
+        GtkConfigRemove +
+        SinkUnload +
+        "exit $status";
+
     internal string RemoteScript()
     {
         var arguments = ListenHint.Arguments(Settings.Compression, Settings.Gpu, Settings.Video);
@@ -793,38 +921,20 @@ internal sealed class SshSession : IDisposable
             ? "if command -v xwayland-satellite >/dev/null 2>&1; then w=--xwls; else w=; fi; "
               + "export XCURSOR_SIZE=\"${XCURSOR_SIZE:-24}\"; "
             : "w=; ";
-        var sink = Settings.Audio
-            ? $"m=$(pactl load-module module-null-sink sink_name={_sinkName} " +
-              $"sink_properties=device.description=Waylonia 2>/dev/null) || m=; "
-            : string.Empty;
-        var unloadSink = Settings.Audio ? "[ -n \"$m\" ] && pactl unload-module \"$m\"; " : string.Empty;
-        var gtkConfig = _configDir is { } configDir
-            ? $"c=\"${{XDG_CONFIG_HOME:-$HOME/.config}}\"; g={configDir}; rm -rf \"$g\"; " +
-              "if mkdir -p \"$g\" 2>/dev/null; then " +
-              "for e in \"$c\"/* \"$c\"/.[!.]*; do " +
-              "if [ -e \"$e\" ]; then ln -s \"$e\" \"$g/${e##*/}\"; fi; done; " +
-              "for v in 3.0 4.0; do rm -f \"$g/gtk-$v\"; mkdir -p \"$g/gtk-$v\"; " +
-              "for e in \"$c/gtk-$v\"/*; do " +
-              "if [ -e \"$e\" ]; then ln -s \"$e\" \"$g/gtk-$v/${e##*/}\"; fi; done; " +
-              "if [ -f \"$c/gtk-$v/settings.ini\" ]; then rm -f \"$g/gtk-$v/settings.ini\"; " +
-              "sed \"s/^gtk-xft-dpi[[:space:]]*=.*/gtk-xft-dpi=98304/\" " +
-              "\"$c/gtk-$v/settings.ini\" > \"$g/gtk-$v/settings.ini\"; fi; done; fi; "
-            : string.Empty;
-        var removeGtkConfig = _configDir is { } staged ? $"rm -rf {staged}; " : string.Empty;
         return
             $"echo '{LoggedIn}'; " +
             RemoteRuntimeDir +
             RemoteLang +
             $"d=\"$XDG_RUNTIME_DIR/{_displayName}\"; rm -f \"$d\" {_xDisplayFile}; " +
             xwayland +
-            gtkConfig +
-            sink +
+            GtkConfigStage +
+            SinkLoad +
             $"waypipe {arguments}{_listener?.WaypipeArgument ?? $"--socket {_remoteSocket}"} " +
             $"--display {_displayName} $w server -- " +
             $"sh -c 'printf %s \"$DISPLAY\" > {_xDisplayFile}; exec cat >/dev/null'; " +
             $"status=$?; rm -f {_remoteSocket} \"$d\" {_xDisplayFile}; " +
-            removeGtkConfig +
-            unloadSink +
+            GtkConfigRemove +
+            SinkUnload +
             "exit $status";
     }
 
@@ -881,6 +991,7 @@ internal sealed class SshSession : IDisposable
         _audio?.Dispose();
         _audio = null;
         _acceptor?.CloseChannels();
+        ReleaseDisplay();
     }
 
     public bool StopClients()
@@ -998,6 +1109,7 @@ internal sealed class SshSession : IDisposable
         }
 
         _acceptor?.Dispose();
+        ReleaseDisplay();
         Status = SessionStatus.Disconnected;
     }
 }

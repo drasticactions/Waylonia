@@ -44,8 +44,9 @@ internal static class DesktopSession
         var run = recipe.Bus
             ? $"exec dbus-run-session -- sh -c '{Quote(inner)}'"
             : $"exec env {assignments}{command}";
+        var socket = display.StartsWith('/') ? display : $"$XDG_RUNTIME_DIR/{display}";
         return
-            $"d=\"$XDG_RUNTIME_DIR/{display}\"; i=0; " +
+            $"d=\"{socket}\"; i=0; " +
             "while [ ! -S \"$d\" ] && [ $i -lt 50 ]; do sleep 0.2; i=$((i+1)); done; " +
             "unset DISPLAY; " +
             $"WAYLAND_DISPLAY={display}; XDG_SESSION_TYPE=wayland; XDG_SESSION_CLASS=user; " +

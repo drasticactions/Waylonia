@@ -11,8 +11,7 @@ internal sealed record HostCapabilities(
     bool ChannelsOnly,
     bool SoftKeyboard = false,
     bool KeyImport = false,
-    bool Reconnects = false,
-    bool Wsl = false)
+    bool Reconnects = false)
 {
     public static readonly HostCapabilities None = new(false, false, false, false, false, false, false, true);
 }

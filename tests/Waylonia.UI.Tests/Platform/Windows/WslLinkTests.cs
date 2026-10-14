@@ -30,10 +30,10 @@ public sealed class WslLinkTests
         var factory = new WslLinkFactory();
         if (Distro!.Length > 0)
         {
-            Assert.Contains(Distro, await factory.DistrosAsync(Ct));
+            Assert.Contains(Distro, await factory.ListAsync(Ct));
         }
 
-        await using var link = factory.Create(WslDestination.For(Distro), new FakePrompter());
+        await using var link = factory.Create(DestinationKinds.Wsl.For(Distro), new FakePrompter());
         await link.ConnectAsync(Ct);
         Assert.True(link.IsConnected);
 
@@ -51,7 +51,7 @@ public sealed class WslLinkTests
 
             Assert.Contains("one", lines);
             Assert.Contains("two", lines);
-            Assert.DoesNotContain(lines, line => line.StartsWith(WslDestination.PidMarker, StringComparison.Ordinal));
+            Assert.DoesNotContain(lines, line => line.StartsWith(PidMarker.Prefix, StringComparison.Ordinal));
         }
 
         using (var sleeper = await link.RunAsync("sleep 60", Ct))

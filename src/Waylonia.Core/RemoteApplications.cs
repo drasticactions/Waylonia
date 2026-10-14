@@ -17,14 +17,16 @@ internal sealed class RemoteApplications
 
     public IReadOnlyList<DesktopEntry> Entries { get; }
 
-    public static string Script(DesktopLocale locale)
+    public static string Script(DesktopLocale locale, bool skipHome = false)
     {
         var lang = locale.IsNone || !locale.Lang.All(char.IsAsciiLetter) ? null : locale.Lang;
         var localized = lang is null
             ? "/^[A-Za-z][-A-Za-z0-9]*\\[/d"
             : $"/^[A-Za-z][-A-Za-z0-9]*\\[/{{/^[A-Za-z][-A-Za-z0-9]*\\[{lang}/!d;}}";
         return
-            "IFS=:; for d in ${XDG_DATA_HOME:-$HOME/.local/share} ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do " +
+            (skipHome
+                ? "IFS=:; for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do case $d in \"$HOME\"/*) continue;; esac; "
+                : "IFS=:; for d in ${XDG_DATA_HOME:-$HOME/.local/share} ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do ") +
             "case $d in /*) ;; *) continue;; esac; a=\"$d/applications\"; [ -d \"$a\" ] || continue; " +
             "find \"$a\" -name '*.desktop' 2>/dev/null | while IFS= read -r f; do " +
             "[ -f \"$f\" ] || continue; ok=1; t=$(sed -n 's/^TryExec=//p' \"$f\" | head -n 1); " +
