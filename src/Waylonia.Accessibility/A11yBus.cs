@@ -42,8 +42,9 @@ public sealed class A11yBus : IAsyncDisposable
 
     /// <summary>
     /// Turns accessibility on for a session bus: sets <c>org.a11y.Status.IsEnabled</c> and
-    /// <c>ScreenReaderEnabled</c>, which Firefox and Chromium wait for before they build a tree. The call starts
-    /// <c>at-spi-bus-launcher</c> through D-Bus activation when it is not running.
+    /// <c>ScreenReaderEnabled</c>, which Firefox and Chromium wait for before they build a tree. at-spi2-core 2.62
+    /// dropped <c>ScreenReaderEnabled</c>; without it, <c>IsEnabled</c> alone turns accessibility on. The call
+    /// starts <c>at-spi-bus-launcher</c> through D-Bus activation when it is not running.
     /// </summary>
     /// <param name="sessionBusAddress">The session bus address.</param>
     /// <param name="cancel">Cancels the wait.</param>
@@ -55,13 +56,27 @@ public sealed class A11yBus : IAsyncDisposable
         try
         {
             await status.SetIsEnabledAsync(true).WaitAsync(cancel).ConfigureAwait(false);
+        }
+        catch (DBusErrorReplyException error)
+        {
+            throw LauncherProblem(error);
+        }
+
+        try
+        {
             await status.SetScreenReaderEnabledAsync(true).WaitAsync(cancel).ConfigureAwait(false);
+        }
+        catch (DBusErrorReplyException error) when (IsUnknownProperty(error))
+        {
         }
         catch (DBusErrorReplyException error)
         {
             throw LauncherProblem(error);
         }
     }
+
+    private static bool IsUnknownProperty(DBusErrorReplyException error) =>
+        error.ErrorName is "org.freedesktop.DBus.Error.UnknownProperty" or "org.freedesktop.DBus.Error.InvalidArgs";
 
     /// <summary>
     /// Asks the session bus for the accessibility bus address, connects to it, and listens for event signals.
