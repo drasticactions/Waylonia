@@ -19,9 +19,9 @@ internal sealed partial class PanelView : UserControl
 
     private static readonly (string Key, string[] Sources, IBrush Fallback)[] Palette =
     [
-        (BackgroundKey, ["BcBgBrush", "SystemControlBackgroundChromeMediumBrush"], Brushes.LightGray),
-        (ForegroundKey, ["BcFgBrush", "SystemControlForegroundBaseHighBrush"], Brushes.Black),
-        (HighlightKey, ["BcSelectedBgBrush", "SystemControlHighlightAccentBrush"], Brushes.SteelBlue),
+        (BackgroundKey, ["Union.Active.Window.Background.NormalBrush", "SystemControlBackgroundChromeMediumBrush"], Brushes.LightGray),
+        (ForegroundKey, ["Union.Active.Window.Foreground.TextBrush", "SystemControlForegroundBaseHighBrush"], Brushes.Black),
+        (HighlightKey, ["Union.Active.Selection.Background.NormalBrush", "SystemControlHighlightAccentBrush"], Brushes.SteelBlue),
     ];
 
     public PanelView()

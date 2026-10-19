@@ -227,7 +227,7 @@ public sealed class PanelViewTests
         var panel = Panel(Model(), TopApplets);
 
         var strip = panel.FindControl<Border>("Strip")!;
-        var expected = panel.FindResource("BcBgBrush");
+        var expected = panel.FindResource("Union.Active.Window.Background.NormalBrush");
 
         Assert.Same(expected, strip.Background);
     }

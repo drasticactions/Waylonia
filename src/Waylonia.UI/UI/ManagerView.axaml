@@ -3,11 +3,11 @@
              xmlns:ui="clr-namespace:Waylonia.UI"
              x:Class="Waylonia.UI.ManagerView"
              x:DataType="ui:ManagerViewModel"
-             Background="{DynamicResource BcBgBrush}"
-             Foreground="{DynamicResource BcFgBrush}">
+             Background="{DynamicResource Union.Active.Window.Background.NormalBrush}"
+             Foreground="{DynamicResource Union.Active.Window.Foreground.TextBrush}">
   <UserControl.Styles>
     <Style Selector="TextBlock.problem">
-      <Setter Property="Foreground" Value="OrangeRed" />
+      <Setter Property="Foreground" Value="{DynamicResource Union.Active.Window.Foreground.NegativeBrush}" />
       <Setter Property="TextWrapping" Value="Wrap" />
       <Setter Property="Margin" Value="120,0,0,0" />
     </Style>

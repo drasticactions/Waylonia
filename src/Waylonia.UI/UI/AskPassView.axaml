@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Waylonia.UI.AskPassView"
-             Background="{DynamicResource BcBgBrush}"
-             Foreground="{DynamicResource BcFgBrush}">
+             Background="{DynamicResource Union.Active.Window.Background.NormalBrush}"
+             Foreground="{DynamicResource Union.Active.Window.Foreground.TextBrush}">
   <StackPanel Margin="16" Spacing="12">
     <TextBlock x:Name="PromptText" TextWrapping="Wrap" />
     <TextBox x:Name="SecretBox" PasswordChar="•" PlaceholderText="Password" />

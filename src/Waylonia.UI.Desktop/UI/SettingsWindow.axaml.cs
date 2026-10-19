@@ -1,10 +1,9 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
-using BluerCurve.Chrome;
 
 namespace Waylonia.UI;
 
-internal sealed partial class SettingsWindow : BluerCurveWindow
+internal sealed partial class SettingsWindow : Window
 {
     private bool _allowClose;
 

@@ -3,11 +3,10 @@ using Avalonia.Controls;
 using Avalonia.Threading;
 using Basin.Avalonia;
 using Basin.Hosted;
-using BluerCurve.Chrome;
 
 namespace Waylonia.Shell;
 
-internal sealed class ShellWindow : BluerCurveWindow, IShellHost
+internal sealed class ShellWindow : Window, IShellHost
 {
     private readonly ShellWindowState _initial;
     private string _title = "Waylonia";
@@ -130,8 +129,8 @@ internal sealed class ShellWindow : BluerCurveWindow, IShellHost
         };
         _resume.Click += (_, _) => resume();
         var strip = new DockPanel { Height = AgentStripHeight, LastChildFill = true };
-        strip.Bind(Panel.BackgroundProperty, strip.GetResourceObservable("BcBgBrush"));
-        _agentStatus.Bind(TextBlock.ForegroundProperty, _agentStatus.GetResourceObservable("BcFgBrush"));
+        strip.Bind(Panel.BackgroundProperty, strip.GetResourceObservable("Union.Active.Window.Background.NormalBrush"));
+        _agentStatus.Bind(TextBlock.ForegroundProperty, _agentStatus.GetResourceObservable("Union.Active.Window.Foreground.TextBrush"));
         DockPanel.SetDock(_resume, global::Avalonia.Controls.Dock.Right);
         strip.Children.Add(_resume);
         strip.Children.Add(_agentStatus);

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Rendering.Composition;
 using Avalonia.Threading;
 using Basin;
 using Basin.Avalonia;
@@ -31,6 +32,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
     private HostDrag? _hostDrag;
     private Process? _localClient;
     private Window? _window;
+    private Action<Window>? _followScale;
     private TrayIcon? _tray;
     private TrayMenu? _trayMenu;
     private IDisposable? _globalHotkeys;
@@ -70,7 +72,6 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
             Width = 1,
             Height = 1,
             Title = "Waylonia",
-            Content = OutputView,
             WindowDecorations = WindowDecorations.None,
             ShowInTaskbar = false,
             ShowActivated = false,
@@ -102,7 +103,6 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = _window;
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         }
 
@@ -113,6 +113,10 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         _signals.Add(System.Runtime.InteropServices.PosixSignalRegistration.Create(
             System.Runtime.InteropServices.PosixSignal.SIGHUP, OnPosixSignal));
         _agent = PreparedAgent;
+        if (OutputView is { } output && ElementComposition.GetElementVisual(_window)?.Compositor is { } compositor)
+        {
+            output.StartDetached(compositor);
+        }
     }
 
     public static AgentRuntime? PreparedAgent { get; set; }
@@ -265,14 +269,27 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
 
         if (run.Host.Clipboard)
         {
-            var clipboard = CreateClipboard(
-                host,
-                () => _window is { } window ? TopLevel.GetTopLevel(window)?.Clipboard : null);
+            var clipboard = CreateClipboard(host, ShownClipboard);
             _windows.WindowActivatedOnHost += () => _ = clipboard.PushFromHostAsync();
         }
 
         AdoptHost(host);
         return host;
+    }
+
+    private global::Avalonia.Input.Platform.IClipboard? ShownClipboard()
+    {
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            var windows = desktop.Windows;
+            var shown = windows.FirstOrDefault(window => window.IsActive) ?? windows.FirstOrDefault(window => window.IsVisible);
+            if (shown?.Clipboard is { } clipboard)
+            {
+                return clipboard;
+            }
+        }
+
+        return _window?.Clipboard;
     }
 
     protected override void AttachShell(NestedShell shell, BasinViewOutput view)
@@ -352,13 +369,15 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         if (_window is { } window && !Nested)
         {
             var screens = window.Screens;
-            var scaleSettled = false;
+            Window? scaled = null;
+            var settled = new HashSet<Window>();
             void Publish()
             {
                 var snapshot = AvaloniaScreens.Capture(screens);
-                var key = AvaloniaScreens.KeyFor(screens, screens.ScreenFromWindow(window) ?? screens.Primary);
-                var scale = window.RenderScaling;
-                var noteScale = scale > 0 && (scaleSettled || scale != 1.0);
+                var source = scaled;
+                var key = source is null ? null : AvaloniaScreens.KeyFor(screens, screens.ScreenFromWindow(source) ?? screens.Primary);
+                var scale = source?.RenderScaling ?? 0;
+                var noteScale = source is not null && scale > 0 && (settled.Contains(source) || scale != 1.0);
                 OutputView?.Post(() =>
                 {
                     host.Screens.Apply(snapshot);
@@ -377,32 +396,30 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
                 });
             }
 
-            var probeDone = false;
-            void HideProbe()
+            _followScale = shown =>
             {
-                if (!probeDone)
+                shown.ScalingChanged += (_, _) =>
                 {
-                    probeDone = true;
-                    window.Hide();
+                    settled.Add(shown);
+                    scaled = shown;
+                    Publish();
+                };
+                shown.Closed += (_, _) =>
+                {
+                    settled.Remove(shown);
+                    if (ReferenceEquals(scaled, shown))
+                    {
+                        scaled = null;
+                    }
+                };
+                if (shown.RenderScaling != 1.0)
+                {
+                    scaled = shown;
+                    Publish();
                 }
-            }
-
-            screens.Changed += (_, _) => Publish();
-            window.ScalingChanged += (_, _) =>
-            {
-                scaleSettled = true;
-                Publish();
-                HideProbe();
             };
+            screens.Changed += (_, _) => Publish();
             Publish();
-            if (window.RenderScaling != 1.0)
-            {
-                HideProbe();
-            }
-            else
-            {
-                DispatcherTimer.RunOnce(HideProbe, TimeSpan.FromMilliseconds(1500));
-            }
         }
 
         if (!AgentMode)
@@ -858,6 +875,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
 
     private void OnWindowOpened(ToplevelWindow window, WlClient? client)
     {
+        _followScale?.Invoke(window);
         if (client is null || ChannelClients.OwnerOf(client) is not { Session: not null } owner)
         {
             return;

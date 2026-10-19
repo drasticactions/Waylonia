@@ -1,9 +1,8 @@
 using Avalonia.Controls;
-using BluerCurve.Chrome;
 
 namespace Waylonia.UI;
 
-internal sealed class AskPassWindow : BluerCurveWindow
+internal sealed class AskPassWindow : Window
 {
     public AskPassWindow(string prompt, AskPassKind kind)
     {

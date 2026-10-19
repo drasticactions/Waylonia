@@ -179,7 +179,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
 
     public static long Rendered => Interlocked.Read(ref _rendered);
 
-    public override void Initialize() => Styles.Add(new global::BluerCurve.BluerCurveTheme());
+    public override void Initialize() => Styles.Add(new global::AvaUnion.UnionTheme());
 
     public static void Prepare(WayloniaRun run, HostPlatform platform)
     {
