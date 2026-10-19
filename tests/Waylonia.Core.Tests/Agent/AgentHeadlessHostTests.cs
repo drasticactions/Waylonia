@@ -159,6 +159,18 @@ public sealed class AgentHeadlessHostTests
     }
 
     [Fact]
+    public async Task A_headless_run_records_the_frames_it_presents()
+    {
+        await using var run = await AgentRun.StartAsync("");
+        var recording = await run.CallAsync("diag/record", """{"x":0,"y":0,"width":640,"height":480,"frames":3,"timeout_ms":5000}""");
+        Assert.False(recording.GetProperty("timed_out").GetBoolean());
+        Assert.Equal(3, recording.GetProperty("frames").GetInt32());
+        Assert.Equal(3, recording.GetProperty("per_frame").GetArrayLength());
+        Assert.True(recording.GetProperty("luma_high").GetDouble() > 0);
+        Assert.True(recording.GetProperty("png").GetBytesFromBase64().Length > 0);
+    }
+
+    [Fact]
     public async Task Window_info_names_the_launch_that_owns_a_window()
     {
         Assert.SkipUnless(AgentRun.Has("foot"), "this row launches foot");

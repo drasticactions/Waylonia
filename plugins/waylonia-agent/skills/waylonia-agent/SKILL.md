@@ -1,6 +1,6 @@
 ---
 name: waylonia-agent
-description: Open, use, test or screenshot Linux desktop (GUI) applications in a private Waylonia agent session through the waylonia MCP tools. Use when the user asks to run a graphical program, check how an app looks, click or type into a window, fill a form, test a GTK, Qt, Firefox or X11 app, or read what a window shows, and whenever the waylonia MCP tools (waylonia_launch, windows_list, capture_window, waylonia_a11y-find) are present.
+description: Open, use, test, screenshot or record Linux desktop (GUI) applications in a private Waylonia agent session through the waylonia MCP tools. Use when the user asks to run a graphical program, check how an app looks, click or type into a window, fill a form, test a GTK, Qt, Firefox or X11 app, read what a window shows, check an animation or a flicker, or compare a window with a reference image, and whenever the waylonia MCP tools (waylonia_launch, windows_list, capture_window, waylonia_a11y-find) are present.
 ---
 
 # Waylonia agent session
@@ -75,6 +75,39 @@ Toolkits differ in how complete their trees are. GTK 3 and 4, Qt 6 and Firefox w
 Electron need `--force-renderer-accessibility`; pass it in `args` when you launch them. An X11
 app has a tree only if its toolkit exports one.
 
+## Motion and regressions: recordings
+
+A screenshot shows one moment. When the question is about change over time (an animation, a
+transition, a flicker, a spinner that never stops, a redraw after an action), record the window.
+
+1. Wait as for a screenshot: `windows_wait`, then `windows_wait-idle`. A window that has not drawn
+   its first frame is refused with "not in the scene".
+2. `diag_record-window` with `window` (an id or an `app_id`) and `frames` (1 to 600). It follows
+   the window if it moves. `diag_record` takes a rectangle of the output instead (`x`, `y`,
+   `width`, `height`). The call returns only when its frames are in, so act first and record
+   right after it: the frames are what is drawn after the call starts. An animation shorter than
+   the gap between the two calls is over before the recording starts.
+3. Read the numbers before the image. Each frame has `luma` (mean brightness, 0 to 255), `peak`
+   (the brightest 2%) and `delta` (pixels changed since the frame before), and the reply has their
+   ranges. `delta_max` 0 means nothing changed. A wide `peak_low`..`peak_high` range with a steady
+   `luma` is a flicker. `timed_out` means fewer frames arrived than you asked for in `timeout_ms`
+   (default 10000).
+4. Look at the image when the numbers are not enough. It is one PNG with one band per frame, top to
+   bottom. Inline, each band is scaled to at most 1024 pixels on its longer side, so keep `frames`
+   to about 8 inline. For more, pass an absolute `path` and read the file, or a smaller
+   `max_dimension`.
+
+Frames are not evenly spaced. A window that is drawing gives up to one frame every 16 ms; an idle
+one gives about one every 100 ms. Do not compute durations from the frame count.
+
+To check that a window still looks as it did, write a reference once with `diag_record-window`,
+`frames` 1 and an absolute `path`, then call `diag_compare` with `window` and `reference` set to
+that file. It passes when at most `pixels` (default 0) pixels differ by more than `channel`
+(default 2) in any channel. `diff_path` writes the differences in red; `inline` returns them as an
+image. A window that changed size fails the comparison and does not raise an error.
+
+Only one recording runs at a time. A new one ends the one before it with the frames it has.
+
 ## Guard rails
 
 - **A denied launch.** Launches start at once unless the user put `launch` in `[approve] actions`
@@ -107,6 +140,9 @@ app has a tree only if its toolkit exports one.
   profile or at-spi2-core is not installed. Use screenshots and input instead, and tell the user.
 - **The capture is black or empty.** Wait with `windows_wait-idle` first; the client may not have
   drawn yet.
+- **The `diag_*` tools are missing.** The installed `waylonia` is older than agent-mode
+  recordings. Tell the user to reinstall it (`scripts/install-waylonia.sh` in the Waylonia
+  repository) and restart the MCP server.
 - **The tools are gone.** The server stopped or is not running. Ask the user to check `/mcp`. If
   it says another run holds the profile, another Claude Code session is using the `claude`
   profile; only one run may hold it.

@@ -65,6 +65,20 @@ Without `path` the image comes back inline, scaled until its longer side is at m
 (`max_dimension` changes that). With an absolute `path` the full-size PNG is written there and the
 reply is text; read the file when you need it.
 
+## Recordings and comparisons
+
+| Tool | Use |
+| --- | --- |
+| `diag_record-window` | The next `frames` (1 to 600) drawn of a `window` (id or `app_id`), following it, as one PNG with a band per frame, plus `luma`, `peak` and `delta` per frame and their ranges. `margin` grows the box; `timeout_ms` default 10000. |
+| `diag_record` | The same for a rectangle of the output: `x`, `y`, `width`, `height`. |
+| `diag_compare` | One frame of a `window` against a `reference` PNG (an absolute path). `channel` (default 2) and `pixels` (default 0) set the tolerance, `diff_path` or `inline` show the difference. |
+| `diag_targets` | Every window and layer a `window` selector can name. |
+
+Without `path`, a recording comes back inline, each band scaled to at most 1024 pixels on its
+longer side (`max_dimension` changes that). With an absolute `path`, the PNG is written there at
+full size and the reply is text. Frames come only when something draws: up to one per 16 ms while
+the window changes, about one per 100 ms while it is idle.
+
 ## Input
 
 These go in where a physical device's input goes, so compositor shortcuts see them. With `window`,
@@ -96,5 +110,6 @@ need approval.
 ## Not for you
 
 `approval_answer` answers the approvals that are the user's to answer. `session_quit` ends the
-session and every application in it. `outputs_*`, `workspaces_*`, `idle_*`, `lock_status` and
-`keyboard_keymap` are published but an agent task does not need them.
+session and every application in it. `outputs_*`, `workspaces_*`, `idle_*`, `lock_status`,
+`keyboard_keymap` and the other `diag_*` tools (`diag_tree`, `diag_parts`, `diag_click`,
+`diag_drag`, the `*-trace` subscriptions) are published but an agent task does not need them.
