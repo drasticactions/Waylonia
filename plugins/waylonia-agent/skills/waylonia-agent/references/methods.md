@@ -31,7 +31,9 @@ left out of an agent session; `waylonia_launch` and `input_*` replace them.
 | `windows_list`, `windows_get` | Ids, app ids, titles, `client_geometry`, state. |
 | `waylonia_window-info` | The `launch_id` that owns a window, X11 or not, dialog and parent, and whether its tree was found. |
 | `windows_activate` | Focus and raise. |
-| `windows_set-state` | `maximized`, `minimized`, `fullscreen`. |
+| `windows_set-state` | `maximized`, `minimized`, `fullscreen`. `maximized: false` restores a window so it can move and resize. |
+| `windows_move` | Move a restored window's top-left corner to `x`, `y` on the output. Refused while maximized. |
+| `windows_resize` | Resize a restored window to `width` × `height`. Refused while maximized. |
 | `windows_close` | Ask the client to close. May need approval. |
 
 A dialog is its own window. After an action that opens one, call `windows_wait` by its title or

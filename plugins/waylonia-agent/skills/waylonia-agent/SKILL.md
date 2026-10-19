@@ -28,7 +28,9 @@ in [references/methods.md](references/methods.md).
    `windows_wait-idle` on its id before you read or capture it. Do not sleep and poll
    `windows_list`. The geometry in `windows_wait`'s reply is 0×0 until the window has drawn;
    call `windows_get` after the idle wait when you need its size. Windows map maximized to the
-   whole output by default.
+   whole output by default. To test how an app behaves at another size or position, restore it
+   with `windows_set-state` (`maximized: false`), then use `windows_move` and `windows_resize`;
+   a maximized window refuses both.
 4. **Read the window.** Prefer the accessibility tree (see *Acting*). Take a screenshot with
    `capture_window` when there is no tree, when layout or rendering is the question, or when the
    user wants to see the result.
