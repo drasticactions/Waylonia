@@ -1,4 +1,3 @@
-using Basin.XWayland;
 using Waylonia.Agent;
 using static Waylonia.WayloniaLog;
 
@@ -51,7 +50,7 @@ internal static partial class DesktopHead
         var linux = new LinuxXWayland();
         var xwayland = request.Capabilities.XWayland && request.Config.Host.XWayland
             ? new AgentXWayland(
-                () => new XWaylandModule(),
+                linux.TryCreateModule,
                 (module, shell) => linux.AttachShell(module, shell, icons, Log),
                 linux.DisplayName)
             : null;
