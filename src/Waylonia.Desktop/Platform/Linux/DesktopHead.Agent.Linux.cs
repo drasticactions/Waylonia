@@ -50,7 +50,7 @@ internal static partial class DesktopHead
         var linux = new LinuxXWayland();
         var xwayland = request.Capabilities.XWayland && request.Config.Host.XWayland
             ? new AgentXWayland(
-                linux.TryCreateModule,
+                () => linux.TryCreateModule(shellAdopts: true),
                 (module, shell) => linux.AttachShell(module, shell, icons, Log),
                 linux.DisplayName)
             : null;

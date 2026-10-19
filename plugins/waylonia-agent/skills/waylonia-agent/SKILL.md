@@ -77,6 +77,16 @@ Toolkits differ in how complete their trees are. GTK 3 and 4, Qt 6 and Firefox w
 Electron need `--force-renderer-accessibility`; pass it in `args` when you launch them. An X11
 app has a tree only if its toolkit exports one.
 
+## X11 apps
+
+An X11 window is an ordinary window: `windows_list` shows it once, with `x11_display`, and every
+`windows_*`, `input_*` and capture tool works on it. Most toolkits prefer Wayland when both are
+there. To test an app as an X11 client, launch it through `env` with a Wayland display that does
+not exist: `command` `env`, `args` `["WAYLAND_DISPLAY=no-wayland", "APP", ...]`. Removing the
+variable with `env -u` is not enough: libwayland then tries `wayland-0` in the session's runtime
+directory, which is the session's own socket. Add `GDK_BACKEND=x11` for GTK or
+`QT_QPA_PLATFORM=xcb` for Qt if the app still opens on Wayland.
+
 ## Motion and regressions: recordings
 
 A screenshot shows one moment. When the question is about change over time (an animation, a

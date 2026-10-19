@@ -9,7 +9,7 @@ namespace Waylonia;
 
 internal interface IXWaylandHost
 {
-    IProtocolModule? TryCreateModule();
+    IProtocolModule? TryCreateModule(bool shellAdopts);
 
     void Attach(IProtocolModule module, BasinCompositorHost host, ToplevelWindows windows);
 

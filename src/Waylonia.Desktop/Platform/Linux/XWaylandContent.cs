@@ -8,7 +8,7 @@ using Waylonia.Shell;
 
 namespace Waylonia;
 
-internal sealed class XWaylandContent : IWindowContent
+internal sealed class XWaylandContent : IWindowContent, IToplevelDetails
 {
     private readonly Func<XWaylandWindow, IWindowContent?> _resolveParent;
     private readonly XWaylandToplevelSource? _toplevels;
@@ -171,6 +171,12 @@ internal sealed class XWaylandContent : IWindowContent
     }
 
     public void ReportGeometry(in Box frame, in Box client) => _toplevels?.SetGeometry(Window, frame, client);
+
+    public bool TryGetDetails(out ToplevelInfo details)
+    {
+        details = default;
+        return _toplevels is { } toplevels && toplevels.TryGet(toplevels.IdFor(Window), out details);
+    }
 
     public void Close() => Window.Close();
 

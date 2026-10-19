@@ -11,7 +11,7 @@ internal sealed class NullXWaylandHost : IXWaylandHost
 {
     public static readonly NullXWaylandHost Instance = new();
 
-    public IProtocolModule? TryCreateModule() => null;
+    public IProtocolModule? TryCreateModule(bool shellAdopts) => null;
 
     public void Attach(IProtocolModule module, BasinCompositorHost host, ToplevelWindows windows)
     {

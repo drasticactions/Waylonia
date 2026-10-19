@@ -12,7 +12,8 @@ internal sealed class LinuxXWayland : IXWaylandHost
 {
     private XWaylandModule? _module;
 
-    public IProtocolModule? TryCreateModule() => _module = new XWaylandModule();
+    public IProtocolModule? TryCreateModule(bool shellAdopts) =>
+        _module = new XWaylandModule { PublishToplevels = !shellAdopts };
 
     public void Attach(IProtocolModule module, BasinCompositorHost host, ToplevelWindows windows)
     {

@@ -231,7 +231,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
     {
         var run = RunSettings;
         _xwayland = run.Capabilities.XWayland && run.Host.XWayland && run.WaypipeListen is null
-            ? Desktop.XWayland.TryCreateModule()
+            ? Desktop.XWayland.TryCreateModule(shellAdopts: Nested || AgentMode)
             : null;
         return _xwayland is { } xwayland ? [xwayland] : null;
     }

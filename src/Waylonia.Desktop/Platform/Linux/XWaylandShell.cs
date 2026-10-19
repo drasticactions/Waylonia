@@ -1,6 +1,7 @@
 using Basin;
 using Basin.Diagnostics;
 using Basin.Shell.Nested;
+using Basin.Shell.Xdg;
 using Basin.XWayland;
 using Waylonia.Shell;
 
@@ -120,6 +121,8 @@ internal sealed class XWaylandShell
             xwindow.MinimizeRequested -= managed.Minimize;
             xwindow.MaximizeRequested -= managed.Maximize;
             xwindow.FullscreenRequested -= managed.Fullscreen;
+            xwindow.MoveRequested -= managed.Move;
+            xwindow.ResizeRequested -= managed.Resize;
             xwindow.GeometryChanged -= managed.Follow;
             xwindow.IconChanged -= managed.Icon;
             _shell.Release(window);
@@ -145,6 +148,20 @@ internal sealed class XWaylandShell
                 _shell.SetFullscreen(window, fullscreen);
             }
         };
+        managed.Move = keyboard =>
+        {
+            if (PointerGrabAllowed(xwindow, window, keyboard))
+            {
+                _shell.BeginMove(window, null, anchor: xwindow.MoveResizeOrigin);
+            }
+        };
+        managed.Resize = (edges, keyboard) =>
+        {
+            if (PointerGrabAllowed(xwindow, window, keyboard))
+            {
+                _shell.BeginResize(window, (ResizeEdges)edges, null, anchor: xwindow.MoveResizeOrigin);
+            }
+        };
         managed.Follow = () => FollowClientMove(window, xwindow);
         managed.Icon = () => _shell.SetClientIcon(window, StoreIcon(xwindow));
         xwindow.Unmapped += managed.Release;
@@ -153,9 +170,27 @@ internal sealed class XWaylandShell
         xwindow.MinimizeRequested += managed.Minimize;
         xwindow.MaximizeRequested += managed.Maximize;
         xwindow.FullscreenRequested += managed.Fullscreen;
+        xwindow.MoveRequested += managed.Move;
+        xwindow.ResizeRequested += managed.Resize;
         xwindow.GeometryChanged += managed.Follow;
         xwindow.IconChanged += managed.Icon;
         _log.Debug($"x11 window 0x{xwindow.WindowId:x} '{xwindow.Title}' ({xwindow.Class}) joined the shell");
+    }
+
+    private bool PointerGrabAllowed(XWaylandWindow xwindow, ManagedWindow window, bool keyboard)
+    {
+        if (keyboard || !window.IsMapped)
+        {
+            return false;
+        }
+
+        if (!_shell.Host.Seat.Pointer.HasImplicitGrab)
+        {
+            _log.Debug($"x11 window 0x{xwindow.WindowId:x} asked for a move or resize after the button was released; ignored");
+            return false;
+        }
+
+        return true;
     }
 
     private void FollowClientMove(ManagedWindow window, XWaylandWindow xwindow)
@@ -251,6 +286,10 @@ internal sealed class XWaylandShell
         public Action<bool> Maximize { get; set; } = _ => { };
 
         public Action<bool> Fullscreen { get; set; } = _ => { };
+
+        public Action<bool> Move { get; set; } = _ => { };
+
+        public Action<X11ResizeEdges, bool> Resize { get; set; } = (_, _) => { };
 
         public Action Follow { get; set; } = () => { };
 
