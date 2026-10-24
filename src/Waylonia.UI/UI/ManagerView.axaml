@@ -111,7 +111,7 @@
             <ui:FormField Label="Compression" ToolTip.Tip="compress">
               <ComboBox ItemsSource="{Binding CompressChoices}" SelectedIndex="{Binding CompressIndex}" HorizontalAlignment="Left" />
             </ui:FormField>
-            <ui:FormField Hint="Leave a box partly filled to use the default from Settings.">
+            <ui:FormField>
               <StackPanel Classes="options">
                 <CheckBox Content="Use the GPU" IsThreeState="True" IsChecked="{Binding Gpu}" ToolTip.Tip="gpu" />
                 <CheckBox Content="Play sound here" IsThreeState="True" IsChecked="{Binding Audio}" ToolTip.Tip="audio" />
@@ -135,7 +135,7 @@
               <TextBox Classes="lines" Text="{Binding Autostart}" PlaceholderText="foot" />
             </ui:FormField>
             <ui:FormField Label="Language" Problem="{Binding LangProblem}" ToolTip.Tip="lang"
-                          Hint="The LANG the session gets when its login sets none. Write &quot;&quot; to leave it alone.">
+                          Hint="The LANG the session gets when its login sets none. Write &quot;&quot; for the default.">
               <TextBox Text="{Binding Lang}" PlaceholderText="en_US.UTF-8" />
             </ui:FormField>
             <ui:FormField Label="Terminal" ToolTip.Tip="terminal"
@@ -162,7 +162,7 @@
 
             <union:Heading Classes="section" Content="Hotkeys" />
             <ui:FormField Label="Hotkeys" Classes="lines" Problem="{Binding HotkeysProblem}" ToolTip.Tip="[hotkeys]"
-                          Hint="One per line, as CHORD = COMMAND. They run in this session while it's connected.">
+                          Hint="Hotkeys that run inside of this session window. One per line as CHORD = COMMAND.">
               <TextBox Classes="lines" Text="{Binding Hotkeys}" PlaceholderText="ctrl+alt+t = foot" />
             </ui:FormField>
           </StackPanel>

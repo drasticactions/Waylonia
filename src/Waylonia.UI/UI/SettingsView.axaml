@@ -114,11 +114,11 @@
               <ui:FormField Hint="Ends each window title with the name of its session.">
                 <ToggleSwitch Content="Session name in titles" IsChecked="{Binding SessionTitles}" ToolTip.Tip="[host] session-titles" />
               </ui:FormField>
-              <ui:FormField Hint="Lets apps type and click into each other, as wtype needs. Restart Waylonia to apply it.">
+              <ui:FormField Hint="Lets apps type and click into each other, which some apps may require.">
                 <ToggleSwitch Content="Virtual keyboard and pointer" IsChecked="{Binding VirtualInput}" ToolTip.Tip="[host] virtual-input" />
               </ui:FormField>
               <ui:FormField Label="Capture key" Problem="{Binding CaptureChordProblem}" ToolTip.Tip="[host] capture-chord"
-                            Hint="Gives your keyboard and pointer to a desktop session, and takes them back. double: means a double tap.">
+                            Hint="Captures the mouse and keyboard input for a session or shell.">
                 <TextBox x:Name="CaptureChordBox" Text="{Binding CaptureChord}" PlaceholderText="double:RightControl" />
               </ui:FormField>
               <ui:FormField Label="SSH timeout" Problem="{Binding SshTimeoutProblem}" ToolTip.Tip="[host] ssh-timeout"
@@ -131,26 +131,25 @@
           <ScrollViewer Classes="page">
             <StackPanel Classes="form" DataContext="{Binding Form}" x:DataType="ui:SettingsFormViewModel">
               <union:Heading Classes="page" Content="Defaults" />
-              <TextBlock Classes="hint" Text="Each session uses these unless its own settings say otherwise." />
               <ui:FormField Label="Compression" ToolTip.Tip="compress">
                 <ComboBox ItemsSource="{Binding CompressChoices}" SelectedIndex="{Binding CompressIndex}" HorizontalAlignment="Left" />
               </ui:FormField>
-              <ui:FormField Hint="Leave a box partly filled to use the built-in default.">
+              <ui:FormField>
                 <StackPanel Classes="options">
                   <CheckBox Content="Use the GPU" IsThreeState="True" IsChecked="{Binding Gpu}" ToolTip.Tip="gpu" />
                   <CheckBox Content="Play sound here" IsThreeState="True" IsChecked="{Binding Audio}" ToolTip.Tip="audio" />
                 </StackPanel>
               </ui:FormField>
               <ui:FormField Label="Video encoding" Problem="{Binding VideoProblem}" ToolTip.Tip="video"
-                            Hint="Sends window contents as video. Add ,hw to decode on this computer's GPU.">
+                            Hint="Accepts waypipe's video encoding syntax.">
                 <TextBox Text="{Binding Video}" PlaceholderText="h264,hw" />
               </ui:FormField>
               <ui:FormField Label="Language" Problem="{Binding LangProblem}" ToolTip.Tip="lang"
-                            Hint="The LANG a session gets when its login sets none. Write &quot;&quot; to leave it alone.">
+                            Hint="The LANG a session gets when its login sets none. Write &quot;&quot; to use the system default.">
                 <TextBox Text="{Binding Lang}" PlaceholderText="C.UTF-8" />
               </ui:FormField>
               <ui:FormField Label="Terminal" ToolTip.Tip="terminal"
-                            Hint="Opens apps that run in a terminal, such as htop. End it with the option that takes a command.">
+                            Hint="Terminal application to use for running commands.">
                 <TextBox Text="{Binding Terminal}" PlaceholderText="foot -e" />
               </ui:FormField>
               <ui:FormField Label="Show apps for" ToolTip.Tip="current-desktop"
@@ -158,11 +157,11 @@
                 <TextBox Text="{Binding CurrentDesktop}" PlaceholderText="GNOME" />
               </ui:FormField>
               <ui:FormField Label="Wayland socket" Problem="{Binding SocketProblem}" ToolTip.Tip="socket"
-                            Hint="The socket name Waylonia listens on, where the system has one. Restart Waylonia to apply it.">
+                            Hint="The default Wayland socket name.">
                 <TextBox Text="{Binding Socket}" PlaceholderText="wayland-9" />
               </ui:FormField>
               <ui:FormField Label="Startup app" ToolTip.Tip="command"
-                            Hint="On Linux, the app Waylonia starts when you run it with no options. Restart Waylonia to apply it.">
+                            Hint="On Linux, the app Waylonia starts when you run it with no options.">
                 <TextBox Text="{Binding Command}" PlaceholderText="foot" />
               </ui:FormField>
             </StackPanel>
@@ -171,7 +170,7 @@
           <ScrollViewer Classes="page">
             <StackPanel Classes="form" DataContext="{Binding Form}" x:DataType="ui:SettingsFormViewModel">
               <union:Heading Classes="page" Content="Hotkeys" />
-              <TextBlock Classes="hint" Text="Hotkeys for this whole computer. One per line, as CHORD = COMMAND. Each command runs here, or in the session that waylonia --ssh opened." />
+              <TextBlock Classes="hint" Text="Hotkeys for this computer. Set one per line as CHORD = COMMAND." />
               <TextBox x:Name="HotkeysBox" Classes="lines" MinHeight="200" Text="{Binding Hotkeys}" PlaceholderText="ctrl+alt+t = foot" ToolTip.Tip="[hotkeys]" />
               <TextBlock Classes="problem" Text="{Binding HotkeysProblem}"
                          IsVisible="{Binding HotkeysProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
@@ -207,15 +206,14 @@
               <ScrollViewer Grid.Column="1" Margin="12,0,0,0"
                             IsVisible="{Binding SelectedDesktop, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <StackPanel Classes="form" DataContext="{Binding SelectedDesktop}" x:DataType="ui:DesktopFormViewModel">
-                  <ui:FormField Label="Name" Problem="{Binding NameProblem}" ToolTip.Tip="[desktops.NAME]"
-                                Hint="waylonia --desktop NAME starts it.">
+                  <ui:FormField Label="Name" Problem="{Binding NameProblem}" ToolTip.Tip="[desktops.NAME]">
                     <TextBox x:Name="DesktopNameBox" Text="{Binding Name}" PlaceholderText="plasma" />
                   </ui:FormField>
                   <ui:FormField Label="Recipe" Problem="{Binding RecipeProblem}" ToolTip.Tip="recipe">
                     <ComboBox ItemsSource="{Binding RecipeChoices}" SelectedIndex="{Binding RecipeIndex}" HorizontalAlignment="Left" />
                   </ui:FormField>
                   <ui:FormField Label="Session" ToolTip.Tip="host"
-                                Hint="The session to run it in, or an SSH destination.">
+                                Hint="The session or an SSH destination to run it in.">
                     <TextBox Text="{Binding Host}" PlaceholderText="devbox" />
                   </ui:FormField>
                   <ui:FormField Label="Size" Problem="{Binding SizeProblem}" ToolTip.Tip="size">
@@ -228,7 +226,7 @@
                                 Hint="Variables for the desktop, as NAME=value, one per line.">
                     <TextBox Classes="lines" Text="{Binding Env}" PlaceholderText="QT_QPA_PLATFORM=wayland" />
                   </ui:FormField>
-                  <ui:FormField Hint="Leave the box partly filled to use the session's setting.">
+                  <ui:FormField>
                     <CheckBox Content="Use the GPU" IsThreeState="True" IsChecked="{Binding Gpu}" ToolTip.Tip="gpu" />
                   </ui:FormField>
                   <ui:FormField Label="Video encoding" Problem="{Binding VideoProblem}" ToolTip.Tip="video">
@@ -243,20 +241,19 @@
             <StackPanel Classes="form" DataContext="{Binding Form}" x:DataType="ui:SettingsFormViewModel">
               <union:Heading Classes="page" Content="Shell" />
               <ui:FormField Label="Window mode" ToolTip.Tip="[host] shell"
-                            Hint="With windows, each app gets its own window on your desktop. With nested, all apps share one window with frames and a panel. Restart Waylonia to apply it.">
+                            Hint="Window mode sets allows each app to get its own window. Nested mode shares one window for all apps.">
                 <ComboBox x:Name="ShellModeBox" ItemsSource="{Binding ShellModeChoices}" SelectedIndex="{Binding ShellModeIndex}" HorizontalAlignment="Left" />
               </ui:FormField>
 
               <union:Heading Classes="section" Content="Look" />
-              <ui:FormField Label="Theme" Problem="{Binding ThemeProblem}" ToolTip.Tip="[shell] theme"
-                            Hint="The window frames. Pick the bundled theme, or type the name of an installed Metacity theme.">
+              <ui:FormField Label="Theme" Problem="{Binding ThemeProblem}" ToolTip.Tip="[shell] theme">
                 <ComboBox x:Name="ThemeBox" IsEditable="True" Text="{Binding Theme}" ItemsSource="{Binding ThemeChoices}" PlaceholderText="Atlanta" HorizontalAlignment="Stretch" />
               </ui:FormField>
               <ui:FormField Label="Title bar buttons" Problem="{Binding ButtonLayoutProblem}" ToolTip.Tip="[shell] button-layout"
-                            Hint="The buttons on the left of the ':', then the ones on the right.">
+                            Hint="The layout of the title bar buttons.">
                 <TextBox Text="{Binding ButtonLayout}" PlaceholderText="menu:minimize,maximize,close" />
               </ui:FormField>
-              <ui:FormField Label="Theme colors" ToolTip.Tip="[shell] palette" Hint="The colors a theme gets when it asks for GTK colors.">
+              <ui:FormField Label="Theme colors" ToolTip.Tip="[shell] palette">
                 <ComboBox ItemsSource="{Binding PaletteChoices}" SelectedIndex="{Binding PaletteIndex}" HorizontalAlignment="Left" />
               </ui:FormField>
               <ui:FormField Label="Title font size" Problem="{Binding FontSizeProblem}" ToolTip.Tip="[shell] font-size" Hint="In logical pixels.">
@@ -277,13 +274,11 @@
               <ui:FormField Label="Names" ToolTip.Tip="[shell] workspace-names" Hint="Separate the names with commas. Workspaces past the list get numbers.">
                 <TextBox Text="{Binding WorkspaceNames}" PlaceholderText="Main, Mail" />
               </ui:FormField>
-
               <union:Heading Classes="section" Content="Focus" />
-              <ui:FormField Label="Focus mode" ToolTip.Tip="[shell] focus-mode" Hint="With click, a window takes focus when you click it. With sloppy or mouse, focus follows the pointer.">
+              <ui:FormField Label="Focus mode" ToolTip.Tip="[shell] focus-mode">
                 <ComboBox ItemsSource="{Binding FocusModeChoices}" SelectedIndex="{Binding FocusModeIndex}" HorizontalAlignment="Left" />
               </ui:FormField>
-              <ui:FormField Label="New windows" ToolTip.Tip="[shell] focus-new-windows"
-                            Hint="With smart, a new window takes focus unless you're typing in another one. With strict, it never takes focus.">
+              <ui:FormField Label="New windows" ToolTip.Tip="[shell] focus-new-windows">
                 <ComboBox ItemsSource="{Binding FocusNewWindowsChoices}" SelectedIndex="{Binding FocusNewWindowsIndex}" HorizontalAlignment="Left" />
               </ui:FormField>
               <ui:FormField Hint="Brings a window to the front when you click it.">
@@ -314,7 +309,7 @@
                             Hint="Hold it and use a mouse button anywhere in a window to move, resize or lower it.">
                 <ComboBox ItemsSource="{Binding MouseButtonModifierChoices}" SelectedIndex="{Binding MouseButtonModifierIndex}" HorizontalAlignment="Left" />
               </ui:FormField>
-              <ui:FormField Hint="The modifier key and the right button resize a window. When this is off, the middle button does.">
+              <ui:FormField>
                 <ToggleSwitch Content="Resize with the right button" IsChecked="{Binding ResizeWithRightButton}" ToolTip.Tip="[shell] resize-with-right-button" />
               </ui:FormField>
 
@@ -338,7 +333,7 @@
               </ui:FormField>
 
               <union:Heading Classes="section" Content="Keys" />
-              <TextBlock Classes="hint" Text="Shortcuts inside the nested shell. One per line, as NAME = CHORD. Leave the chord empty to turn a shortcut off. The names are marco's, such as switch-windows, close, toggle-maximized and tile-to-side-w." />
+              <TextBlock Classes="hint" Text="Shortcuts inside the nested shell, listed one per line as NAME = CHORD. Leave the chord empty to turn a shortcut off." />
               <TextBox x:Name="ShellKeysBox" Classes="lines" MinHeight="140" Text="{Binding ShellKeys}" PlaceholderText="switch-windows = Alt+Tab" ToolTip.Tip="[shell.keys]" />
               <TextBlock Classes="problem" Text="{Binding ShellKeysProblem}"
                          IsVisible="{Binding ShellKeysProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
@@ -352,11 +347,11 @@
                 <TextBox Text="{Binding PanelSize}" PlaceholderText="24" />
               </ui:FormField>
               <ui:FormField Label="Top panel" Problem="{Binding PanelTopProblem}" ToolTip.Tip="[panel] top"
-                            Hint="Applets from left to right, separated by commas. Leave it empty to remove this panel.">
+                            Hint="Applets from left to right, separated by commas.">
                 <TextBox Text="{Binding PanelTop}" PlaceholderText="menu-bar" />
               </ui:FormField>
               <ui:FormField Label="Bottom panel" Problem="{Binding PanelBottomProblem}" ToolTip.Tip="[panel] bottom"
-                            Hint="Applets from left to right, separated by commas. Leave it empty to remove this panel.">
+                            Hint="Applets from left to right, separated by commas.">
                 <TextBox Text="{Binding PanelBottom}" PlaceholderText="window-list, workspace-switcher" />
               </ui:FormField>
             </StackPanel>
