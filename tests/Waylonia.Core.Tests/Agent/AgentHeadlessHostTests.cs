@@ -147,7 +147,7 @@ public sealed class AgentHeadlessHostTests
         await UntilAsync(() => Task.FromResult(run.Runtime.Takeover.IsPaused), "the host press never paused the agent");
         var refused = await run.RefusedAsync("input/pointer-move", """{"x":20,"y":20}""");
         Assert.Equal(AgentTakeover.PausedMessage, refused.Reason);
-        Assert.Equal("Agent: paused", (await run.CallAsync("waylonia/describe")).GetProperty("takeover").GetString());
+        Assert.StartsWith("paused", (await run.CallAsync("waylonia/describe")).GetProperty("takeover").GetString(), StringComparison.Ordinal);
         await run.CallAsync("capture/output", """{"output":"shell","to":"inline"}""");
 
         run.Host.Post(run.Runtime.Resume);

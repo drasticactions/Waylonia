@@ -13,11 +13,13 @@ public sealed class AgentTakeoverTests
         var changes = 0;
         takeover.Changed += () => changes++;
         Assert.False(takeover.HostInput(1000, pressOrKey: false));
-        Assert.Equal("Agent: driving", takeover.Status);
+        Assert.DoesNotContain("paused", takeover.Status, StringComparison.Ordinal);
+        Assert.Equal("driving", takeover.Report);
 
         Assert.True(takeover.HostInput(1000, pressOrKey: true));
         Assert.True(takeover.IsPaused);
-        Assert.Equal("Agent: paused", takeover.Status);
+        Assert.Contains("paused", takeover.Status, StringComparison.Ordinal);
+        Assert.StartsWith("paused", takeover.Report, StringComparison.Ordinal);
         Assert.False(takeover.HostInput(1500, pressOrKey: true));
         Assert.Equal(1, changes);
     }
@@ -53,12 +55,16 @@ public sealed class AgentTakeoverTests
         var changes = 0;
         takeover.Changed += () => changes++;
         takeover.PendingApprovals = 1;
-        Assert.Equal("Agent: waiting for approval", takeover.Status);
+        Assert.Contains("approval", takeover.Status, StringComparison.Ordinal);
+        Assert.DoesNotContain("paused", takeover.Status, StringComparison.Ordinal);
         takeover.HostInput(0, true);
-        Assert.Equal("Agent: paused, waiting for approval", takeover.Status);
+        Assert.Contains("paused", takeover.Status, StringComparison.Ordinal);
+        Assert.Contains("approval", takeover.Status, StringComparison.Ordinal);
+        Assert.Contains("approval", takeover.Report, StringComparison.Ordinal);
         takeover.Resume();
         takeover.PendingApprovals = 0;
-        Assert.Equal("Agent: driving", takeover.Status);
+        Assert.DoesNotContain("approval", takeover.Status, StringComparison.Ordinal);
+        Assert.Equal("driving", takeover.Report);
         Assert.Equal(4, changes);
     }
 

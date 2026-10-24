@@ -131,7 +131,8 @@ Only one recording runs at a time. A new one ends the one before it with the fra
   launches, as the profile says) wait for a person. Never call `approval_answer`, never
   name `approval/requested` in `wait_event`, and never connect to the control socket yourself to
   answer your own approval. A denial is the answer; report it and ask what to do next.
-- **Paused.** `paused: someone is using the window` means a person took over a visible session.
+- **Paused.** A refusal that says the agent is paused because a person is using the window means a
+  person took over a visible session. `waylonia_describe` then reports `takeover` as `paused …`.
   Stop acting, tell the user, and wait for them to say it is resumed. Do not retry in a loop.
 - **Not a sandbox.** The applications run as the user, on the user's files and network. The
   profile keeps them off the user's desktop, clipboard and windows, nothing more. Do not use the

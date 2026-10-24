@@ -54,6 +54,7 @@ internal sealed class TmdsSshCommand : ISshCommand
         }
         catch (Exception error) when (error is SshException or ObjectDisposedException or InvalidOperationException or OperationCanceledException or IOException)
         {
+            WayloniaLog.Log.Debug(error, $"ssh: a command's channel closed before its exit status, reported as -1");
         }
 
         FlushPartialLine();

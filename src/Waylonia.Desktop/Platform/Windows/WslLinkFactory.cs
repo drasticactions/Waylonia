@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using static Waylonia.WayloniaLog;
 
 namespace Waylonia.Sessions;
 
@@ -9,7 +10,7 @@ internal sealed class WslLinkFactory : ITargetLinkFactory
         ArgumentNullException.ThrowIfNull(destination);
         if (!DestinationKinds.Wsl.TryParse(destination, out var distro))
         {
-            throw new ArgumentException($"'{destination}' is not a WSL destination", nameof(destination));
+            throw new ArgumentException($"The destination '{destination}' is not a WSL distribution. Give wsl:NAME.", nameof(destination));
         }
 
         return new WslLink(destination, distro);
@@ -24,6 +25,7 @@ internal sealed class WslLinkFactory : ITargetLinkFactory
         }
         catch (Exception error) when (error is Win32Exception or InvalidOperationException)
         {
+            Log.Debug(error, $"wsl: distributions not listed");
             return [];
         }
     }

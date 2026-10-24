@@ -12,9 +12,9 @@ internal sealed class SshLinkException : Exception
 
     public SshLinkReason Reason { get; }
 
-    public const string AgentHint = "an encrypted key named in ~/.ssh/config needs an agent";
+    public const string AgentHint = "To use an encrypted key that ~/.ssh/config names, add it to an ssh agent.";
 
-    public const string ImportHint = "import the key in the session manager";
+    public const string ImportHint = "Import your key in the session manager.";
 
     public static string Sentence(SshLinkReason reason, string destination, string? detail = null, bool configHint = false, string? hint = null)
     {
@@ -23,21 +23,21 @@ internal sealed class SshLinkException : Exception
         return reason switch
         {
             SshLinkReason.Unreachable => detail is { Length: > 0 }
-                ? $"{host} could not be reached: {Lowercase(detail)}"
-                : $"{host} could not be reached",
-            SshLinkReason.HostKeyRejected => $"the host key of {host} was not accepted",
+                ? $"Couldn't reach {host}. {UiSentence.Of(detail)}"
+                : $"Couldn't reach {host}.",
+            SshLinkReason.HostKeyRejected => $"The host key of {host} wasn't accepted, so Waylonia didn't connect.",
             SshLinkReason.HostKeyChanged =>
-                $"the host key of {host} changed; remove the old one from {detail ?? "~/.ssh/known_hosts"} if that is expected",
+                $"The host key of {host} has changed. If you expected that, remove the old key from {detail ?? "~/.ssh/known_hosts"} and connect again.",
             SshLinkReason.AuthenticationFailed => Authentication(destination, detail, configHint ? hint ?? AgentHint : null),
-            SshLinkReason.Canceled => $"the login to {destination} was canceled",
+            SshLinkReason.Canceled => $"The login to {destination} was canceled.",
             SshLinkReason.ConfigUnsupported => detail is { Length: > 0 } keyword
-                ? $"the ssh config for {host} uses {keyword}, which waylonia cannot honor" +
-                  (keyword.Equals("ProxyCommand", StringComparison.OrdinalIgnoreCase) ? "; use ProxyJump" : string.Empty)
-                : $"the ssh config for {host} uses a keyword waylonia cannot honor",
+                ? $"Your ssh config for {host} uses {keyword}, which Waylonia doesn't support." +
+                  (keyword.Equals("ProxyCommand", StringComparison.OrdinalIgnoreCase) ? " Use ProxyJump instead." : string.Empty)
+                : $"Your ssh config for {host} uses a keyword that Waylonia doesn't support.",
             SshLinkReason.ForwardRefused =>
-                $"the remote side refused to listen on {detail}; sshd needs StreamLocalBindUnlink yes or the socket is stale",
-            SshLinkReason.Lost => $"the connection to {destination} ended",
-            _ => $"the connection to {destination} failed",
+                $"{host} refused to listen on {detail}. A socket from an earlier run may be in the way, so set StreamLocalBindUnlink yes in its sshd_config.",
+            SshLinkReason.Lost => $"The connection to {destination} ended.",
+            _ => $"The connection to {destination} failed.",
         };
     }
 
@@ -64,26 +64,25 @@ internal sealed class SshLinkException : Exception
     {
         var offered = (methods ?? string.Empty)
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var text = $"{destination} refused every credential";
+        var text = $"{destination} didn't accept any of your credentials";
         if (offered.Length == 1 && offered[0] == KeyboardInteractive)
         {
-            text += $"; the server offers {KeyboardInteractive}, which waylonia cannot do";
+            text += $". It only offers {KeyboardInteractive} login, which Waylonia doesn't support.";
         }
         else if (offered.Length > 0)
         {
-            text += $" ({string.Join(", ", offered)})";
+            text += $" ({string.Join(", ", offered)}).";
+        }
+        else
+        {
+            text += ".";
         }
 
         if (hint is not null)
         {
-            text += $"; {hint}";
+            text += $" {hint}";
         }
 
         return text;
     }
-
-    private static string Lowercase(string text) =>
-        text.Length > 0 && char.IsUpper(text[0]) && !(text.Length > 1 && char.IsUpper(text[1]))
-            ? char.ToLowerInvariant(text[0]) + text[1..].TrimEnd('.')
-            : text.TrimEnd('.');
 }

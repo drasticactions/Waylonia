@@ -28,7 +28,7 @@ internal sealed unsafe class WindowsHostCapture : IHostCapture, IDisposable
         ArgumentNullException.ThrowIfNull(anchor);
         if (anchor.TryGetPlatformHandle() is not { } handle)
         {
-            Log.Warn($"the desktop window has no Win32 handle, the host keeps its own chords");
+            Log.Warn($"capture: off, the desktop window has no Win32 handle, so the host keeps its own chords");
             return null;
         }
 
@@ -36,13 +36,11 @@ internal sealed unsafe class WindowsHostCapture : IHostCapture, IDisposable
         _hook = SetWindowsHookExW(KeyboardHook, &OnKey, IntPtr.Zero, 0);
         if (_hook == IntPtr.Zero)
         {
-            Log.Warn($"the low-level keyboard hook was refused ({Marshal.GetLastPInvokeError()}), " +
-                $"the host keeps its own chords");
+            Log.Warn($"capture: off, Windows refused the keyboard hook with error {Marshal.GetLastPInvokeError()}");
             return null;
         }
 
-        Log.Debug($"the Windows key and Alt+Tab go to the desktop while it is captured; " +
-            $"Ctrl+Alt+Del is never grabbable and is not attempted");
+        Log.Debug($"capture: keyboard hook installed, the Windows key and Alt+Tab go to the desktop, Ctrl+Alt+Del stays with Windows");
         return new WindowsHostCapture();
     }
 
@@ -87,8 +85,9 @@ internal sealed unsafe class WindowsHostCapture : IHostCapture, IDisposable
                 }
             }
         }
-        catch (Exception)
+        catch (Exception error)
         {
+            Log.Error(error, $"capture: the keyboard hook failed");
             return CallNextHookEx(IntPtr.Zero, code, wParam, lParam);
         }
 

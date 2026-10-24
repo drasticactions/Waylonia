@@ -11,6 +11,8 @@ internal sealed unsafe class AudioSink : IAudioSink
     private readonly AudioFill _fill;
     private readonly int _channels;
     private GCHandle _self;
+    private static int _callbackFailed;
+
     private bool _started;
 
     private AudioSink(MaDevice device, AudioFill fill, int channels)
@@ -34,7 +36,7 @@ internal sealed unsafe class AudioSink : IAudioSink
         var initialized = sink._device.Initialize(config);
         if (initialized != ma_result.success)
         {
-            whyNot = initialized.ToString();
+            whyNot = $"opening the device returned {initialized}";
             sink.Dispose();
             return null;
         }
@@ -42,7 +44,7 @@ internal sealed unsafe class AudioSink : IAudioSink
         var started = sink._device.Start();
         if (started != ma_result.success)
         {
-            whyNot = started.ToString();
+            whyNot = $"starting the device returned {started}";
             sink.Dispose();
             return null;
         }
@@ -70,8 +72,12 @@ internal sealed unsafe class AudioSink : IAudioSink
 
             sink._fill(new Span<float>((void*)output, (int)frames * sink._channels));
         }
-        catch (Exception)
+        catch (Exception error)
         {
+            if (Interlocked.Exchange(ref _callbackFailed, 1) == 0)
+            {
+                WayloniaLog.Log.Error(error, $"audio: the playback callback failed, later failures are not logged");
+            }
         }
     }
 

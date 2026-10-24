@@ -1,444 +1,369 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:union="https://github.com/avaunion"
              xmlns:ui="clr-namespace:Waylonia.UI"
              x:Class="Waylonia.UI.SettingsView"
              x:DataType="ui:SettingsViewModel"
              Background="{DynamicResource Union.Active.Window.Background.NormalBrush}"
              Foreground="{DynamicResource Union.Active.Window.Foreground.TextBrush}">
   <UserControl.Styles>
-    <Style Selector="TextBlock.problem">
-      <Setter Property="Foreground" Value="{DynamicResource Union.Active.Window.Foreground.NegativeBrush}" />
-      <Setter Property="TextWrapping" Value="Wrap" />
-      <Setter Property="Margin" Value="120,0,0,0" />
-    </Style>
-    <Style Selector="TextBlock.hint">
-      <Setter Property="Opacity" Value="0.7" />
-      <Setter Property="TextWrapping" Value="Wrap" />
-    </Style>
-    <Style Selector="TextBlock.caption">
-      <Setter Property="Width" Value="120" />
-      <Setter Property="VerticalAlignment" Value="Center" />
-    </Style>
-    <Style Selector="StackPanel.field">
-      <Setter Property="Spacing" Value="2" />
-    </Style>
-    <Style Selector="StackPanel.toggle">
-      <Setter Property="Spacing" Value="0" />
-      <Setter Property="Margin" Value="0,0,0,6" />
-    </Style>
-    <Style Selector="StackPanel.toggle > TextBlock.hint">
-      <Setter Property="Margin" Value="28,0,0,0" />
-    </Style>
-    <Style Selector="TextBox.lines">
-      <Setter Property="AcceptsReturn" Value="True" />
-      <Setter Property="MinHeight" Value="48" />
-    </Style>
-    <Style Selector="TextBlock.group">
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Margin" Value="0,10,0,2" />
+    <Style Selector="ScrollViewer.page > StackPanel">
+      <Setter Property="Margin" Value="6,0,18,18" />
     </Style>
   </UserControl.Styles>
   <DockPanel LastChildFill="True">
-    <StackPanel DockPanel.Dock="Top" Margin="12,12,12,0" Spacing="4">
-      <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
-      <TextBlock Classes="problem" Margin="0" Text="{Binding Problem}"
-                 IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-      <TextBlock Classes="hint" Text="{Binding Note}"
-                 IsVisible="{Binding Note, Converter={x:Static ObjectConverters.IsNotNull}}" />
-    </StackPanel>
-    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="12" HorizontalAlignment="Right">
-      <Button Content="Revert" Command="{Binding ReloadCommand}" />
-      <Button x:Name="SaveButton" Content="Save" Command="{Binding SaveSettingsCommand}" IsDefault="True" />
-    </StackPanel>
-    <TabControl x:Name="Tabs" Margin="12,6,12,0">
-      <TabItem Header="Host">
-        <ScrollViewer>
-          <StackPanel Margin="0,8,0,0" DataContext="{Binding Form}" x:DataType="ui:SettingsFormViewModel" Spacing="2">
-            <StackPanel Classes="toggle">
-              <CheckBox Content="xwayland" IsChecked="{Binding XWayland}" />
-              <TextBlock Classes="hint" Text="Start XWayland for a local client or desktop, and set up X support in each session." />
-            </StackPanel>
-            <StackPanel Classes="toggle">
-              <CheckBox Content="tray" IsChecked="{Binding Tray}" />
-              <TextBlock Classes="hint" Text="Show the tray icon and its menu." />
-            </StackPanel>
-            <StackPanel Classes="toggle">
-              <CheckBox Content="tray-apps" IsChecked="{Binding TrayApps}" />
-              <TextBlock Classes="hint" Text="List each session's applications in the tray menu, by category. Needs tray." />
-            </StackPanel>
-            <StackPanel Classes="toggle">
-              <CheckBox Content="clipboard" IsChecked="{Binding Clipboard}" />
-              <TextBlock Classes="hint" Text="Share the clipboard between the host desktop and the clients." />
-            </StackPanel>
-            <StackPanel Classes="toggle">
-              <CheckBox Content="drag" IsChecked="{Binding Drag}" />
-              <TextBlock Classes="hint" Text="Drag and drop between the host desktop and the clients." />
-            </StackPanel>
-            <StackPanel Classes="toggle">
-              <CheckBox Content="follow-cursor" IsChecked="{Binding FollowCursor}" />
-              <TextBlock Classes="hint" Text="Open each new client window on the screen the pointer is on." />
-            </StackPanel>
-            <StackPanel Classes="toggle">
-              <CheckBox Content="gtk-dpi" IsChecked="{Binding GtkDpi}" />
-              <TextBlock Classes="hint" Text="Read a session's GTK settings for its DPI." />
-            </StackPanel>
-            <StackPanel Classes="toggle">
-              <CheckBox Content="session-titles" IsChecked="{Binding SessionTitles}" />
-              <TextBlock Classes="hint" Text="Include the session title in each window's title." />
-            </StackPanel>
-            <StackPanel Classes="toggle">
-              <CheckBox Content="virtual-input" IsChecked="{Binding VirtualInput}" />
-              <TextBlock Classes="hint" Text="Let clients type and click into each other, as wtype needs. Takes effect at restart." />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="capture-chord" />
-                <TextBox x:Name="CaptureChordBox" Text="{Binding CaptureChord}" PlaceholderText="double:RightControl" />
-              </DockPanel>
-              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Takes the host's keyboard and pointer for a nested desktop." />
-              <TextBlock Classes="problem" Text="{Binding CaptureChordProblem}"
-                         IsVisible="{Binding CaptureChordProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="ssh-timeout" />
-                <TextBox x:Name="SshTimeoutBox" Text="{Binding SshTimeout}" PlaceholderText="30" />
-              </DockPanel>
-              <TextBlock Classes="hint" Margin="120,0,0,0" Text="How long a session waits for its ssh server to answer, in seconds." />
-              <TextBlock Classes="problem" Text="{Binding SshTimeoutProblem}"
-                         IsVisible="{Binding SshTimeoutProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
+    <Border DockPanel.Dock="Bottom" BorderThickness="0,1,0,0"
+            BorderBrush="{DynamicResource Union.Active.Window.Decoration.FrameBrush}">
+      <StackPanel Orientation="Horizontal" Spacing="8" Margin="12" HorizontalAlignment="Right">
+        <Button x:Name="RevertButton" Command="{Binding ReloadCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <union:UnionIcon IconName="document-revert" Width="16" Height="16" />
+            <TextBlock Text="Revert" VerticalAlignment="Center" />
           </StackPanel>
-        </ScrollViewer>
-      </TabItem>
-      <TabItem Header="Defaults">
-        <ScrollViewer>
-          <StackPanel Margin="0,8,0,0" DataContext="{Binding Form}" x:DataType="ui:SettingsFormViewModel" Spacing="6">
-            <TextBlock Classes="hint" Text="Note: Session files may override these." />
-            <DockPanel>
-              <TextBlock Classes="caption" Text="compress" />
-              <ComboBox ItemsSource="{Binding CompressChoices}" SelectedIndex="{Binding CompressIndex}" HorizontalAlignment="Left" />
-            </DockPanel>
-            <StackPanel Orientation="Horizontal" Spacing="16">
-              <CheckBox Content="gpu" IsThreeState="True" IsChecked="{Binding Gpu}" />
-              <CheckBox Content="audio" IsThreeState="True" IsChecked="{Binding Audio}" />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="video" />
-                <TextBox Text="{Binding Video}" PlaceholderText="h264,hw" />
-              </DockPanel>
-              <TextBlock Classes="problem" Text="{Binding VideoProblem}"
-                         IsVisible="{Binding VideoProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="lang" />
-                <TextBox Text="{Binding Lang}" PlaceholderText="C.UTF-8" />
-              </DockPanel>
-              <TextBlock Classes="problem" Text="{Binding LangProblem}"
-                         IsVisible="{Binding LangProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <DockPanel>
-              <TextBlock Classes="caption" Text="terminal" />
-              <TextBox Text="{Binding Terminal}" PlaceholderText="foot -e" />
-            </DockPanel>
-            <DockPanel>
-              <TextBlock Classes="caption" Text="current-desktop" />
-              <TextBox Text="{Binding CurrentDesktop}" PlaceholderText="GNOME" />
-            </DockPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="socket" />
-                <TextBox Text="{Binding Socket}" PlaceholderText="wayland-9" />
-              </DockPanel>
-              <TextBlock Classes="problem" Text="{Binding SocketProblem}"
-                         IsVisible="{Binding SocketProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="command" />
-                <TextBox Text="{Binding Command}" PlaceholderText="the local client a bare waylonia starts on Linux" />
-              </DockPanel>
-            </StackPanel>
+        </Button>
+        <Button x:Name="SaveButton" Command="{Binding SaveSettingsCommand}" IsDefault="True">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <union:UnionIcon IconName="document-save" Width="16" Height="16" />
+            <TextBlock Text="Save" VerticalAlignment="Center" />
           </StackPanel>
-        </ScrollViewer>
-      </TabItem>
-      <TabItem Header="Hotkeys">
-        <StackPanel Margin="0,8,0,0" DataContext="{Binding Form}" x:DataType="ui:SettingsFormViewModel" Spacing="6">
-          <TextBlock Classes="hint" Text="Host-global hotkeys. One per line, as CHORD = COMMAND." />
-          <TextBox x:Name="HotkeysBox" Classes="lines" MinHeight="160" Text="{Binding Hotkeys}" PlaceholderText="ctrl+alt+t = foot" />
-          <TextBlock Classes="problem" Margin="0" Text="{Binding HotkeysProblem}"
-                     IsVisible="{Binding HotkeysProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        </Button>
+      </StackPanel>
+    </Border>
+    <Grid ColumnDefinitions="200,*">
+      <ListBox x:Name="Pages" Grid.Column="0" Margin="12,12,6,12" SelectedIndex="0">
+        <ListBoxItem>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <union:UnionIcon IconName="computer" Width="22" Height="22" />
+            <TextBlock Text="Host" VerticalAlignment="Center" />
+          </StackPanel>
+        </ListBoxItem>
+        <ListBoxItem>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <union:UnionIcon IconName="preferences-system-network" Width="22" Height="22" />
+            <TextBlock Text="Defaults" VerticalAlignment="Center" />
+          </StackPanel>
+        </ListBoxItem>
+        <ListBoxItem>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <union:UnionIcon IconName="preferences-desktop-keyboard-shortcut" Width="22" Height="22" />
+            <TextBlock Text="Hotkeys" VerticalAlignment="Center" />
+          </StackPanel>
+        </ListBoxItem>
+        <ListBoxItem>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <union:UnionIcon IconName="preferences-desktop-display" Width="22" Height="22" />
+            <TextBlock Text="Desktops" VerticalAlignment="Center" />
+          </StackPanel>
+        </ListBoxItem>
+        <ListBoxItem>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <union:UnionIcon IconName="preferences-system-windows" Width="22" Height="22" />
+            <TextBlock Text="Shell" VerticalAlignment="Center" />
+          </StackPanel>
+        </ListBoxItem>
+        <ListBoxItem>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <union:UnionIcon IconName="input-mouse" Width="22" Height="22" />
+            <TextBlock Text="Mouse and keys" VerticalAlignment="Center" />
+          </StackPanel>
+        </ListBoxItem>
+        <ListBoxItem>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <union:UnionIcon IconName="preferences-desktop" Width="22" Height="22" />
+            <TextBlock Text="Panel" VerticalAlignment="Center" />
+          </StackPanel>
+        </ListBoxItem>
+      </ListBox>
+      <DockPanel Grid.Column="1" LastChildFill="True">
+        <StackPanel DockPanel.Dock="Top" Margin="6,12,18,10" Spacing="8">
+          <NotificationCard x:Name="ProblemCard" Classes="inline" NotificationType="Error"
+                            IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <SelectableTextBlock Text="{Binding Problem}" />
+          </NotificationCard>
+          <NotificationCard x:Name="NoteCard" Classes="inline" NotificationType="Warning"
+                            IsVisible="{Binding Note, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <SelectableTextBlock Text="{Binding Note}" />
+          </NotificationCard>
         </StackPanel>
-      </TabItem>
-      <TabItem Header="Desktops">
-        <Grid ColumnDefinitions="200,*" Margin="0,8,0,0">
-          <DockPanel Grid.Column="0">
-            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="6" Margin="0,6,0,0">
-              <Button Content="New" Command="{Binding NewDesktopCommand}" />
-              <Button Content="Delete" Command="{Binding DeleteDesktopCommand}" />
-            </StackPanel>
-            <ListBox x:Name="DesktopList" ItemsSource="{Binding Desktops}" SelectedItem="{Binding SelectedDesktop}">
-              <ListBox.ItemTemplate>
-                <DataTemplate x:DataType="ui:DesktopFormViewModel">
-                  <TextBlock Text="{Binding Label}" Margin="2" />
-                </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
-          </DockPanel>
-          <ScrollViewer Grid.Column="1" Margin="12,0,0,0"
-                        IsVisible="{Binding SelectedDesktop, Converter={x:Static ObjectConverters.IsNotNull}}">
-            <StackPanel DataContext="{Binding SelectedDesktop}" x:DataType="ui:DesktopFormViewModel" Spacing="6">
-              <StackPanel Classes="field">
-                <DockPanel>
-                  <TextBlock Classes="caption" Text="name" />
-                  <TextBox x:Name="DesktopNameBox" Text="{Binding Name}" PlaceholderText="name" />
-                </DockPanel>
-                <TextBlock Classes="problem" Text="{Binding NameProblem}"
-                           IsVisible="{Binding NameProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-              </StackPanel>
-              <StackPanel Classes="field">
-                <DockPanel>
-                  <TextBlock Classes="caption" Text="recipe" />
-                  <ComboBox ItemsSource="{Binding RecipeChoices}" SelectedIndex="{Binding RecipeIndex}" HorizontalAlignment="Left" />
-                </DockPanel>
-                <TextBlock Classes="problem" Text="{Binding RecipeProblem}"
-                           IsVisible="{Binding RecipeProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-              </StackPanel>
-              <DockPanel>
-                <TextBlock Classes="caption" Text="host" />
-                <TextBox Text="{Binding Host}" PlaceholderText="a session name, or user@host" />
-              </DockPanel>
-              <StackPanel Classes="field">
-                <DockPanel>
-                  <TextBlock Classes="caption" Text="size" />
-                  <TextBox Text="{Binding Size}" PlaceholderText="1920x1080" />
-                </DockPanel>
-                <TextBlock Classes="problem" Text="{Binding SizeProblem}"
-                           IsVisible="{Binding SizeProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-              </StackPanel>
-              <StackPanel Classes="field">
-                <DockPanel>
-                  <TextBlock Classes="caption" Text="command" />
-                  <TextBox Text="{Binding Command}" PlaceholderText="startplasma-wayland" />
-                </DockPanel>
-                <TextBlock Classes="problem" Text="{Binding CommandProblem}"
-                           IsVisible="{Binding CommandProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-              </StackPanel>
-              <DockPanel>
-                <TextBlock Classes="caption" Text="env" />
-                <TextBox Classes="lines" Text="{Binding Env}" PlaceholderText="NAME=value, one per line" />
-              </DockPanel>
-              <CheckBox Content="gpu" IsThreeState="True" IsChecked="{Binding Gpu}" />
-              <StackPanel Classes="field">
-                <DockPanel>
-                  <TextBlock Classes="caption" Text="video" />
-                  <TextBox Text="{Binding Video}" PlaceholderText="h264,hw" />
-                </DockPanel>
-                <TextBlock Classes="problem" Text="{Binding VideoProblem}"
-                           IsVisible="{Binding VideoProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-              </StackPanel>
+        <Carousel x:Name="PageHost" SelectedIndex="{Binding #Pages.SelectedIndex}">
+
+          <ScrollViewer Classes="page">
+            <StackPanel Classes="form" DataContext="{Binding Form}" x:DataType="ui:SettingsFormViewModel">
+              <union:Heading Classes="page" Content="Host" />
+              <ui:FormField Hint="Lets X11 apps run, on this computer and in each session.">
+                <ToggleSwitch Content="Start XWayland" IsChecked="{Binding XWayland}" ToolTip.Tip="[host] xwayland" />
+              </ui:FormField>
+              <ui:FormField Hint="Shows Waylonia's icon and menu in the system tray.">
+                <ToggleSwitch Content="Tray icon" IsChecked="{Binding Tray}" ToolTip.Tip="[host] tray" />
+              </ui:FormField>
+              <ui:FormField Hint="Lists each session's apps in the tray menu, by category. Needs the tray icon.">
+                <ToggleSwitch Content="Apps in the tray menu" IsChecked="{Binding TrayApps}" ToolTip.Tip="[host] tray-apps" />
+              </ui:FormField>
+              <ui:FormField Hint="Lets you copy and paste between your desktop and the apps.">
+                <ToggleSwitch Content="Share the clipboard" IsChecked="{Binding Clipboard}" ToolTip.Tip="[host] clipboard" />
+              </ui:FormField>
+              <ui:FormField Hint="Lets you drag things between your desktop and the apps.">
+                <ToggleSwitch Content="Drag and drop" IsChecked="{Binding Drag}" ToolTip.Tip="[host] drag" />
+              </ui:FormField>
+              <ui:FormField Hint="Opens each new window on the screen the pointer is on.">
+                <ToggleSwitch Content="Open windows where the pointer is" IsChecked="{Binding FollowCursor}" ToolTip.Tip="[host] follow-cursor" />
+              </ui:FormField>
+              <ui:FormField Hint="Keeps a session's own display scaling from sizing GTK windows twice.">
+                <ToggleSwitch Content="Fix GTK scaling" IsChecked="{Binding GtkDpi}" ToolTip.Tip="[host] gtk-dpi" />
+              </ui:FormField>
+              <ui:FormField Hint="Ends each window title with the name of its session.">
+                <ToggleSwitch Content="Session name in titles" IsChecked="{Binding SessionTitles}" ToolTip.Tip="[host] session-titles" />
+              </ui:FormField>
+              <ui:FormField Hint="Lets apps type and click into each other, as wtype needs. Restart Waylonia to apply it.">
+                <ToggleSwitch Content="Virtual keyboard and pointer" IsChecked="{Binding VirtualInput}" ToolTip.Tip="[host] virtual-input" />
+              </ui:FormField>
+              <ui:FormField Label="Capture key" Problem="{Binding CaptureChordProblem}" ToolTip.Tip="[host] capture-chord"
+                            Hint="Gives your keyboard and pointer to a desktop session, and takes them back. double: means a double tap.">
+                <TextBox x:Name="CaptureChordBox" Text="{Binding CaptureChord}" PlaceholderText="double:RightControl" />
+              </ui:FormField>
+              <ui:FormField Label="SSH timeout" Problem="{Binding SshTimeoutProblem}" ToolTip.Tip="[host] ssh-timeout"
+                            Hint="How many seconds a session waits for its SSH server to answer.">
+                <TextBox x:Name="SshTimeoutBox" Text="{Binding SshTimeout}" PlaceholderText="30" />
+              </ui:FormField>
             </StackPanel>
           </ScrollViewer>
-        </Grid>
-      </TabItem>
-      <TabItem Header="Shell">
-        <ScrollViewer>
-          <StackPanel Margin="0,8,0,0" DataContext="{Binding Form}" x:DataType="ui:SettingsFormViewModel" Spacing="2">
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="mode" />
+
+          <ScrollViewer Classes="page">
+            <StackPanel Classes="form" DataContext="{Binding Form}" x:DataType="ui:SettingsFormViewModel">
+              <union:Heading Classes="page" Content="Defaults" />
+              <TextBlock Classes="hint" Text="Each session uses these unless its own settings say otherwise." />
+              <ui:FormField Label="Compression" ToolTip.Tip="compress">
+                <ComboBox ItemsSource="{Binding CompressChoices}" SelectedIndex="{Binding CompressIndex}" HorizontalAlignment="Left" />
+              </ui:FormField>
+              <ui:FormField Hint="Leave a box partly filled to use the built-in default.">
+                <StackPanel Classes="options">
+                  <CheckBox Content="Use the GPU" IsThreeState="True" IsChecked="{Binding Gpu}" ToolTip.Tip="gpu" />
+                  <CheckBox Content="Play sound here" IsThreeState="True" IsChecked="{Binding Audio}" ToolTip.Tip="audio" />
+                </StackPanel>
+              </ui:FormField>
+              <ui:FormField Label="Video encoding" Problem="{Binding VideoProblem}" ToolTip.Tip="video"
+                            Hint="Sends window contents as video. Add ,hw to decode on this computer's GPU.">
+                <TextBox Text="{Binding Video}" PlaceholderText="h264,hw" />
+              </ui:FormField>
+              <ui:FormField Label="Language" Problem="{Binding LangProblem}" ToolTip.Tip="lang"
+                            Hint="The LANG a session gets when its login sets none. Write &quot;&quot; to leave it alone.">
+                <TextBox Text="{Binding Lang}" PlaceholderText="C.UTF-8" />
+              </ui:FormField>
+              <ui:FormField Label="Terminal" ToolTip.Tip="terminal"
+                            Hint="Opens apps that run in a terminal, such as htop. End it with the option that takes a command.">
+                <TextBox Text="{Binding Terminal}" PlaceholderText="foot -e" />
+              </ui:FormField>
+              <ui:FormField Label="Show apps for" ToolTip.Tip="current-desktop"
+                            Hint="Lists the apps meant for this desktop, by its XDG_CURRENT_DESKTOP name.">
+                <TextBox Text="{Binding CurrentDesktop}" PlaceholderText="GNOME" />
+              </ui:FormField>
+              <ui:FormField Label="Wayland socket" Problem="{Binding SocketProblem}" ToolTip.Tip="socket"
+                            Hint="The socket name Waylonia listens on, where the system has one. Restart Waylonia to apply it.">
+                <TextBox Text="{Binding Socket}" PlaceholderText="wayland-9" />
+              </ui:FormField>
+              <ui:FormField Label="Startup app" ToolTip.Tip="command"
+                            Hint="On Linux, the app Waylonia starts when you run it with no options. Restart Waylonia to apply it.">
+                <TextBox Text="{Binding Command}" PlaceholderText="foot" />
+              </ui:FormField>
+            </StackPanel>
+          </ScrollViewer>
+
+          <ScrollViewer Classes="page">
+            <StackPanel Classes="form" DataContext="{Binding Form}" x:DataType="ui:SettingsFormViewModel">
+              <union:Heading Classes="page" Content="Hotkeys" />
+              <TextBlock Classes="hint" Text="Hotkeys for this whole computer. One per line, as CHORD = COMMAND. Each command runs here, or in the session that waylonia --ssh opened." />
+              <TextBox x:Name="HotkeysBox" Classes="lines" MinHeight="200" Text="{Binding Hotkeys}" PlaceholderText="ctrl+alt+t = foot" ToolTip.Tip="[hotkeys]" />
+              <TextBlock Classes="problem" Text="{Binding HotkeysProblem}"
+                         IsVisible="{Binding HotkeysProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+          </ScrollViewer>
+
+          <DockPanel Margin="6,0,18,18">
+            <union:Heading DockPanel.Dock="Top" Classes="page" Content="Desktops" />
+            <Grid ColumnDefinitions="180,*" Margin="0,6,0,0">
+              <DockPanel Grid.Column="0">
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="6" Margin="0,6,0,0">
+                  <Button x:Name="NewDesktopButton" Command="{Binding NewDesktopCommand}" ToolTip.Tip="New desktop">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <union:UnionIcon IconName="list-add" Width="16" Height="16" />
+                      <TextBlock Text="New" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                  <Button x:Name="DeleteDesktopButton" Command="{Binding DeleteDesktopCommand}" ToolTip.Tip="Delete desktop">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <union:UnionIcon IconName="list-remove" Width="16" Height="16" />
+                      <TextBlock Text="Delete" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                </StackPanel>
+                <ListBox x:Name="DesktopList" ItemsSource="{Binding Desktops}" SelectedItem="{Binding SelectedDesktop}">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="ui:DesktopFormViewModel">
+                      <TextBlock Text="{Binding Label}" Margin="2" />
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </DockPanel>
+              <ScrollViewer Grid.Column="1" Margin="12,0,0,0"
+                            IsVisible="{Binding SelectedDesktop, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <StackPanel Classes="form" DataContext="{Binding SelectedDesktop}" x:DataType="ui:DesktopFormViewModel">
+                  <ui:FormField Label="Name" Problem="{Binding NameProblem}" ToolTip.Tip="[desktops.NAME]"
+                                Hint="waylonia --desktop NAME starts it.">
+                    <TextBox x:Name="DesktopNameBox" Text="{Binding Name}" PlaceholderText="plasma" />
+                  </ui:FormField>
+                  <ui:FormField Label="Recipe" Problem="{Binding RecipeProblem}" ToolTip.Tip="recipe">
+                    <ComboBox ItemsSource="{Binding RecipeChoices}" SelectedIndex="{Binding RecipeIndex}" HorizontalAlignment="Left" />
+                  </ui:FormField>
+                  <ui:FormField Label="Session" ToolTip.Tip="host"
+                                Hint="The session to run it in, or an SSH destination.">
+                    <TextBox Text="{Binding Host}" PlaceholderText="devbox" />
+                  </ui:FormField>
+                  <ui:FormField Label="Size" Problem="{Binding SizeProblem}" ToolTip.Tip="size">
+                    <TextBox Text="{Binding Size}" PlaceholderText="1920x1080" />
+                  </ui:FormField>
+                  <ui:FormField Label="Command" Problem="{Binding CommandProblem}" ToolTip.Tip="command">
+                    <TextBox Text="{Binding Command}" PlaceholderText="startplasma-wayland" />
+                  </ui:FormField>
+                  <ui:FormField Label="Environment" Classes="lines" ToolTip.Tip="env"
+                                Hint="Variables for the desktop, as NAME=value, one per line.">
+                    <TextBox Classes="lines" Text="{Binding Env}" PlaceholderText="QT_QPA_PLATFORM=wayland" />
+                  </ui:FormField>
+                  <ui:FormField Hint="Leave the box partly filled to use the session's setting.">
+                    <CheckBox Content="Use the GPU" IsThreeState="True" IsChecked="{Binding Gpu}" ToolTip.Tip="gpu" />
+                  </ui:FormField>
+                  <ui:FormField Label="Video encoding" Problem="{Binding VideoProblem}" ToolTip.Tip="video">
+                    <TextBox Text="{Binding Video}" PlaceholderText="h264,hw" />
+                  </ui:FormField>
+                </StackPanel>
+              </ScrollViewer>
+            </Grid>
+          </DockPanel>
+
+          <ScrollViewer Classes="page">
+            <StackPanel Classes="form" DataContext="{Binding Form}" x:DataType="ui:SettingsFormViewModel">
+              <union:Heading Classes="page" Content="Shell" />
+              <ui:FormField Label="Window mode" ToolTip.Tip="[host] shell"
+                            Hint="With windows, each app gets its own window on your desktop. With nested, all apps share one window with frames and a panel. Restart Waylonia to apply it.">
                 <ComboBox x:Name="ShellModeBox" ItemsSource="{Binding ShellModeChoices}" SelectedIndex="{Binding ShellModeIndex}" HorizontalAlignment="Left" />
-              </DockPanel>
-              <TextBlock Classes="hint" Margin="120,0,0,0" Text="One host window per client window (windows), or one window holding a desktop with frames and a panel (nested). Takes effect when Waylonia restarts." />
-            </StackPanel>
-            <TextBlock Classes="group" Text="Look" />
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="theme" />
+              </ui:FormField>
+
+              <union:Heading Classes="section" Content="Look" />
+              <ui:FormField Label="Theme" Problem="{Binding ThemeProblem}" ToolTip.Tip="[shell] theme"
+                            Hint="The window frames. Pick the bundled theme, or type the name of an installed Metacity theme.">
                 <ComboBox x:Name="ThemeBox" IsEditable="True" Text="{Binding Theme}" ItemsSource="{Binding ThemeChoices}" PlaceholderText="Atlanta" HorizontalAlignment="Stretch" />
-              </DockPanel>
-              <TextBlock Classes="hint" Margin="120,0,0,0" Text="The bundled theme, or an installed metacity theme by name." />
-              <TextBlock Classes="problem" Text="{Binding ThemeProblem}"
-                         IsVisible="{Binding ThemeProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="button-layout" />
+              </ui:FormField>
+              <ui:FormField Label="Title bar buttons" Problem="{Binding ButtonLayoutProblem}" ToolTip.Tip="[shell] button-layout"
+                            Hint="The buttons on the left of the ':', then the ones on the right.">
                 <TextBox Text="{Binding ButtonLayout}" PlaceholderText="menu:minimize,maximize,close" />
-              </DockPanel>
-              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Title bar buttons, left of the ':' and right of it." />
-              <TextBlock Classes="problem" Text="{Binding ButtonLayoutProblem}"
-                         IsVisible="{Binding ButtonLayoutProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="palette" />
+              </ui:FormField>
+              <ui:FormField Label="Theme colors" ToolTip.Tip="[shell] palette" Hint="The colors a theme gets when it asks for GTK colors.">
                 <ComboBox ItemsSource="{Binding PaletteChoices}" SelectedIndex="{Binding PaletteIndex}" HorizontalAlignment="Left" />
-              </DockPanel>
-              <TextBlock Classes="hint" Margin="120,0,0,0" Text="The colors the theme's gtk: specs resolve against." />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="font-size" />
+              </ui:FormField>
+              <ui:FormField Label="Title font size" Problem="{Binding FontSizeProblem}" ToolTip.Tip="[shell] font-size" Hint="In logical pixels.">
                 <TextBox Text="{Binding FontSize}" PlaceholderText="13" />
-              </DockPanel>
-              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Title font size in logical pixels." />
-              <TextBlock Classes="problem" Text="{Binding FontSizeProblem}"
-                         IsVisible="{Binding FontSizeProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="background" />
+              </ui:FormField>
+              <ui:FormField Label="Desktop color" Problem="{Binding BackgroundProblem}" ToolTip.Tip="[shell] background"
+                            Hint="The color behind the windows, as #rrggbb.">
                 <TextBox Text="{Binding Background}" PlaceholderText="#5891ad" />
-              </DockPanel>
-              <TextBlock Classes="hint" Margin="120,0,0,0" Text="The background color of the desktop, as #rrggbb." />
-              <TextBlock Classes="problem" Text="{Binding BackgroundProblem}"
-                         IsVisible="{Binding BackgroundProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <TextBlock Classes="group" Text="Workspaces" />
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="workspaces" />
+              </ui:FormField>
+
+              <union:Heading Classes="section" Content="Workspaces" />
+              <ui:FormField Label="Number" Problem="{Binding WorkspacesProblem}" ToolTip.Tip="[shell] workspaces">
                 <TextBox Text="{Binding Workspaces}" PlaceholderText="4" />
-              </DockPanel>
-              <TextBlock Classes="problem" Text="{Binding WorkspacesProblem}"
-                         IsVisible="{Binding WorkspacesProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="workspace-rows" />
+              </ui:FormField>
+              <ui:FormField Label="Rows" Problem="{Binding WorkspaceRowsProblem}" ToolTip.Tip="[shell] workspace-rows">
                 <TextBox Text="{Binding WorkspaceRows}" PlaceholderText="1" />
-              </DockPanel>
-              <TextBlock Classes="problem" Text="{Binding WorkspaceRowsProblem}"
-                         IsVisible="{Binding WorkspaceRowsProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="workspace-names" />
+              </ui:FormField>
+              <ui:FormField Label="Names" ToolTip.Tip="[shell] workspace-names" Hint="Separate the names with commas. Workspaces past the list get numbers.">
                 <TextBox Text="{Binding WorkspaceNames}" PlaceholderText="Main, Mail" />
-              </DockPanel>
-              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Comma-separated; workspaces past the list are numbered." />
-            </StackPanel>
-            <TextBlock Classes="group" Text="Focus" />
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="focus-mode" />
+              </ui:FormField>
+
+              <union:Heading Classes="section" Content="Focus" />
+              <ui:FormField Label="Focus mode" ToolTip.Tip="[shell] focus-mode" Hint="With click, a window takes focus when you click it. With sloppy or mouse, focus follows the pointer.">
                 <ComboBox ItemsSource="{Binding FocusModeChoices}" SelectedIndex="{Binding FocusModeIndex}" HorizontalAlignment="Left" />
-              </DockPanel>
-              <TextBlock Classes="hint" Margin="120,0,0,0" Text="click focuses on click, sloppy and mouse follow the pointer." />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="focus-new-windows" />
+              </ui:FormField>
+              <ui:FormField Label="New windows" ToolTip.Tip="[shell] focus-new-windows"
+                            Hint="With smart, a new window takes focus unless you're typing in another one. With strict, it never takes focus.">
                 <ComboBox ItemsSource="{Binding FocusNewWindowsChoices}" SelectedIndex="{Binding FocusNewWindowsIndex}" HorizontalAlignment="Left" />
-              </DockPanel>
-              <TextBlock Classes="hint" Margin="120,0,0,0" Text="smart focuses a new window unless you are typing elsewhere; strict never steals focus." />
-            </StackPanel>
-            <StackPanel Classes="toggle">
-              <CheckBox Content="raise-on-click" IsChecked="{Binding RaiseOnClick}" />
-              <TextBlock Classes="hint" Text="Raise a window when it is clicked." />
-            </StackPanel>
-            <StackPanel Classes="toggle">
-              <CheckBox Content="auto-raise" IsChecked="{Binding AutoRaise}" />
-              <TextBlock Classes="hint" Text="Raise the window under the pointer after auto-raise-delay, in sloppy and mouse focus modes." />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="auto-raise-delay" />
+              </ui:FormField>
+              <ui:FormField Hint="Brings a window to the front when you click it.">
+                <ToggleSwitch Content="Raise on click" IsChecked="{Binding RaiseOnClick}" ToolTip.Tip="[shell] raise-on-click" />
+              </ui:FormField>
+              <ui:FormField Hint="Brings the window under the pointer to the front after a delay, with sloppy or mouse focus.">
+                <ToggleSwitch Content="Raise on hover" IsChecked="{Binding AutoRaise}" ToolTip.Tip="[shell] auto-raise" />
+              </ui:FormField>
+              <ui:FormField Label="Raise delay" Problem="{Binding AutoRaiseDelayProblem}" ToolTip.Tip="[shell] auto-raise-delay" Hint="In milliseconds.">
                 <TextBox Text="{Binding AutoRaiseDelay}" PlaceholderText="500" />
-              </DockPanel>
-              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Milliseconds." />
-              <TextBlock Classes="problem" Text="{Binding AutoRaiseDelayProblem}"
-                         IsVisible="{Binding AutoRaiseDelayProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <TextBlock Classes="group" Text="Placement" />
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="placement" />
+              </ui:FormField>
+
+              <union:Heading Classes="section" Content="Placement" />
+              <ui:FormField Label="Place new windows" ToolTip.Tip="[shell] placement"
+                            Hint="With automatic, a new window goes into free space. With pointer, it opens under the pointer. With manual, you move it into place.">
                 <ComboBox ItemsSource="{Binding PlacementChoices}" SelectedIndex="{Binding PlacementIndex}" HorizontalAlignment="Left" />
-              </DockPanel>
-              <TextBlock Classes="hint" Margin="120,0,0,0" Text="automatic finds free space, pointer opens under the pointer, manual starts a move." />
+              </ui:FormField>
+              <ui:FormField Hint="Centers a window that fits nowhere, instead of cascading it.">
+                <ToggleSwitch Content="Center new windows" IsChecked="{Binding CenterNewWindows}" ToolTip.Tip="[shell] center-new-windows" />
+              </ui:FormField>
             </StackPanel>
-            <StackPanel Classes="toggle">
-              <CheckBox Content="center-new-windows" IsChecked="{Binding CenterNewWindows}" />
-              <TextBlock Classes="hint" Text="Center a window that fits nowhere instead of cascading it." />
-            </StackPanel>
-            <TextBlock Classes="group" Text="Mouse" />
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="mouse-button-modifier" />
+          </ScrollViewer>
+
+          <ScrollViewer Classes="page">
+            <StackPanel Classes="form" DataContext="{Binding Form}" x:DataType="ui:SettingsFormViewModel">
+              <union:Heading Classes="page" Content="Mouse and keys" />
+              <ui:FormField Label="Modifier key" ToolTip.Tip="[shell] mouse-button-modifier"
+                            Hint="Hold it and use a mouse button anywhere in a window to move, resize or lower it.">
                 <ComboBox ItemsSource="{Binding MouseButtonModifierChoices}" SelectedIndex="{Binding MouseButtonModifierIndex}" HorizontalAlignment="Left" />
-              </DockPanel>
-              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Held with a mouse button anywhere in a window to move, resize or lower it." />
-            </StackPanel>
-            <StackPanel Classes="toggle">
-              <CheckBox Content="resize-with-right-button" IsChecked="{Binding ResizeWithRightButton}" />
-              <TextBlock Classes="hint" Text="The modifier plus the right button resizes; off, the middle button does." />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="double-click-titlebar" />
+              </ui:FormField>
+              <ui:FormField Hint="The modifier key and the right button resize a window. When this is off, the middle button does.">
+                <ToggleSwitch Content="Resize with the right button" IsChecked="{Binding ResizeWithRightButton}" ToolTip.Tip="[shell] resize-with-right-button" />
+              </ui:FormField>
+
+              <union:Heading Classes="section" Content="Title bar" />
+              <ui:FormField Label="Double-click" ToolTip.Tip="[shell] double-click-titlebar">
                 <ComboBox ItemsSource="{Binding TitlebarActionChoices}" SelectedIndex="{Binding DoubleClickTitlebarIndex}" HorizontalAlignment="Left" />
-              </DockPanel>
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="middle-click-titlebar" />
+              </ui:FormField>
+              <ui:FormField Label="Middle-click" ToolTip.Tip="[shell] middle-click-titlebar">
                 <ComboBox ItemsSource="{Binding TitlebarActionChoices}" SelectedIndex="{Binding MiddleClickTitlebarIndex}" HorizontalAlignment="Left" />
-              </DockPanel>
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="right-click-titlebar" />
+              </ui:FormField>
+              <ui:FormField Label="Right-click" ToolTip.Tip="[shell] right-click-titlebar">
                 <ComboBox ItemsSource="{Binding TitlebarActionChoices}" SelectedIndex="{Binding RightClickTitlebarIndex}" HorizontalAlignment="Left" />
-              </DockPanel>
+              </ui:FormField>
+
+              <union:Heading Classes="section" Content="Tiling" />
+              <ui:FormField Hint="Drag a window to the left or right edge to fill that half of the screen.">
+                <ToggleSwitch Content="Tile at the side edges" IsChecked="{Binding Tiling}" ToolTip.Tip="[shell] tiling" />
+              </ui:FormField>
+              <ui:FormField Hint="Drag a window to the top edge to maximize it.">
+                <ToggleSwitch Content="Maximize at the top edge" IsChecked="{Binding TopTiling}" ToolTip.Tip="[shell] top-tiling" />
+              </ui:FormField>
+
+              <union:Heading Classes="section" Content="Keys" />
+              <TextBlock Classes="hint" Text="Shortcuts inside the nested shell. One per line, as NAME = CHORD. Leave the chord empty to turn a shortcut off. The names are marco's, such as switch-windows, close, toggle-maximized and tile-to-side-w." />
+              <TextBox x:Name="ShellKeysBox" Classes="lines" MinHeight="140" Text="{Binding ShellKeys}" PlaceholderText="switch-windows = Alt+Tab" ToolTip.Tip="[shell.keys]" />
+              <TextBlock Classes="problem" Text="{Binding ShellKeysProblem}"
+                         IsVisible="{Binding ShellKeysProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
             </StackPanel>
-            <StackPanel Classes="toggle">
-              <CheckBox Content="tiling" IsChecked="{Binding Tiling}" />
-              <TextBlock Classes="hint" Text="Dragging a window to the left or right edge tiles it to that half." />
-            </StackPanel>
-            <StackPanel Classes="toggle">
-              <CheckBox Content="top-tiling" IsChecked="{Binding TopTiling}" />
-              <TextBlock Classes="hint" Text="Dragging a window to the top edge maximizes it." />
-            </StackPanel>
-            <TextBlock Classes="group" Text="Keys" />
-            <TextBlock Classes="hint" Text="Keys inside the shell. One per line, as NAME = CHORD; a name with no chord turns that key off. The names are marco's, such as switch-windows, close, toggle-maximized and tile-to-side-w." />
-            <TextBox x:Name="ShellKeysBox" Classes="lines" MinHeight="120" Text="{Binding ShellKeys}" PlaceholderText="switch-windows = Alt+Tab" />
-            <TextBlock Classes="problem" Margin="0" Text="{Binding ShellKeysProblem}"
-                       IsVisible="{Binding ShellKeysProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            <TextBlock Classes="group" Text="Panel" />
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="size" />
+          </ScrollViewer>
+
+          <ScrollViewer Classes="page">
+            <StackPanel Classes="form" DataContext="{Binding Form}" x:DataType="ui:SettingsFormViewModel">
+              <union:Heading Classes="page" Content="Panel" />
+              <ui:FormField Label="Size" Problem="{Binding PanelSizeProblem}" ToolTip.Tip="[panel] size" Hint="The height of each panel, in logical pixels.">
                 <TextBox Text="{Binding PanelSize}" PlaceholderText="24" />
-              </DockPanel>
-              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Pixels." />
-              <TextBlock Classes="problem" Text="{Binding PanelSizeProblem}"
-                         IsVisible="{Binding PanelSizeProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="top" />
+              </ui:FormField>
+              <ui:FormField Label="Top panel" Problem="{Binding PanelTopProblem}" ToolTip.Tip="[panel] top"
+                            Hint="Applets from left to right, separated by commas. Leave it empty to remove this panel.">
                 <TextBox Text="{Binding PanelTop}" PlaceholderText="menu-bar" />
-              </DockPanel>
-              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Comma-separated applets; empty removes the panel." />
-              <TextBlock Classes="problem" Text="{Binding PanelTopProblem}"
-                         IsVisible="{Binding PanelTopProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="bottom" />
+              </ui:FormField>
+              <ui:FormField Label="Bottom panel" Problem="{Binding PanelBottomProblem}" ToolTip.Tip="[panel] bottom"
+                            Hint="Applets from left to right, separated by commas. Leave it empty to remove this panel.">
                 <TextBox Text="{Binding PanelBottom}" PlaceholderText="window-list, workspace-switcher" />
-              </DockPanel>
-              <TextBlock Classes="hint" Margin="120,0,0,0" Text="Comma-separated applets; empty removes the panel." />
-              <TextBlock Classes="problem" Text="{Binding PanelBottomProblem}"
-                         IsVisible="{Binding PanelBottomProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </ui:FormField>
             </StackPanel>
-          </StackPanel>
-        </ScrollViewer>
-      </TabItem>
-    </TabControl>
+          </ScrollViewer>
+
+        </Carousel>
+      </DockPanel>
+    </Grid>
   </DockPanel>
 </UserControl>

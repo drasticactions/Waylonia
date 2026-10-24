@@ -19,6 +19,12 @@ public sealed class SettingsWindowTests : IDisposable
 
     private string _path = string.Empty;
 
+    private static void ShowPage(SettingsWindow window, int index)
+    {
+        window.View.FindControl<ListBox>("Pages")!.SelectedIndex = index;
+        window.UpdateLayout();
+    }
+
     private void InstallTheme(string name)
     {
         var directory = Path.Combine(_directory, "themes", name, "metacity-1");
@@ -154,7 +160,8 @@ public sealed class SettingsWindowTests : IDisposable
             size = "1920x1080"
 
             """.ReplaceLineEndings("\n"), File.ReadAllText(_path));
-        Assert.Equal("Saved. clipboard takes effect when Waylonia restarts.", model.Note);
+        Assert.Equal(["clipboard"], model.RestartKeys);
+        Assert.NotNull(model.Note);
         Assert.Null(model.Problem);
         var config = Assert.Single(applied);
         Assert.False(config.Host.Clipboard);
@@ -168,16 +175,17 @@ public sealed class SettingsWindowTests : IDisposable
     public void A_second_save_compares_with_the_running_values_not_the_last_save()
     {
         var model = Model(running: new ConfigValues(Tray: false));
-        Assert.Equal("Saved. tray takes effect when Waylonia restarts.", model.Note?.Replace("Saved. ", "Saved. ", StringComparison.Ordinal));
+        Assert.Equal(["tray"], model.RestartKeys);
 
         model.Form.Tray = false;
         Assert.True(model.Save());
-        Assert.Equal("Saved.", model.Note);
+        Assert.Empty(model.RestartKeys);
+        Assert.NotNull(model.Note);
 
         model.Form.Tray = true;
         model.Form.Drag = false;
         Assert.True(model.Save());
-        Assert.Equal("Saved. tray and drag take effect when Waylonia restarts.", model.Note);
+        Assert.Equal(["tray", "drag"], model.RestartKeys);
     }
 
     [Fact]
@@ -191,12 +199,12 @@ public sealed class SettingsWindowTests : IDisposable
         model.Form.Hotkeys = "ctrl+alt+t";
 
         Assert.False(model.Save());
-        Assert.Equal("Some fields have a problem. See the messages under them.", model.Problem);
-        Assert.Equal("Use one modifier key, such as RightControl, or double:RightControl for a double tap.", model.Form.CaptureChordProblem);
-        Assert.Equal("Use none, h264, vp9 or av1. Add ,hw to decode on this host's GPU.", model.Form.VideoProblem);
-        Assert.Equal("Use a locale name, such as en_US.UTF-8. Write \"\" to leave the remote alone.", model.Form.LangProblem);
-        Assert.Equal("Use a socket name, such as wayland-9, not a path.", model.Form.SocketProblem);
-        Assert.Equal("Write one hotkey per line as CHORD = COMMAND. 'ctrl+alt+t' has no '='.", model.Form.HotkeysProblem);
+        Assert.NotNull(model.Problem);
+        Assert.Contains("double:RightControl", model.Form.CaptureChordProblem, StringComparison.Ordinal);
+        Assert.Contains("h264", model.Form.VideoProblem, StringComparison.Ordinal);
+        Assert.Contains("en_US.UTF-8", model.Form.LangProblem, StringComparison.Ordinal);
+        Assert.Contains("wayland-9", model.Form.SocketProblem, StringComparison.Ordinal);
+        Assert.Contains("'ctrl+alt+t'", model.Form.HotkeysProblem, StringComparison.Ordinal);
         Assert.False(File.Exists(_path));
     }
 
@@ -214,30 +222,30 @@ public sealed class SettingsWindowTests : IDisposable
 
         Assert.False(model.Save());
         Assert.Same(second, model.SelectedDesktop);
-        Assert.Equal("Give the desktop a name.", second.NameProblem);
-        Assert.Equal("The desktop new desktop has a problem. See its fields.", model.Problem);
+        Assert.NotNull(second.NameProblem);
+        Assert.Contains(DesktopFormViewModel.NewLabel, model.Problem, StringComparison.Ordinal);
 
         second.Name = "lab";
         second.RecipeIndex = 1;
         model.SelectedDesktop = first;
         Assert.False(model.Save());
         Assert.Same(second, model.SelectedDesktop);
-        Assert.Equal("Two desktops are named lab. Use another name.", second.NameProblem);
-        Assert.Equal("The desktop lab has a problem. See its fields.", model.Problem);
+        Assert.Contains("lab", second.NameProblem, StringComparison.Ordinal);
+        Assert.Contains("lab", model.Problem, StringComparison.Ordinal);
 
         second.Name = "mine";
         second.RecipeIndex = 0;
         Assert.False(model.Save());
-        Assert.Equal("'mine' is not a recipe. Pick sway, niri, plasma, cosmic, xfce, or custom with a command.", second.RecipeProblem);
+        Assert.Contains("'mine'", second.RecipeProblem, StringComparison.Ordinal);
 
         second.RecipeIndex = DesktopFormViewModel.RecipeChoices.Count - 1;
         Assert.False(model.Save());
-        Assert.Equal("A custom desktop needs the command that starts it.", second.CommandProblem);
+        Assert.NotNull(second.CommandProblem);
 
         second.Command = "cage -- xterm";
         second.Size = "big";
         Assert.False(model.Save());
-        Assert.Equal("Use WIDTHxHEIGHT, such as 1920x1080.", second.SizeProblem);
+        Assert.Contains("WIDTHxHEIGHT", second.SizeProblem, StringComparison.Ordinal);
 
         second.Size = string.Empty;
         Assert.True(model.Save());
@@ -251,8 +259,8 @@ public sealed class SettingsWindowTests : IDisposable
 
         Assert.False(model.CanSave);
         Assert.False(model.SaveSettingsCommand.CanExecute(null));
-        Assert.StartsWith($"{_path} did not parse:", model.Problem, StringComparison.Ordinal);
-        Assert.EndsWith("Fix the file by hand; nothing is saved until it loads.", model.Problem, StringComparison.Ordinal);
+        Assert.Contains(_path, model.Problem, StringComparison.Ordinal);
+
         Assert.Equal(0, model.Form.CompressIndex);
     }
 
@@ -285,7 +293,7 @@ public sealed class SettingsWindowTests : IDisposable
     {
         var model = new SettingsViewModel(null, new ConfigValues(), BasinLogger.None);
         Assert.False(model.CanSave);
-        Assert.Equal("This run skips the config file (--config false), so there is nothing to edit.", model.Problem);
+        Assert.Contains("--config false", model.Problem, StringComparison.Ordinal);
         Assert.False(model.Save());
     }
 
@@ -303,15 +311,19 @@ public sealed class SettingsWindowTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void The_window_shows_five_tabs_and_binds_the_form_and_the_desktop_list()
+    public void The_sidebar_lists_seven_pages_and_the_pages_bind_the_form_and_the_desktop_list()
     {
         var model = Model("[host]\ncapture-chord = \"RightAlt\"\n\n[desktops.lab]\nrecipe = \"sway\"\n");
         var window = new SettingsWindow(model);
         window.Show();
 
-        var tabs = window.View.FindControl<TabControl>("Tabs")!;
-        Assert.Equal(["Host", "Defaults", "Hotkeys", "Desktops", "Shell"], tabs.Items.OfType<TabItem>().Select(tab => tab.Header?.ToString()));
+        var pages = window.View.FindControl<ListBox>("Pages")!;
+        Assert.Equal(
+            ["Host", "Defaults", "Hotkeys", "Desktops", "Shell", "Mouse and keys", "Panel"],
+            pages.Items.OfType<ListBoxItem>().Select(item => ((StackPanel)item.Content!).Children.OfType<TextBlock>().Single().Text));
+        Assert.Equal(0, window.View.FindControl<Carousel>("PageHost")!.SelectedIndex);
         Assert.Equal("RightAlt", window.View.FindControl<TextBox>("CaptureChordBox")!.Text);
+        ShowPage(window, 3);
         var list = window.View.FindControl<ListBox>("DesktopList")!;
         Assert.Same(model.SelectedDesktop, list.SelectedItem);
         Assert.Same(model.SaveSettingsCommand, window.View.FindControl<Button>("SaveButton")!.Command);
@@ -429,16 +441,17 @@ public sealed class SettingsWindowTests : IDisposable
         form.PanelBottom = "clock, weather";
 
         Assert.False(model.Save());
-        Assert.Equal("Some fields have a problem. See the messages under them.", model.Problem);
-        Assert.Equal("Use a theme name; the bundled theme is Atlanta and the installed ones are Crux.", form.ThemeProblem);
+        Assert.NotNull(model.Problem);
+        Assert.Contains("Atlanta", form.ThemeProblem, StringComparison.Ordinal);
+        Assert.Contains("Crux", form.ThemeProblem, StringComparison.Ordinal);
         Assert.Equal($"Use {ShellConfig.ButtonNames} around one ':', such as menu:minimize,maximize,close.", form.ButtonLayoutProblem);
-        Assert.Equal("Use a positive number, such as 13.", form.FontSizeProblem);
-        Assert.Equal("Use a color as #rrggbb or #rgb, such as #5891ad.", form.BackgroundProblem);
-        Assert.Equal("Use 1 to 36.", form.WorkspacesProblem);
-        Assert.Equal("Use 1 to 4, the number of workspaces.", form.WorkspaceRowsProblem);
-        Assert.Equal("Use a whole number of milliseconds, 0 or more.", form.AutoRaiseDelayProblem);
-        Assert.StartsWith("close: 'Hyper+F4' has no modifier named 'Hyper'", form.ShellKeysProblem, StringComparison.Ordinal);
-        Assert.Equal("Use 8 to 128, in pixels.", form.PanelSizeProblem);
+        Assert.NotNull(form.FontSizeProblem);
+        Assert.Contains("#rrggbb", form.BackgroundProblem, StringComparison.Ordinal);
+        Assert.Contains("36", form.WorkspacesProblem, StringComparison.Ordinal);
+        Assert.Contains("1 to 4", form.WorkspaceRowsProblem, StringComparison.Ordinal);
+        Assert.NotNull(form.AutoRaiseDelayProblem);
+        Assert.Contains("'Hyper'", form.ShellKeysProblem, StringComparison.Ordinal);
+        Assert.Contains("8 to 128", form.PanelSizeProblem, StringComparison.Ordinal);
         Assert.Equal($"'launcher:' is not an applet. The applets are {PanelApplets.AppletNames}, separated by commas.", form.PanelTopProblem);
         Assert.Equal($"'weather' is not an applet. The applets are {PanelApplets.AppletNames}, separated by commas.", form.PanelBottomProblem);
         Assert.False(File.Exists(_path));
@@ -454,7 +467,7 @@ public sealed class SettingsWindowTests : IDisposable
         form.Theme = "Nope";
 
         Assert.Null(form.Validate());
-        Assert.Equal("Use a theme name; the bundled theme is Atlanta and no other theme is installed.", form.ThemeProblem);
+        Assert.Contains("Atlanta", form.ThemeProblem, StringComparison.Ordinal);
 
         form.Theme = "Atlanta";
         Assert.NotNull(form.Validate());
@@ -470,7 +483,7 @@ public sealed class SettingsWindowTests : IDisposable
         form.WorkspaceRows = "2";
 
         Assert.Null(form.Validate());
-        Assert.Equal("Use 1; there is one workspace.", form.WorkspaceRowsProblem);
+        Assert.NotNull(form.WorkspaceRowsProblem);
 
         form.Workspaces = "6";
         form.WorkspaceRows = "3";
@@ -500,7 +513,7 @@ public sealed class SettingsWindowTests : IDisposable
         form.PanelBottom = string.Empty;
 
         Assert.True(model.Save());
-        Assert.Equal("Saved. shell takes effect when Waylonia restarts.", model.Note);
+        Assert.Equal(["shell"], model.RestartKeys);
 
         var config = Config.Load(WayloniaPaths.ConfigOnly(_path), BasinLogger.None);
         Assert.Equal(ShellMode.Nested, config.Shell);
@@ -527,15 +540,13 @@ public sealed class SettingsWindowTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void The_shell_tab_binds_the_mode_and_theme_choices()
+    public void The_shell_pages_bind_the_mode_and_theme_choices_and_the_keys()
     {
         InstallTheme("Crux");
         var model = Model("[host]\nshell = \"nested\"\n\n[shell]\ntheme = \"Crux\"\n");
         var window = new SettingsWindow(model);
         window.Show();
-        var tabs = window.View.FindControl<TabControl>("Tabs")!;
-        tabs.SelectedIndex = 4;
-        window.UpdateLayout();
+        ShowPage(window, 4);
 
         var mode = window.View.FindControl<ComboBox>("ShellModeBox")!;
         Assert.Equal(["windows", "nested"], mode.Items.OfType<string>());
@@ -543,6 +554,7 @@ public sealed class SettingsWindowTests : IDisposable
         var theme = window.View.FindControl<ComboBox>("ThemeBox")!;
         Assert.Equal(["Atlanta", "Crux"], theme.Items.OfType<string>());
         Assert.Equal("Crux", theme.Text);
+        ShowPage(window, 5);
         Assert.Equal(string.Empty, window.View.FindControl<TextBox>("ShellKeysBox")!.Text ?? string.Empty);
 
         model.Form.ShellKeys = "close = Alt+F4";

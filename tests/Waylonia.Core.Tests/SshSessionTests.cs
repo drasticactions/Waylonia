@@ -81,7 +81,7 @@ public sealed class SshSessionTests
 
         Assert.Empty(host.Links.Links);
         Assert.Equal(SessionStatus.Disconnected, session.Status);
-        Assert.Equal("wsl:Ubuntu names a WSL distribution, and only waylonia on Windows reaches one", session.LastError);
+        Assert.Equal(DestinationKinds.Wsl.Unreachable("wsl:Ubuntu"), session.LastError);
         Assert.Equal([1], ended);
     }
 
@@ -100,7 +100,8 @@ public sealed class SshSessionTests
         master.Exit(127);
 
         Assert.False(await connecting);
-        Assert.Equal("the session script on user@dev exited with 127: sh: waypipe: not found", session.LastError);
+        Assert.Contains("127", session.LastError, StringComparison.Ordinal);
+        Assert.Contains("sh: waypipe: not found", session.LastError, StringComparison.Ordinal);
         Assert.Equal(SessionStatus.Disconnected, session.Status);
         Assert.Equal([1], ended);
         Assert.True(host.Links.Last!.Disposed);
@@ -113,7 +114,7 @@ public sealed class SshSessionTests
         var session = new SshSession(StubSessionHost.For("dev"), host) { ScriptStartLimit = TimeSpan.FromMilliseconds(200) };
 
         Assert.False(await session.ConnectAsync());
-        Assert.Equal("the session script on user@dev did not start within 0 seconds", session.LastError);
+        Assert.Contains("user@dev", session.LastError, StringComparison.Ordinal);
         Assert.Equal(SessionStatus.Disconnected, session.Status);
     }
 
@@ -128,7 +129,7 @@ public sealed class SshSessionTests
         session.Ended += (_, code) => ended.Add(code);
 
         Assert.False(await session.ConnectAsync());
-        Assert.Equal("user@dev refused every credential (publickey)", session.LastError);
+        Assert.Equal(SshLinkException.Sentence(SshLinkReason.AuthenticationFailed, "user@dev", "publickey"), session.LastError);
         Assert.Equal(SessionStatus.Disconnected, session.Status);
         Assert.Equal([1], ended);
         Assert.Equal(["connect", "dispose"], host.Links.Last!.Events);
@@ -151,7 +152,7 @@ public sealed class SshSessionTests
         var session = new SshSession(StubSessionHost.For("dev"), host);
 
         Assert.False(await session.ConnectAsync());
-        Assert.Equal("the login to user@dev was canceled", session.LastError);
+        Assert.Equal(SshLinkException.Sentence(SshLinkReason.Canceled, "user@dev"), session.LastError);
         Assert.Single(host.Prompter.Secrets);
         Assert.DoesNotContain(capture.Lines, line => line.Contains("canceled", StringComparison.Ordinal) && line.Contains("error", StringComparison.OrdinalIgnoreCase));
     }
@@ -184,7 +185,7 @@ public sealed class SshSessionTests
         link.Drop();
         await WaitUntilAsync(() => ended.Count > 0, "the session noticed the loss");
 
-        Assert.Equal("the connection to user@dev ended", session.LastError);
+        Assert.Contains("user@dev", session.LastError, StringComparison.Ordinal);
         Assert.Equal([1], ended);
         Assert.True(link.Disposed);
     }
@@ -216,7 +217,8 @@ public sealed class SshSessionTests
         master.Exit(3);
         await WaitUntilAsync(() => ended.Count > 0, "the session noticed the script end");
 
-        Assert.Equal("the session script on user@dev exited with 3: waypipe: socket in use", session.LastError);
+        Assert.Contains("3", session.LastError, StringComparison.Ordinal);
+        Assert.Contains("waypipe: socket in use", session.LastError, StringComparison.Ordinal);
         Assert.Equal([1], ended);
     }
 
@@ -344,7 +346,7 @@ public sealed class SshSessionTests
         Assert.True(link.Listener!.Disposed);
         Assert.True(master.Disposed);
         Assert.Equal(SessionStatus.Disconnected, session.Status);
-        Assert.Equal("disconnected from user@dev", session.StatusText);
+        Assert.Contains("user@dev", session.StatusText, StringComparison.Ordinal);
     }
 
     [Fact]

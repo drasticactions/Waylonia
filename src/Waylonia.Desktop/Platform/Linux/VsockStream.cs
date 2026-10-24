@@ -1,4 +1,5 @@
 using System.Net.Sockets;
+using static Waylonia.WayloniaLog;
 
 namespace Waylonia.Sessions;
 
@@ -33,7 +34,7 @@ internal sealed class VsockStream(int fd) : Stream
         }
         catch (SocketException error)
         {
-            throw new IOException($"vsock read failed: {error.Message}", error);
+            throw new IOException("Reading from the vsock connection failed.", error);
         }
     }
 
@@ -51,7 +52,7 @@ internal sealed class VsockStream(int fd) : Stream
         }
         catch (SocketException error)
         {
-            throw new IOException($"vsock write failed: {error.Message}", error);
+            throw new IOException("Writing to the vsock connection failed.", error);
         }
     }
 
@@ -71,8 +72,9 @@ internal sealed class VsockStream(int fd) : Stream
             {
                 _socket.Shutdown(SocketShutdown.Both);
             }
-            catch (SocketException)
+            catch (SocketException error)
             {
+                Log.Debug(error, $"vsock: shutdown failed, the peer already closed the connection");
             }
 
             _socket.Dispose();

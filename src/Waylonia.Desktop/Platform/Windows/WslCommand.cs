@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Threading.Channels;
+using static Waylonia.WayloniaLog;
 
 namespace Waylonia.Sessions;
 
@@ -58,6 +59,7 @@ internal sealed class WslCommand : ISshCommand
         }
         catch (Exception error) when (error is IOException or ObjectDisposedException or InvalidOperationException)
         {
+            Log.Debug(error, $"wsl: standard error closed");
         }
 
         _stderr.Writer.TryComplete();
@@ -73,6 +75,7 @@ internal sealed class WslCommand : ISshCommand
         }
         catch (Exception error) when (error is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
+            Log.Debug(error, $"wsl: exit code not available");
         }
 
         _exited.TrySetResult(code);

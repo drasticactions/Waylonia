@@ -21,7 +21,7 @@ internal static class AgentApprovalText
                 $"Yes, and don't ask again for {commandKey ?? "this program"} this run",
                 method, arguments, timeout),
             "windows/close" => new(
-                "Close window",
+                "Close a window",
                 window,
                 "The agent wants to close this window.",
                 "Yes, and don't ask again for closing windows this run",

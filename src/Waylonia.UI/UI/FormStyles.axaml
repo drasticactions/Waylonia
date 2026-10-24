@@ -1,0 +1,88 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:union="https://github.com/avaunion"
+        xmlns:ui="clr-namespace:Waylonia.UI"
+        x:Class="Waylonia.UI.FormStyles">
+  <Styles.Resources>
+    <ControlTheme x:Key="{x:Type ui:FormField}" TargetType="ui:FormField">
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Grid RowDefinitions="Auto,Auto,Auto">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" SharedSizeGroup="FormLabel" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Name="PART_Label"
+                       Text="{TemplateBinding Label}"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Center"
+                       TextAlignment="Right"
+                       Margin="0,0,12,0" />
+            <ContentPresenter Name="PART_ContentPresenter"
+                              Grid.Column="1"
+                              Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="Center" />
+            <TextBlock Name="PART_Hint"
+                       Grid.Row="1"
+                       Grid.Column="1"
+                       Classes="hint"
+                       Margin="0,3,0,0"
+                       Text="{TemplateBinding Hint}"
+                       IsVisible="{TemplateBinding Hint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            <TextBlock Name="PART_Problem"
+                       Grid.Row="2"
+                       Grid.Column="1"
+                       Classes="problem"
+                       Margin="0,3,0,0"
+                       Text="{TemplateBinding Problem}"
+                       IsVisible="{TemplateBinding Problem, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          </Grid>
+        </ControlTemplate>
+      </Setter>
+      <Style Selector="^.lines /template/ TextBlock#PART_Label">
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="Margin" Value="0,7,12,0" />
+      </Style>
+    </ControlTheme>
+  </Styles.Resources>
+
+  <Style Selector="StackPanel.form">
+    <Setter Property="Spacing" Value="10" />
+    <Setter Property="Grid.IsSharedSizeScope" Value="True" />
+  </Style>
+  <Style Selector="TextBlock.hint">
+    <Setter Property="Foreground" Value="{DynamicResource Union.Active.Window.Foreground.InactiveBrush}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+  <Style Selector="TextBlock.problem">
+    <Setter Property="Foreground" Value="{DynamicResource Union.Active.Window.Foreground.NegativeBrush}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+  <Style Selector="TextBox.lines">
+    <Setter Property="AcceptsReturn" Value="True" />
+    <Setter Property="TextWrapping" Value="NoWrap" />
+    <Setter Property="MinHeight" Value="64" />
+  </Style>
+  <Style Selector="union|Heading.page">
+    <Setter Property="Level" Value="2" />
+    <Setter Property="Margin" Value="0,0,0,4" />
+  </Style>
+  <Style Selector="union|Heading.section">
+    <Setter Property="Level" Value="4" />
+    <Setter Property="Margin" Value="0,14,0,0" />
+  </Style>
+  <Style Selector="NotificationCard.inline">
+    <Setter Property="Width" Value="NaN" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+  </Style>
+  <Style Selector="NotificationCard.inline SelectableTextBlock">
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+  <Style Selector="StackPanel.options">
+    <Setter Property="Orientation" Value="Horizontal" />
+    <Setter Property="Spacing" Value="16" />
+  </Style>
+</Styles>

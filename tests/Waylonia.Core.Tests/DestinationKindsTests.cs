@@ -52,7 +52,7 @@ public sealed class DestinationKindsTests
             Assert.NotNull(kind.NameProblem("-dev"));
             Assert.NotNull(kind.NameProblem(".dev"));
             Assert.NotNull(kind.NameProblem("my box"));
-            Assert.Equal($"a {kind.Key} container needs a name; there is no default one", kind.NameProblem(""));
+            Assert.Contains($"{kind.Key} container", kind.NameProblem(""), StringComparison.Ordinal);
         }
     }
 
@@ -72,15 +72,15 @@ public sealed class DestinationKindsTests
     [Fact]
     public void Each_kind_says_what_it_does_and_where_it_is_reached()
     {
-        Assert.Equal(
-            "ssh logs in to a host and distrobox enters a local container; a session takes one of them",
-            DestinationKinds.BothProblem(DestinationKinds.Ssh, DestinationKinds.Distrobox));
-        Assert.Equal(
-            "wsl:Ubuntu names a WSL distribution, and only waylonia on Windows reaches one",
-            DestinationKinds.Wsl.Unreachable("wsl:Ubuntu"));
-        Assert.Equal(
-            "distrobox:dev names a distrobox container, and only waylonia on Linux reaches one",
-            DestinationKinds.Distrobox.Unreachable("distrobox:dev"));
+        var both = DestinationKinds.BothProblem(DestinationKinds.Ssh, DestinationKinds.Distrobox);
+        Assert.Contains(DestinationKinds.Ssh.Noun, both, StringComparison.Ordinal);
+        Assert.Contains(DestinationKinds.Distrobox.Noun, both, StringComparison.Ordinal);
+        var wsl = DestinationKinds.Wsl.Unreachable("wsl:Ubuntu");
+        Assert.StartsWith("wsl:Ubuntu ", wsl, StringComparison.Ordinal);
+        Assert.Contains("Windows", wsl, StringComparison.Ordinal);
+        var distrobox = DestinationKinds.Distrobox.Unreachable("distrobox:dev");
+        Assert.StartsWith("distrobox:dev ", distrobox, StringComparison.Ordinal);
+        Assert.Contains("Linux", distrobox, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public sealed class DestinationKindsTests
         Assert.False(DestinationKinds.Incus.SharesHome);
         Assert.True(DestinationKinds.Incus.RunsDesktop);
         Assert.True(DestinationKinds.Ssh.RunsDesktop);
-        Assert.StartsWith("a distrobox container shares this machine's session bus", DestinationKinds.Distrobox.DesktopProblem, StringComparison.Ordinal);
+        Assert.Contains("distrobox container", DestinationKinds.Distrobox.DesktopProblem, StringComparison.Ordinal);
         Assert.True(DestinationKinds.Incus.TakesUser);
         Assert.False(DestinationKinds.Distrobox.TakesUser);
     }

@@ -44,4 +44,7 @@ internal static class DesktopRecipes
     }
 
     public static string Names => string.Join(", ", All.Select(static recipe => recipe.Name));
+
+    public static string UnknownProblem(string name) =>
+        $"There's no desktop called '{name}'. Use one of {Names}, or custom with a command.";
 }

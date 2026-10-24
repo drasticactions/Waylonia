@@ -23,7 +23,7 @@ internal sealed class PodmanBoxLink(PodmanBox box, string destination, string na
     {
         if (!CliProcess.OnPath(box.Program))
         {
-            throw Unreachable($"{box.Program} is not installed; the session names {box.Kind.Noun}");
+            throw Unreachable($"The session names {box.Kind.Noun}, and the {box.Program} command is not installed.");
         }
 
         (int Code, string Output, string Error) listed;
@@ -33,25 +33,25 @@ internal sealed class PodmanBoxLink(PodmanBox box, string destination, string na
         }
         catch (Exception error) when (error is Win32Exception or InvalidOperationException)
         {
-            throw Unreachable($"{box.Program} did not start: {error.Message}");
+            throw Unreachable($"The {box.Program} command did not start.", error);
         }
 
         if (listed.Code != 0)
         {
-            throw Unreachable($"'{box.Program} {string.Join(' ', box.ListArguments)}' exited with {listed.Code}: {CliProcess.LastLine(listed.Error)}");
+            throw Unreachable($"The command {box.Program} {string.Join(' ', box.ListArguments)} exited with {listed.Code}.{Said(listed.Error)}");
         }
 
         if (!box.ParseList(listed.Output).Contains(name, StringComparer.Ordinal))
         {
-            throw Unreachable($"there is no {box.Program} container named {name}; '{box.Program} list' shows the ones there are");
+            throw Unreachable($"There is no {box.Program} container named {name}. Run {box.Program} list to see the containers.");
         }
 
-        Log.Debug($"{destination}: {box.Program} lists {name}");
+        Log.Debug($"{destination}: connected, {box.Program} lists the container");
         _connected = true;
     }
 
     public Task<ISshListener> ListenAsync(string remotePath, CancellationToken cancellation) =>
-        throw new NotSupportedException($"{destination} takes clients on a display socket, not waypipe channels");
+        throw new NotSupportedException($"The container {destination} takes clients on a display socket, not waypipe channels.");
 
     public Task<ISessionDisplay> OpenDisplayAsync(DisplayRequest request, CancellationToken cancellation)
     {
@@ -60,7 +60,7 @@ internal sealed class PodmanBoxLink(PodmanBox box, string destination, string na
         {
             throw new SshLinkException(
                 SshLinkReason.ForwardRefused,
-                $"{destination} shares this machine's XDG_RUNTIME_DIR, and waylonia has none");
+                $"The container {destination} shares the XDG_RUNTIME_DIR of this machine, and Waylonia has none.");
         }
 
         try
@@ -75,7 +75,7 @@ internal sealed class PodmanBoxLink(PodmanBox box, string destination, string na
         {
             throw new SshLinkException(
                 SshLinkReason.ForwardRefused,
-                $"the display socket for {destination} could not be bound in {runtime}: {error.Message}",
+                $"The display socket for {destination} could not be bound in {runtime}. {error.Message}",
                 error);
         }
     }
@@ -121,8 +121,11 @@ internal sealed class PodmanBoxLink(PodmanBox box, string destination, string na
 
     private IReadOnlyDictionary<string, string>? Environment() => box.Environment(CliProcess.HostEnvironment());
 
-    private SshLinkException Unreachable(string detail) =>
-        new(SshLinkReason.Unreachable, $"{destination} could not be reached: {detail}");
+    private SshLinkException Unreachable(string detail, Exception? inner = null) =>
+        new(SshLinkReason.Unreachable, $"Couldn't reach {destination}. {detail}", inner);
+
+    private string Said(string error) =>
+        CliProcess.LastLine(error) is { Length: > 0 } line ? $" {box.Program} said: {line}" : string.Empty;
 
     public ValueTask DisposeAsync()
     {

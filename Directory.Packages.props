@@ -22,7 +22,9 @@
     <PackageVersion Include="Tmds.DBus.Protocol" Version="0.95.1" />
     <PackageVersion Include="Tomlyn" Version="0.19.0" />
     <PackageVersion Include="Svg.Skia" Version="3.0.4" />
-    <PackageVersion Include="AvaUnion.Theme" Version="6.8.0.3" />
+    <PackageVersion Include="AvaUnion.BreezeIcons" Version="6.8.0.6" />
+    <PackageVersion Include="AvaUnion.Controls" Version="6.8.0.6" />
+    <PackageVersion Include="AvaUnion.Theme" Version="6.8.0.6" />
     <PackageVersion Include="BluerCurve.Icons" Version="0.1.0-alpha6" />
   </ItemGroup>
 

@@ -63,7 +63,7 @@ internal sealed class SessionRegistry(ISessionHost host)
         ArgumentNullException.ThrowIfNull(settings);
         if (WhyRefused(settings) is { } why)
         {
-            Log.Error($"{why}");
+            Log.Error($"session {settings.Name}: {CliMessage.Text(why)}");
             host.Status(why);
             return false;
         }
@@ -107,7 +107,7 @@ internal sealed class SessionRegistry(ISessionHost host)
             if (union.FirstOrDefault(hotkey.SameChord) is { } taken)
             {
                 log?.Warn(
-                    $"hotkey '{hotkey.Chord}' of {Owner(hotkey)} is already bound by {Owner(taken)}, skipping it");
+                    $"hotkeys: '{hotkey.Chord}' of {Owner(hotkey)} is already bound by {Owner(taken)}, skipped");
                 continue;
             }
 
@@ -131,7 +131,7 @@ internal sealed class SessionRegistry(ISessionHost host)
         {
             if (isDesktop)
             {
-                return $"{name} is already running a desktop; disconnect it before starting another";
+                return $"Session {name} is already running a desktop. Disconnect it before you start another.";
             }
         }
 

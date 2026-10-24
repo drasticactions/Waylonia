@@ -1,4 +1,5 @@
 using Waylonia.Agent;
+using Waylonia.Cli;
 using static Waylonia.WayloniaLog;
 
 namespace Waylonia;
@@ -11,16 +12,14 @@ internal static partial class DesktopHead
         var root = AgentProfileStore.RootFor(request.Paths);
         if (AgentProfileStore.Load(root, request.Name, Log, out var error) is not { } profile)
         {
-            Log.Error($"{error}");
-            return 1;
+            return CliRefusal.Write(error ?? string.Empty);
         }
 
         if (request.Size is { } sizeText)
         {
             if (RunRules.ParseSize(sizeText) is not { } size)
             {
-                Log.Error($"--size takes WxH, such as 1280x800");
-                return 1;
+                return CliRefusal.Write("--size takes WxH, such as 1280x800");
             }
 
             profile = profile with { Width = size.Width, Height = size.Height };
@@ -30,15 +29,14 @@ internal static partial class DesktopHead
         {
             if (scale is < 0.5 or > 4)
             {
-                Log.Error($"--scale takes 0.5 to 4");
-                return 1;
+                return CliRefusal.Write("--scale takes a number from 0.5 to 4");
             }
 
             profile = profile with { Scale = scale };
         }
 
         var headless = request.Headless || profile.Headless;
-        Log.Info($"agent profile {profile.Name} in {profile.Directory}: {profile.LaunchSummary}");
+        Log.Info($"agent {profile.Name}: profile in {profile.Directory}, {profile.LaunchSummary}");
         if (headless)
         {
             return PlatformRunHeadless(profile, request);

@@ -64,14 +64,14 @@ internal sealed class DesktopShellPolicy(IAvaloniaShellPolicy inner, IHostCursor
             && client.TryGetCredentials(out var credentials)
             && ProcessTree.IsDescendant((int)credentials.Pid, DeclaredPid))
         {
-            Log.Debug($"'{info.AppId}' is the declared session, taking it for a guest compositor");
+            Log.Debug($"desktop: '{info.AppId}' is the declared session, taking it for a guest compositor");
             Declare(client);
             return ScreenSurfaceKind.Screen;
         }
 
         if (BoundClients?.Invoke() is { } bound && bound.Contains(client))
         {
-            Log.Debug($"'{info.AppId}' binds fullscreen-shell and owns a toplevel, taking it for a guest compositor");
+            Log.Debug($"desktop: '{info.AppId}' binds fullscreen-shell and owns a toplevel, taking it for a guest compositor");
             return ScreenSurfaceKind.Screen;
         }
 
@@ -110,7 +110,7 @@ internal sealed class DesktopShellPolicy(IAvaloniaShellPolicy inner, IHostCursor
 
         window.WindowStartupLocation = WindowStartupLocation.Manual;
         window.Position = position;
-        Log.Debug($"placed the screen window {width}x{height} at {position.X},{position.Y}");
+        Log.Debug($"desktop: screen window {width}x{height} at {position.X},{position.Y}");
     }
 
     internal static (int Width, int Height) DefaultSize(global::Avalonia.Platform.Screen? screen, double scaling)

@@ -76,5 +76,5 @@ public readonly record struct A11yNodeRef(string Bus, string Path)
         TryParse(id, out var node)
             ? node
             : throw new A11yException(
-                $"\"{id}\" is not a node id; ids look like :1.42:/org/a11y/atspi/accessible/7, as the tree prints them");
+                $"\"{id}\" is not a node id. A node id looks like :1.42:/org/a11y/atspi/accessible/7, as the tree prints it.");
 }

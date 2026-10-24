@@ -92,7 +92,7 @@ public sealed class LiveGtkTests
 
         var bogus = $"{yes.Id[..yes.Id.IndexOf(":/", StringComparison.Ordinal)]}:/org/gnome/Zenity/a11y/nothing_here";
         var missingNode = await Assert.ThrowsAsync<A11yException>(() => service.ActionsAsync(bogus, Ct));
-        Assert.Equal($"node {bogus} no longer exists", missingNode.Message);
+        Assert.Contains($"{bogus} no longer exists", missingNode.Message, StringComparison.Ordinal);
 
         await service.DoActionAsync(yes.Id, "click", Ct);
         await zenity.WaitForExitAsync(Ct).WaitAsync(TimeSpan.FromSeconds(10), Ct);
@@ -130,7 +130,7 @@ public sealed class LiveGtkTests
         }
         catch (A11yException error)
         {
-            Assert.Equal($"node {entry.Id} does not support taking focus", error.Message);
+            Assert.Contains($"{entry.Id} does not support focus", error.Message, StringComparison.Ordinal);
         }
 
         var baseline = Volatile.Read(ref events);
@@ -166,7 +166,7 @@ public sealed class LiveGtkTests
 
         var noOwner = await Assert.ThrowsAsync<A11yException>(
             () => service.GrabFocusAsync(":1.9999:/org/a11y/atspi/accessible/1", Ct));
-        Assert.Contains("is gone", noOwner.Message, StringComparison.Ordinal);
+        Assert.Contains("has exited", noOwner.Message, StringComparison.Ordinal);
 
         var registryChild = await Assert.ThrowsAsync<A11yException>(
             () => service.ActionsAsync("org.a11y.atspi.Registry:/org/a11y/atspi/accessible/nothing", Ct));

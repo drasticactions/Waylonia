@@ -22,7 +22,7 @@ internal sealed partial class SessionFormViewModel : FormViewModel
 
     public const string HotkeysField = "hotkeys";
 
-    public static IReadOnlyList<string> CompressChoices { get; } = ["default", "lz4", "zstd", "none"];
+    public static IReadOnlyList<string> CompressChoices { get; } = ["Default", "lz4", "zstd", "none"];
 
     public static IReadOnlyList<string> DesktopChoices { get; } =
         ["none", .. DesktopRecipes.All.Select(static recipe => recipe.Name), "custom"];
@@ -117,6 +117,7 @@ internal sealed partial class SessionFormViewModel : FormViewModel
             OnPropertyChanged(nameof(IsTarget));
             OnPropertyChanged(nameof(ShowsUser));
             OnPropertyChanged(nameof(TargetCaption));
+            OnPropertyChanged(nameof(TargetKey));
             OnPropertyChanged(nameof(TargetPlaceholder));
             RefreshTargets();
         }
@@ -130,7 +131,9 @@ internal sealed partial class SessionFormViewModel : FormViewModel
 
     public bool ShowsKind => Kinds.Count > 1;
 
-    public string TargetCaption => _kind.Caption;
+    public string TargetCaption => _kind.Caption.Length == 0 ? string.Empty : char.ToUpperInvariant(_kind.Caption[0]) + _kind.Caption[1..];
+
+    public string TargetKey => _kind.Key;
 
     public string? TargetPlaceholder => _kind.Placeholder;
 
@@ -219,7 +222,7 @@ internal sealed partial class SessionFormViewModel : FormViewModel
         User = profile.User ?? string.Empty;
         Command = profile.Command ?? string.Empty;
         Autostart = profile.Autostart is { } autostart ? string.Join('\n', autostart) : string.Empty;
-        CompressIndex = Math.Max(0, IndexOf(CompressChoices, profile.Compress ?? "default"));
+        CompressIndex = Math.Max(0, IndexOf(CompressChoices, profile.Compress ?? "Default"));
         Gpu = profile.Gpu;
         Video = profile.Video ?? string.Empty;
         Audio = profile.Audio;
@@ -242,7 +245,7 @@ internal sealed partial class SessionFormViewModel : FormViewModel
         var name = Name.Trim();
         if (name.Length == 0)
         {
-            Complain(NameField, "Give the session a name.");
+            Complain(NameField, "Enter a name for the session.");
         }
         else if (!SessionStore.IsValidName(name))
         {
@@ -264,31 +267,31 @@ internal sealed partial class SessionFormViewModel : FormViewModel
             ssh = Blank(Ssh);
             if (ssh is null)
             {
-                Complain(SshField, "Give the ssh destination, such as user@host.");
+                Complain(SshField, "Enter the SSH destination, such as user@host.");
             }
             else if (DestinationKinds.For(ssh) is { IsSsh: false } other)
             {
-                Complain(SshField, $"Choose {other.Label} as the kind to reach {other.Noun}.");
+                Complain(SshField, $"Choose {other.Label} as the connection type to reach {other.Noun}.");
             }
         }
 
         var user = ShowsUser ? Blank(User) : null;
         if (user is not null && SessionStore.UserProblem(user) is not null)
         {
-            Complain(UserField, "Use the account name inside the instance, or leave it empty for uid 1000.");
+            Complain(UserField, "Enter an account name from inside the instance, or leave it empty for uid 1000.");
         }
 
         var video = Blank(Video);
         if (video is not null && !VideoChoice.IsValid(video))
         {
-            Complain(VideoField, "Use none, h264, vp9 or av1. Add ,hw to decode on this host's GPU.");
+            Complain(VideoField, "Use none, h264, vp9 or av1, then any options such as ,hw.");
         }
 
         var langText = Lang.Trim();
         var lang = langText.Length == 0 ? null : langText == "\"\"" ? string.Empty : langText;
         if (lang is { Length: > 0 } && !Config.IsLocaleName(lang))
         {
-            Complain(LangField, "Use a locale name, such as en_US.UTF-8. Write \"\" to leave the remote alone.");
+            Complain(LangField, "Use a locale name, such as en_US.UTF-8. Write \"\" to leave the session's own setting.");
         }
 
         var desktop = DesktopIndex > 0 && DesktopIndex < DesktopChoices.Count ? DesktopChoices[DesktopIndex] : null;

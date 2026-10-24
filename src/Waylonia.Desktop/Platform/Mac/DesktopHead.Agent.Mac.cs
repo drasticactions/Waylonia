@@ -1,5 +1,5 @@
 using Waylonia.Agent;
-using static Waylonia.WayloniaLog;
+using Waylonia.Cli;
 
 namespace Waylonia;
 
@@ -7,13 +7,11 @@ internal static partial class DesktopHead
 {
     private static partial int PlatformRunVisible(AgentProfile profile, AgentRequest request)
     {
-        Log.Error($"--agent runs local Linux applications for an agent, which needs Linux");
-        return 1;
+        return CliRefusal.Write("--agent runs local Linux applications for an agent, which needs Linux");
     }
 
     private static partial int PlatformRunHeadless(AgentProfile profile, AgentRequest request)
     {
-        Log.Error($"--agent runs local Linux applications for an agent, which needs Linux");
-        return 1;
+        return CliRefusal.Write("--agent runs local Linux applications for an agent, which needs Linux");
     }
 }

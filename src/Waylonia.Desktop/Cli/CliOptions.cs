@@ -15,7 +15,7 @@ public static class CliOptions
         "info" => BasinLogLevel.Info,
         "warn" => BasinLogLevel.Warn,
         "error" => BasinLogLevel.Error,
-        _ => throw new ArgumentException($"unknown log level '{name}'", nameof(name)),
+        _ => throw new ArgumentException($"The log level '{name}' is unknown. Give one of {string.Join(", ", LogLevelNames)}.", nameof(name)),
     };
 
     public static Option<string> LogLevel()
@@ -67,7 +67,7 @@ public static class CliOptions
     {
         var option = new Option<string?>("--hyperv-vm")
         {
-            Description = $"the Hyper-V VM a vsock: listener binds on Windows: {Basin.Transport.Waypipe.HyperVVm.Words}. Defaults to wsl; ignored elsewhere.",
+            Description = $"the Hyper-V VM a vsock: listener binds on Windows: {Basin.Transport.Waypipe.HyperVVm.Words}. The default is wsl, and other hosts ignore it",
             HelpName = "VM",
         };
 
@@ -98,7 +98,7 @@ public static class CliOptions
     {
         var option = new Option<string>("--compress")
         {
-            Description = "the channel's compression: lz4, zstd or none. A hard match with the peer.",
+            Description = "the compression of the channel: lz4, zstd or none. The peer must use the same one",
             HelpName = "NAME",
             DefaultValueFactory = _ => "lz4",
         };
@@ -119,8 +119,8 @@ public static class CliOptions
         var option = new Option<string>("--video")
         {
             Description = "decode per-buffer video from the channel peer: h264, vp9, av1 or none. "
-                + "',hw' decodes on this host's GPU; ',hwenc'/',swenc' and ',hwdec'/',swdec' say "
-                + "where the peer encodes and decodes, and ',bpf=B' the bits per frame it targets.",
+                + "',hw' decodes on the GPU of this host, ',hwenc'/',swenc' and ',hwdec'/',swdec' say "
+                + "where the peer encodes and decodes, and ',bpf=B' sets the bits per frame it targets",
             HelpName = "CODEC[,OPTION...]",
             DefaultValueFactory = _ => "none",
         };

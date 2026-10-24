@@ -1,24 +1,33 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:union="https://github.com/avaunion"
              x:Class="Waylonia.Shell.ApprovalView"
              Background="{DynamicResource Union.Active.Window.Background.NormalBrush}"
              Foreground="{DynamicResource Union.Active.Window.Foreground.TextBrush}">
   <DockPanel Margin="16">
     <StackPanel DockPanel.Dock="Bottom" Spacing="10" Margin="0,12,0,0">
-      <TextBlock x:Name="CountdownText" FontSize="11" Opacity="0.75" />
+      <TextBlock x:Name="CountdownText"
+                 FontSize="{DynamicResource UnionSmallFontSize}"
+                 Foreground="{DynamicResource Union.Active.Window.Foreground.InactiveBrush}" />
       <WrapPanel HorizontalAlignment="Right">
         <Button x:Name="NoButton" Content="No" IsCancel="True" Margin="0,0,8,0" />
         <Button x:Name="YesRunButton" Margin="0,0,8,0" />
         <Button x:Name="YesButton" Content="Yes" />
       </WrapPanel>
     </StackPanel>
+    <union:UnionIcon DockPanel.Dock="Left" IconName="dialog-warning"
+                     Width="48" Height="48" VerticalAlignment="Top" Margin="0,0,16,0" />
     <StackPanel Spacing="10">
-      <TextBlock x:Name="HeadingText" TextWrapping="Wrap" FontWeight="Bold" FontSize="14" />
-      <SelectableTextBlock x:Name="SubjectText" TextWrapping="Wrap" FontFamily="monospace" Margin="16,0,0,0" />
+      <union:Heading x:Name="HeadingText" Level="3" Padding="0" />
+      <SelectableTextBlock x:Name="SubjectText" TextWrapping="Wrap" Margin="16,0,0,0"
+                           FontFamily="{DynamicResource UnionFixedFontFamily}"
+                           FontSize="{DynamicResource UnionFixedFontSize}" />
       <TextBlock x:Name="DescriptionText" TextWrapping="Wrap" />
       <TextBlock Text="Do you want to proceed?" TextWrapping="Wrap" />
       <Expander x:Name="DetailsExpander" Header="Show details">
-        <SelectableTextBlock x:Name="DetailsText" TextWrapping="Wrap" FontFamily="monospace" FontSize="11" />
+        <SelectableTextBlock x:Name="DetailsText" TextWrapping="Wrap"
+                             FontFamily="{DynamicResource UnionFixedFontFamily}"
+                             FontSize="{DynamicResource UnionSmallFontSize}" />
       </Expander>
     </StackPanel>
   </DockPanel>

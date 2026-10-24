@@ -378,16 +378,16 @@ public sealed class A11yService
     public async Task<IReadOnlyList<string>> ActionsAsync(string nodeId, CancellationToken cancel)
     {
         var node = A11yNodeRef.Parse(nodeId);
-        await RequireAsync(node, A11yNode.ActionInterface, "has no actions", cancel).ConfigureAwait(false);
+        await RequireAsync(node, A11yNode.ActionInterface, "has no actions. Click its box instead.", cancel).ConfigureAwait(false);
         return await ActionNamesAsync(node, cancel).ConfigureAwait(false);
     }
 
     private async Task<IReadOnlyList<string>> ActionNamesAsync(A11yNodeRef node, CancellationToken cancel)
     {
         var proxy = new ActionProxy(Connection, node.Bus, node.Path);
-        var count = await A11yCalls.Run(proxy.GetNActionsAsync(), node, "actions", cancel).ConfigureAwait(false);
+        var count = await A11yCalls.Run(proxy.GetNActionsAsync(), node, "an action list", cancel).ConfigureAwait(false);
         var names = await Task.WhenAll(Enumerable.Range(0, Math.Max(0, count))
-            .Select(index => A11yCalls.Run(proxy.GetNameAsync(index), node, "actions", cancel))).ConfigureAwait(false);
+            .Select(index => A11yCalls.Run(proxy.GetNameAsync(index), node, "an action list", cancel))).ConfigureAwait(false);
         return names;
     }
 
@@ -401,11 +401,11 @@ public sealed class A11yService
     public async Task DoActionAsync(string nodeId, string? action, CancellationToken cancel)
     {
         var node = A11yNodeRef.Parse(nodeId);
-        await RequireAsync(node, A11yNode.ActionInterface, "has no actions", cancel).ConfigureAwait(false);
+        await RequireAsync(node, A11yNode.ActionInterface, "has no actions. Click its box instead.", cancel).ConfigureAwait(false);
         var names = await ActionNamesAsync(node, cancel).ConfigureAwait(false);
         if (names.Count == 0)
         {
-            throw new A11yException($"node {node.Id} has no actions");
+            throw new A11yException($"Node {node.Id} has no actions. Click its box instead.");
         }
 
         var index = 0;
@@ -424,7 +424,7 @@ public sealed class A11yService
             if (index < 0)
             {
                 throw new A11yException(
-                    $"node {node.Id} has no action \"{action}\"; its actions are {string.Join(", ", names.Select(n => $"\"{n}\""))}");
+                    $"Node {node.Id} has no action \"{action}\". Its actions are {string.Join(", ", names.Select(n => $"\"{n}\""))}.");
             }
         }
 
@@ -433,7 +433,7 @@ public sealed class A11yService
             .ConfigureAwait(false);
         if (!done)
         {
-            throw new A11yException($"node {node.Id} did not perform \"{names[index]}\"");
+            throw new A11yException($"Node {node.Id} did not perform \"{names[index]}\". It may be disabled or not showing.");
         }
     }
 
@@ -448,13 +448,13 @@ public sealed class A11yService
     {
         ArgumentNullException.ThrowIfNull(text);
         var node = A11yNodeRef.Parse(nodeId);
-        await RequireAsync(node, A11yNode.EditableTextInterface, "is not editable text", cancel).ConfigureAwait(false);
+        await RequireAsync(node, A11yNode.EditableTextInterface, "is not editable text. Find a node with the editable state.", cancel).ConfigureAwait(false);
         var done = await A11yCalls.Run(
-            new EditableTextProxy(Connection, node.Bus, node.Path).SetTextContentsAsync(text), node, "setting its text", cancel)
+            new EditableTextProxy(Connection, node.Bus, node.Path).SetTextContentsAsync(text), node, "a text change", cancel)
             .ConfigureAwait(false);
         if (!done)
         {
-            throw new A11yException($"node {node.Id} refused the new text; it may be read-only or not showing");
+            throw new A11yException($"Node {node.Id} refused the new text. It may be read-only or not showing.");
         }
     }
 
@@ -468,9 +468,9 @@ public sealed class A11yService
     public async Task SetValueAsync(string nodeId, double value, CancellationToken cancel)
     {
         var node = A11yNodeRef.Parse(nodeId);
-        await RequireAsync(node, A11yNode.ValueInterface, "has no value to set", cancel).ConfigureAwait(false);
+        await RequireAsync(node, A11yNode.ValueInterface, "has no value to set. Find a slider, a spin button or another node with a value.", cancel).ConfigureAwait(false);
         await A11yCalls.Run(
-            new ValueProxy(Connection, node.Bus, node.Path).SetCurrentValueAsync(value), node, "setting its value", cancel)
+            new ValueProxy(Connection, node.Bus, node.Path).SetCurrentValueAsync(value), node, "a value change", cancel)
             .ConfigureAwait(false);
     }
 
@@ -483,13 +483,13 @@ public sealed class A11yService
     public async Task GrabFocusAsync(string nodeId, CancellationToken cancel)
     {
         var node = A11yNodeRef.Parse(nodeId);
-        await RequireAsync(node, A11yNode.ComponentInterface, "cannot take focus", cancel).ConfigureAwait(false);
+        await RequireAsync(node, A11yNode.ComponentInterface, "cannot take focus.", cancel).ConfigureAwait(false);
         var done = await A11yCalls.Run(
-            new ComponentProxy(Connection, node.Bus, node.Path).GrabFocusAsync(), node, "taking focus", cancel)
+            new ComponentProxy(Connection, node.Bus, node.Path).GrabFocusAsync(), node, "focus", cancel)
             .ConfigureAwait(false);
         if (!done)
         {
-            throw new A11yException($"node {node.Id} refused focus; it may not be focusable or not showing");
+            throw new A11yException($"Node {node.Id} refused focus. It may not be focusable or not showing.");
         }
     }
 
@@ -511,7 +511,7 @@ public sealed class A11yService
         }
 
         var (x, y, width, height) = await A11yCalls.Run(
-            new ComponentProxy(Connection, node.Bus, node.Path).GetExtentsAsync(WindowCoordinates), node, "extents", cancel)
+            new ComponentProxy(Connection, node.Bus, node.Path).GetExtentsAsync(WindowCoordinates), node, "a box", cancel)
             .ConfigureAwait(false);
         return Relative(window, x, y, width, height);
     }
@@ -583,7 +583,7 @@ public sealed class A11yService
         var interfaces = await InterfacesAsync(node, cancel).ConfigureAwait(false);
         if (Array.IndexOf(interfaces, @interface) < 0)
         {
-            throw new A11yException($"node {node.Id} {missing}");
+            throw new A11yException($"Node {node.Id} {missing}");
         }
     }
 

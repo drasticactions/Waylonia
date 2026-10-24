@@ -22,7 +22,7 @@ public static class TomlConfig
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            log.Warn($"cannot read {path}: {error.Message}");
+            log.Warn(error, $"config: reading {path} failed, built-in defaults in use");
             return null;
         }
 
@@ -32,7 +32,7 @@ public static class TomlConfig
         }
         catch (TomlException error)
         {
-            log.Warn($"{path} did not parse, keeping defaults: {error.Message}");
+            log.Warn(error, $"config: {path} did not parse, built-in defaults in use");
             return null;
         }
     }

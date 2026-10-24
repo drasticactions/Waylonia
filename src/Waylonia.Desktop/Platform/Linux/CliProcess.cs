@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using static Waylonia.WayloniaLog;
 
 namespace Waylonia.Sessions;
 
@@ -43,7 +44,7 @@ internal static class CliProcess
             info.ArgumentList.Add(argument);
         }
 
-        return Process.Start(info) ?? throw new InvalidOperationException($"{program} did not start");
+        return Process.Start(info) ?? throw new InvalidOperationException($"The program {program} did not start.");
     }
 
     public static async Task<(int Code, string Output, string Error)> RunAsync(
@@ -76,6 +77,7 @@ internal static class CliProcess
         }
         catch (Exception error) when (error is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
         {
+            Log.Debug(error, $"command: process already gone");
         }
     }
 

@@ -16,7 +16,7 @@ internal sealed class NullGlobalHotkeys : IGlobalHotkeys
         BasinCompositorHost host,
         Action<Hotkey> launch)
     {
-        Log.Warn($"global hotkeys are not implemented on this host, the [hotkeys] table is ignored");
+        Log.Warn($"hotkeys: global hotkeys are not implemented on this host, [hotkeys] ignored");
         return null;
     }
 }

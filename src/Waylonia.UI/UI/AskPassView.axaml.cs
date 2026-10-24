@@ -1,6 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
+using AvaUnion.Controls;
+using AvaUnion.Presenters;
 
 namespace Waylonia.UI;
 
@@ -8,7 +10,9 @@ internal sealed partial class AskPassView : UserControl
 {
     public const int DefaultWidth = 420;
 
-    public const int DefaultHeight = 150;
+    public const int DefaultHeight = 170;
+
+    private const char Mask = '•';
 
     private readonly TextBox _secret;
     private readonly AskPassKind _kind;
@@ -25,12 +29,23 @@ internal sealed partial class AskPassView : UserControl
         AvaloniaXamlLoader.Load(this);
         _kind = kind;
         this.FindControl<TextBlock>("PromptText")!.Text = prompt;
-        _secret = this.FindControl<TextBox>("SecretBox")!;
+        var field = this.FindControl<ActionTextField>("SecretBox")!;
+        _secret = field;
+        var reveal = new TextFieldAction { IconName = "password-show-on", Text = "Show password" };
+        reveal.Triggered += (_, _) =>
+        {
+            var hidden = _secret.PasswordChar == default;
+            _secret.PasswordChar = hidden ? Mask : default;
+            reveal.IconName = hidden ? "password-show-on" : "password-show-off";
+            reveal.Text = hidden ? "Show password" : "Hide password";
+        };
+        field.RightActions.Add(reveal);
         var no = this.FindControl<Button>("NoButton")!;
         var yes = this.FindControl<Button>("YesButton")!;
         var cancel = this.FindControl<Button>("CancelButton")!;
         var ok = this.FindControl<Button>("OkButton")!;
         var yesNo = kind == AskPassKind.YesNo;
+        this.FindControl<UnionIcon>("PromptIcon")!.IconName = yesNo ? "dialog-question" : "dialog-password";
         _secret.IsVisible = !yesNo;
         no.IsVisible = yesNo;
         yes.IsVisible = yesNo;

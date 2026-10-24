@@ -47,7 +47,7 @@ internal sealed class AgentAccessibility : IDisposable
     public static string? Unavailable() =>
         Launchers.Any(File.Exists)
             ? null
-            : "at-spi2-core is not installed (no org.a11y.Bus.service), so the agent's applications have no accessibility bus";
+            : "at-spi2-core is not installed, so launched applications get no accessibility bus";
 
     public async Task<A11yService> ServiceAsync(CancellationToken cancel)
     {
@@ -57,7 +57,7 @@ internal sealed class AgentAccessibility : IDisposable
         }
         catch (TimeoutException)
         {
-            throw new A11yException("the accessibility bus did not come up within 20 s");
+            throw new A11yException("The accessibility bus did not come up within 20 seconds. waylonia/describe shows its state, so check it and try again.");
         }
     }
 
@@ -96,7 +96,7 @@ internal sealed class AgentAccessibility : IDisposable
             }
             catch (AggregateException failure)
             {
-                Log.Debug($"the accessibility bus did not close cleanly: {failure.InnerException?.Message}");
+                Log.Debug(failure.InnerException ?? failure, $"a11y: bus did not close cleanly");
             }
         }
 
@@ -110,7 +110,7 @@ internal sealed class AgentAccessibility : IDisposable
         }
         catch (Exception failure) when (failure is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
-            Log.Debug($"at-spi2-registryd did not end cleanly: {failure.Message}");
+            Log.Debug(failure, $"a11y: at-spi2-registryd did not end cleanly");
         }
 
         _registry?.Dispose();
@@ -150,7 +150,7 @@ internal sealed class AgentAccessibility : IDisposable
         }
         catch (Exception failure) when (failure is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
-            Log.Debug($"{path} did not start: {failure.Message}");
+            Log.Debug(failure, $"a11y: {path} did not start");
         }
     }
 
@@ -165,13 +165,14 @@ internal sealed class AgentAccessibility : IDisposable
                 StartRegistry();
                 if (!await A11yBus.WaitForRegistryAsync(address, TimeSpan.FromSeconds(10), cancel).ConfigureAwait(false))
                 {
-                    Log.Warn($"at-spi2-registryd did not take its name on the agent's accessibility bus within 10 s");
+                    Log.Warn($"a11y: at-spi2-registryd did not take its bus name within 10 s, continuing");
                 }
 
                 var bus = await A11yBus.ConnectAsync(address, cancel).ConfigureAwait(false);
                 bus.EventReceived += () => EventReceived?.Invoke();
+                bus.HandlerFailed += static failure => Log.Error(failure, $"a11y: event handler failed");
                 _bus = bus;
-                Log.Debug($"the agent's accessibility bus is up");
+                Log.Debug($"a11y: accessibility bus up");
                 return new A11yService(bus);
             }
             catch (Exception failure) when (failure is not OperationCanceledException)
@@ -181,8 +182,16 @@ internal sealed class AgentAccessibility : IDisposable
             }
         }
 
-        _failure = last?.Message ?? "the accessibility bus did not answer";
-        Log.Warn($"the agent's accessibility bus did not come up: {_failure}");
-        throw new A11yException(_failure);
+        if (last is null)
+        {
+            _failure = "the accessibility bus did not answer";
+            Log.Warn($"a11y: accessibility bus did not come up, it did not answer");
+            throw new A11yException("The accessibility bus did not answer. Accessibility stays off for this run.");
+        }
+
+        _failure = CliMessage.Text(last.Message);
+        Log.Warn(last, $"a11y: accessibility bus did not come up");
+        throw new A11yException(
+            last is A11yException ? last.Message : "The accessibility bus did not come up. Accessibility stays off for this run.", last);
     }
 }

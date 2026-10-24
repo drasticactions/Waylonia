@@ -25,7 +25,7 @@ internal static partial class DesktopHead
         var sink = AudioSink.TryCreate(fill, rate, channels, out var whyNot);
         if (sink is null)
         {
-            Log.Warn($"this host has no playback device, so no session has sound: {whyNot}");
+            Log.Warn($"audio: no playback device, so no session has sound, {CliMessage.Text(whyNot)}");
         }
 
         return sink;

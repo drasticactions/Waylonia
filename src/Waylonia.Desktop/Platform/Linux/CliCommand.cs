@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Threading.Channels;
+using static Waylonia.WayloniaLog;
 
 namespace Waylonia.Sessions;
 
@@ -59,6 +60,7 @@ internal sealed class CliCommand : ISshCommand
         }
         catch (Exception error) when (error is IOException or ObjectDisposedException or InvalidOperationException)
         {
+            Log.Debug(error, $"command: standard error closed");
         }
 
         _stderr.Writer.TryComplete();
@@ -74,6 +76,7 @@ internal sealed class CliCommand : ISshCommand
         }
         catch (Exception error) when (error is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
+            Log.Debug(error, $"command: exit code not available");
         }
 
         _pid.TrySetResult(0);
@@ -99,6 +102,7 @@ internal sealed class CliCommand : ISshCommand
         }
         catch (Exception error) when (error is IOException or InvalidOperationException or ObjectDisposedException)
         {
+            Log.Debug(error, $"command: standard input already closed");
         }
 
         CliProcess.Kill(_process);

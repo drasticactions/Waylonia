@@ -26,7 +26,7 @@ internal sealed class X11GlobalHotkeys : IDisposable
             var grabber = X11HotkeyGrabber.TryConnect(host.Loop, display);
             if (grabber is null)
             {
-                Log.Warn($"global hotkeys are off");
+                Log.Warn($"hotkeys: off, the X server did not accept a connection");
                 return;
             }
 
@@ -42,7 +42,7 @@ internal sealed class X11GlobalHotkeys : IDisposable
                 }
                 else
                 {
-                    Log.Warn($"hotkey '{hotkey.Chord}' was refused, skipping");
+                    Log.Warn($"hotkeys: {hotkey.Chord} skipped, the X server refused the grab");
                 }
             }
 
@@ -53,7 +53,7 @@ internal sealed class X11GlobalHotkeys : IDisposable
             }
 
             instance._grabber = grabber;
-            Log.Debug($"{registered} global hotkey(s) registered");
+            Log.Debug($"hotkeys: {registered} registered with the X server");
         });
         return instance;
     }

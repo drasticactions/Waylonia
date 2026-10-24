@@ -43,7 +43,7 @@ internal sealed class IconCache
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            log.Warn($"the icon {icon.Name} of {session} could not be cached at {path}: {error.Message}");
+            log.Warn(error, $"icons: caching {icon.Name} of session {session} at {path} failed");
             return null;
         }
     }

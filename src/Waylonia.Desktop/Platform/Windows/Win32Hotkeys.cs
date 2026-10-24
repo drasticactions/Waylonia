@@ -43,7 +43,7 @@ internal sealed class Win32Hotkeys : IDisposable
     {
         if (anchor.TryGetPlatformHandle() is not { } handle)
         {
-            Log.Warn($"the anchor window has no Win32 handle, global hotkeys are off");
+            Log.Warn($"hotkeys: off, the anchor window has no Win32 handle");
             return null;
         }
 
@@ -53,13 +53,13 @@ internal sealed class Win32Hotkeys : IDisposable
         {
             if (VirtualKey(hotkey.Key) is not { } key)
             {
-                Log.Warn($"hotkey '{hotkey.Chord}': no Windows key code for '{hotkey.Key}', skipping");
+                Log.Warn($"hotkeys: {hotkey.Chord} skipped, {hotkey.Key} has no Windows key code");
                 continue;
             }
 
             if (!RegisterHotKey(handle.Handle, next, WindowsModifiers(hotkey.Modifiers) | NoRepeatModifier, key))
             {
-                Log.Warn($"hotkey '{hotkey.Chord}' was refused ({Marshal.GetLastPInvokeError()}), skipping");
+                Log.Warn($"hotkeys: {hotkey.Chord} skipped, Windows refused it with error {Marshal.GetLastPInvokeError()}");
                 continue;
             }
 
@@ -73,7 +73,7 @@ internal sealed class Win32Hotkeys : IDisposable
         }
 
         Win32Properties.AddWndProcHookCallback(anchor, instance._hook);
-        Log.Debug($"{instance._bindings.Count} global hotkey(s) registered");
+        Log.Debug($"hotkeys: {instance._bindings.Count} registered with Windows");
         return instance;
     }
 
@@ -98,7 +98,7 @@ internal sealed class Win32Hotkeys : IDisposable
             }
             catch (Exception error)
             {
-                Log.Warn($"hotkey dispatch failed: {error.Message}");
+                Log.Error(error, $"hotkeys: dispatch failed");
             }
 
             handled = true;

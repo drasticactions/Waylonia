@@ -23,7 +23,15 @@ internal sealed class SessionStore(string? directory)
 
     public static string? WhyInvalidName(string? name) => IsValidName(name)
         ? null
-        : $"a session name is letters, digits, '.', '_' or '-', not '{name}'";
+        : name is not { Length: > 0 }
+            ? "Give the session a name made of letters, digits, '.', '_' and '-'."
+            : $"'{name}' isn't a session name. Use up to 64 letters, digits, '.', '_' and '-'.";
+
+    public static string UserKeyProblem(DestinationKind kind)
+    {
+        ArgumentNullException.ThrowIfNull(kind);
+        return $"The user setting only applies to an Incus instance. {kind.UserNote}";
+    }
 
     public string? PathOf(string name) => Directory is null ? null : Path.Combine(Directory, name + ".toml");
 
@@ -43,7 +51,7 @@ internal sealed class SessionStore(string? directory)
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            log.Warn($"cannot list {Directory}: {error.Message}");
+            log.Warn(error, $"sessions: listing {Directory} failed, no saved sessions loaded");
             return SessionCatalog.Empty;
         }
 
@@ -64,7 +72,8 @@ internal sealed class SessionStore(string? directory)
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)
             {
-                broken.Add(new BrokenSession(name, file, error.Message));
+                log.Debug(error, $"sessions: reading {file} failed");
+                broken.Add(new BrokenSession(name, file, $"Couldn't read the file. {UiSentence.Of(error.Message)}"));
                 continue;
             }
 
@@ -74,13 +83,13 @@ internal sealed class SessionStore(string? directory)
             }
             else
             {
-                broken.Add(new BrokenSession(name, file, error2 ?? "unreadable"));
+                broken.Add(new BrokenSession(name, file, error2 ?? "Couldn't read the file."));
             }
         }
 
         foreach (var entry in broken)
         {
-            log.Warn($"session {entry.Name} at {entry.Path} is unusable: {entry.Error}");
+            log.Warn($"session {entry.Name}: {entry.Path} not loaded, {CliMessage.Text(entry.Error)}");
         }
 
         return new SessionCatalog(profiles, broken);
@@ -124,7 +133,7 @@ internal sealed class SessionStore(string? directory)
 
         if (named.Count == 0)
         {
-            error = "it has no ssh destination, wsl distribution, distrobox or toolbox container or incus instance";
+            error = "This session doesn't say where to connect. Add an ssh, wsl, distrobox, toolbox or incus line.";
             return null;
         }
 
@@ -146,7 +155,7 @@ internal sealed class SessionStore(string? directory)
         {
             if (!destinationKind.TakesUser)
             {
-                error = $"user names the account inside an Incus instance; {destinationKind.UserNote}";
+                error = UserKeyProblem(destinationKind);
                 return null;
             }
 
@@ -163,21 +172,21 @@ internal sealed class SessionStore(string? directory)
                 or "terminal" or "current-desktop" or "lang" or "autoconnect" or "desktop" or "desktop-size"
                 or "desktop-env" or "hotkeys"))
             {
-                log.Warn($"session {name} has an unknown key '{key}', ignoring it");
+                log.Warn($"session {name}: unknown key '{key}' ignored");
             }
         }
 
         var video = Config.Text(table, "video");
         if (video is not null && !VideoChoice.IsValid(video))
         {
-            error = $"video '{video}' is not a codec choice such as h264,hw";
+            error = VideoChoice.Problem(video);
             return null;
         }
 
         var compress = Config.Text(table, "compress");
         if (compress is not null && compress is not ("lz4" or "zstd" or "none"))
         {
-            error = $"compress takes lz4, zstd or none, not '{compress}'";
+            error = $"'{compress}' isn't a compression setting. Use lz4, zstd or none.";
             return null;
         }
 
@@ -185,7 +194,7 @@ internal sealed class SessionStore(string? directory)
         var desktop = Config.Text(table, "desktop");
         if (desktop is not null && desktop != "custom" && DesktopRecipes.Find(desktop) is null)
         {
-            error = $"desktop '{desktop}' names no recipe; the built-in ones are {DesktopRecipes.Names}, or custom with a command";
+            error = DesktopRecipes.UnknownProblem(desktop);
             return null;
         }
 
@@ -229,7 +238,7 @@ internal sealed class SessionStore(string? directory)
     {
         ArgumentNullException.ThrowIfNull(user);
         return user.Length == 0 || user[0] == '-' || !user.All(static c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-')
-            ? $"user '{user}' is not an account name; one is letters, digits, '.', '_' and '-'"
+            ? $"'{user}' isn't an account name. Use only letters, digits, '.', '_' and '-', and don't start with '-'."
             : null;
     }
 
@@ -280,7 +289,7 @@ internal sealed class SessionStore(string? directory)
 
         if (PathOf(profile.Name) is not { } path)
         {
-            throw new InvalidOperationException("the sessions directory is off, because the config file is skipped");
+            throw new InvalidOperationException("Sessions can't be saved, because the config file is off. Start Waylonia without --config false to save them.");
         }
 
         System.IO.Directory.CreateDirectory(Directory!);

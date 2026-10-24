@@ -22,7 +22,7 @@ internal sealed record CaptureChord(string Text, bool DoubleTap, uint Code, Shel
         var tokens = body.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (tokens.Length == 0)
         {
-            log.Warn($"capture-chord '{trimmed}' names no key, capture is off");
+            log.Warn($"capture: capture-chord '{trimmed}' names no key, capture is off");
             return null;
         }
 
@@ -44,7 +44,7 @@ internal sealed record CaptureChord(string Text, bool DoubleTap, uint Code, Shel
                     modifiers |= ShellModifiers.Super;
                     break;
                 default:
-                    log.Warn($"unknown modifier '{tokens[i]}' in capture-chord '{trimmed}', capture is off");
+                    log.Warn($"capture: unknown modifier '{tokens[i]}' in capture-chord '{trimmed}', capture is off");
                     return null;
             }
         }
@@ -52,13 +52,13 @@ internal sealed record CaptureChord(string Text, bool DoubleTap, uint Code, Shel
         var code = CodeFor(tokens[^1]);
         if (code == 0)
         {
-            log.Warn($"unknown key '{tokens[^1]}' in capture-chord '{trimmed}', capture is off");
+            log.Warn($"capture: unknown key '{tokens[^1]}' in capture-chord '{trimmed}', capture is off");
             return null;
         }
 
         if (doubleTap && modifiers != ShellModifiers.None)
         {
-            log.Warn($"a double-tap capture-chord names one key alone, ignoring the modifiers in '{trimmed}'");
+            log.Warn($"capture: a double-tap capture-chord names one key alone, modifiers in '{trimmed}' ignored");
             modifiers = ShellModifiers.None;
         }
 

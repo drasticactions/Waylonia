@@ -27,7 +27,7 @@ internal sealed class WslLink(string destination, string distro) : ISshLink
         }
         catch (Exception error) when (error is Win32Exception or InvalidOperationException)
         {
-            throw Unreachable("wsl.exe did not start; WSL is not installed", error);
+            throw Unreachable("The wsl.exe program did not start. WSL is not installed.", error);
         }
 
         if (result.Code != 0)
@@ -35,17 +35,17 @@ internal sealed class WslLink(string destination, string distro) : ISshLink
             var said = WslProcess.LastLine(result.Error + "\n" + result.Output);
             throw Unreachable(
                 said.Contains("wslinfo", StringComparison.OrdinalIgnoreCase)
-                    ? "this WSL has no 'wslinfo --vm-id', which needs WSL 2.6.1 or later; run 'wsl --update'"
-                    : said.Length > 0 ? said : $"wsl.exe exited with {result.Code}",
+                    ? "This WSL has no wslinfo --vm-id, which needs WSL 2.6.1 or later. Run wsl --update."
+                    : said.Length > 0 ? $"WSL said: {said}" : $"The wsl.exe program exited with {result.Code}.",
                 null);
         }
 
         if (!Guid.TryParse(WslProcess.LastLine(result.Output).Trim('{', '}'), out _vmId))
         {
-            throw Unreachable($"'wslinfo --vm-id' printed no VM id: {WslProcess.LastLine(result.Output)}", null);
+            throw Unreachable($"The command wslinfo --vm-id printed no VM id. It printed: {WslProcess.LastLine(result.Output)}", null);
         }
 
-        Log.Debug($"{destination}: the WSL VM is {_vmId}");
+        Log.Debug($"{destination}: connected, the WSL VM is {_vmId}");
         _connected = true;
     }
 
@@ -59,7 +59,7 @@ internal sealed class WslLink(string destination, string distro) : ISshLink
         {
             throw new SshLinkException(
                 SshLinkReason.ForwardRefused,
-                $"Windows refused a Hyper-V socket on the WSL VM {_vmId}: {error.Message}",
+                $"Windows refused a Hyper-V socket on the WSL VM {_vmId}. {error.Message}",
                 error);
         }
     }
@@ -102,7 +102,7 @@ internal sealed class WslLink(string destination, string distro) : ISshLink
     }
 
     private SshLinkException Unreachable(string detail, Exception? inner) =>
-        new(SshLinkReason.Unreachable, $"{destination} could not be reached: {detail}", inner);
+        new(SshLinkReason.Unreachable, $"Couldn't reach {destination}. {detail}", inner);
 
     public ValueTask DisposeAsync()
     {

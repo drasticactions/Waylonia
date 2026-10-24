@@ -55,7 +55,7 @@ internal sealed class AudioTrackSink : IAudioSink
             track = builder.Build();
             if (track.State != AudioTrackState.Initialized)
             {
-                whyNot = "the audio track did not initialize";
+                whyNot = "The audio track did not initialize.";
                 track.Release();
                 return null;
             }
@@ -82,7 +82,7 @@ internal sealed class AudioTrackSink : IAudioSink
             var written = _track.Write(_buffer, 0, _buffer.Length, WriteMode.Blocking);
             if (written < 0)
             {
-                Log.Warn($"the audio track stopped accepting samples (error {written}), so sound is off until the next session");
+                Log.Warn($"audio: the track refused samples with error {written}, sound is off until the next session");
                 return;
             }
         }
@@ -102,8 +102,9 @@ internal sealed class AudioTrackSink : IAudioSink
             _track.Pause();
             _track.Flush();
         }
-        catch (Java.Lang.Exception)
+        catch (Java.Lang.Exception error)
         {
+            Log.Debug(error, $"audio: the track did not pause, it already stopped");
         }
 
         if (_thread.IsAlive)

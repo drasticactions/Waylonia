@@ -44,7 +44,7 @@ done
 case "$(host_rid)" in
     osx-*) ;;
     *)
-        echo "the iOS head builds on a Mac with Xcode; this is $(host_rid)." >&2
+        echo "the iOS head builds on a Mac with Xcode, and this host is $(host_rid)." >&2
         exit 1
         ;;
 esac

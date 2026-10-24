@@ -50,7 +50,7 @@ internal sealed class PortalGlobalHotkeys : IDisposable
         {
             if (DBusAddress.Session is not { } address)
             {
-                Log.Warn($"this session has no D-Bus session bus, global hotkeys are off");
+                Log.Warn($"hotkeys: off, this session has no D-Bus session bus");
                 return;
             }
 
@@ -76,13 +76,13 @@ internal sealed class PortalGlobalHotkeys : IDisposable
             var sessionResponse = await CreateSessionAsync(connection, sender);
             if (sessionResponse.Code != 0)
             {
-                Log.Warn($"the desktop refused a global shortcuts session (response {sessionResponse.Code}), global hotkeys are off");
+                Log.Warn($"hotkeys: off, the desktop refused a global shortcuts session with response {sessionResponse.Code}");
                 return;
             }
 
             if (!sessionResponse.Results.TryGetValue("session_handle", out var handle))
             {
-                Log.Warn($"the portal reply carried no session handle, global hotkeys are off");
+                Log.Warn($"hotkeys: off, the portal reply carried no session handle");
                 return;
             }
 
@@ -105,26 +105,26 @@ internal sealed class PortalGlobalHotkeys : IDisposable
             var bindResponse = await BindShortcutsAsync(connection, sender, session);
             if (bindResponse.Code != 0)
             {
-                Log.Warn($"the desktop refused the shortcut list (response {bindResponse.Code}), global hotkeys are off");
+                Log.Warn($"hotkeys: off, the desktop refused the shortcut list with response {bindResponse.Code}");
                 return;
             }
 
-            Log.Debug($"{_hotkeys.Count} global hotkey(s) bound through the desktop portal");
+            Log.Debug($"hotkeys: {_hotkeys.Count} bound through the desktop portal");
         }
         catch (DBusErrorReplyException error) when (error.ErrorName.Contains("ServiceUnknown"))
         {
-            Log.Warn($"xdg-desktop-portal is not running, global hotkeys are off");
+            Log.Warn($"hotkeys: off, xdg-desktop-portal is not running");
         }
         catch (DBusErrorReplyException error) when (
             error.ErrorName.Contains("UnknownInterface") || error.ErrorName.Contains("UnknownMethod"))
         {
-            Log.Warn($"this desktop has no GlobalShortcuts portal backend, global hotkeys are off");
+            Log.Warn($"hotkeys: off, this desktop has no GlobalShortcuts portal backend");
         }
         catch (Exception error) when (error is DBusExceptionBase or ObjectDisposedException or InvalidOperationException)
         {
             if (!_disposed)
             {
-                Log.Warn($"the global shortcuts portal failed: {error.Message}");
+                Log.Warn(error, $"hotkeys: off, the global shortcuts portal failed");
             }
         }
     }
@@ -137,7 +137,7 @@ internal sealed class PortalGlobalHotkeys : IDisposable
         }
         catch (DBusErrorReplyException error)
         {
-            Log.Warn($"no app id was registered ({error.ErrorMessage}), the desktop may refuse global shortcuts");
+            Log.Warn(error, $"hotkeys: no app id registered, the desktop may refuse global shortcuts");
         }
     }
 

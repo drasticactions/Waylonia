@@ -129,7 +129,7 @@ internal sealed class AgentInterceptor : IIpcInterceptor
                 return IpcDecision.Allow;
             }
 
-            reason = $"{AgentApprovals.Reason(action)}: {string.Join(' ', plan.Argv)}";
+            reason = AgentApprovals.LaunchReason(plan.Argv);
         }
         else
         {
@@ -149,7 +149,7 @@ internal sealed class AgentInterceptor : IIpcInterceptor
 
         var approval = _broker.Request(context.Hold(), reason);
         pending.Request = approval;
-        AgentLog.Log.Info($"approval {approval.Id} for {method}: {reason}");
+        AgentLog.Log.Info($"approval: {approval.Id} requested for {method}");
         Note("approval-requested", ("id", Id(approval.Id)), ("method", method), ("reason", reason));
         if (approval.IsAnswered)
         {

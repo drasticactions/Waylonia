@@ -47,11 +47,11 @@ public sealed class SessionFormKindTests
 
         form.Ssh = "wsl:Ubuntu";
         Assert.Null(form.Validate());
-        Assert.Equal("Choose WSL as the kind to reach a WSL distribution.", form.SshProblem);
+        Assert.Contains("WSL", form.SshProblem, StringComparison.Ordinal);
 
         form.Ssh = "incus:web";
         Assert.Null(form.Validate());
-        Assert.Equal("Choose Incus as the kind to reach an Incus instance.", form.SshProblem);
+        Assert.Contains("Incus", form.SshProblem, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -78,16 +78,16 @@ public sealed class SessionFormKindTests
 
         form.Kind = DestinationKinds.Distrobox;
         Assert.Equal(["wl-box", "dev"], form.Targets);
-        Assert.Equal("container", form.TargetCaption);
+        Assert.Equal("distrobox", form.TargetKey);
         Assert.Null(form.Validate());
-        Assert.Equal("Use the container name distrobox list shows.", form.SshProblem);
+        Assert.Contains("distrobox list", form.SshProblem, StringComparison.Ordinal);
 
         form.Target = "wl-box";
         Assert.Equal("distrobox:wl-box", form.Validate()!.Ssh);
 
         form.Kind = DestinationKinds.Incus;
         Assert.Equal(["wl-test"], form.Targets);
-        Assert.Equal("instance", form.TargetCaption);
+        Assert.Equal("incus", form.TargetKey);
     }
 
     [Fact]

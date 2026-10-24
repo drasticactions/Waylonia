@@ -114,7 +114,7 @@ internal sealed class XWaylandShell
                 return;
             }
 
-            _log.Debug($"x11 window 0x{xwindow.WindowId:x} left the shell");
+            _log.Debug($"xwayland: window 0x{xwindow.WindowId:x} left the shell");
             xwindow.Unmapped -= managed.Release;
             xwindow.Destroyed -= managed.Release;
             surface.Destroyed -= managed.Release;
@@ -174,7 +174,7 @@ internal sealed class XWaylandShell
         xwindow.ResizeRequested += managed.Resize;
         xwindow.GeometryChanged += managed.Follow;
         xwindow.IconChanged += managed.Icon;
-        _log.Debug($"x11 window 0x{xwindow.WindowId:x} '{xwindow.Title}' ({xwindow.Class}) joined the shell");
+        _log.Debug($"xwayland: window 0x{xwindow.WindowId:x} '{xwindow.Title}' of class {xwindow.Class} joined the shell");
     }
 
     private bool PointerGrabAllowed(XWaylandWindow xwindow, ManagedWindow window, bool keyboard)
@@ -186,7 +186,7 @@ internal sealed class XWaylandShell
 
         if (!_shell.Host.Seat.Pointer.HasImplicitGrab)
         {
-            _log.Debug($"x11 window 0x{xwindow.WindowId:x} asked for a move or resize after the button was released; ignored");
+            _log.Debug($"xwayland: window 0x{xwindow.WindowId:x} move or resize ignored, the button was already released");
             return false;
         }
 
@@ -221,7 +221,7 @@ internal sealed class XWaylandShell
 
         var scene = _shell.AddUnmanaged(surface, xwindow.X, xwindow.Y);
         var unmanaged = new Unmanaged();
-        _log.Debug($"x11 override-redirect window 0x{xwindow.WindowId:x} shown at {xwindow.X},{xwindow.Y} {xwindow.Width}x{xwindow.Height}");
+        _log.Debug($"xwayland: override-redirect window 0x{xwindow.WindowId:x} shown at {xwindow.X},{xwindow.Y} {xwindow.Width}x{xwindow.Height}");
         unmanaged.Layout = () =>
         {
             if (!scene.IsDestroyed)
@@ -231,7 +231,7 @@ internal sealed class XWaylandShell
         };
         unmanaged.Drop = () =>
         {
-            _log.Debug($"x11 override-redirect window 0x{xwindow.WindowId:x} gone");
+            _log.Debug($"xwayland: override-redirect window 0x{xwindow.WindowId:x} gone");
             xwindow.GeometryChanged -= unmanaged.Layout;
             xwindow.Unmapped -= unmanaged.Drop;
             xwindow.Destroyed -= unmanaged.Drop;

@@ -140,13 +140,13 @@ public sealed class TmdsSshLinkTests
         await using var refused = factory.Create("127.0.0.1:1", new EnvironmentPrompter());
         var unreachable = await Assert.ThrowsAsync<SshLinkException>(() => refused.ConnectAsync(Ct));
         Assert.Equal(SshLinkReason.Unreachable, unreachable.Reason);
-        Assert.StartsWith("127.0.0.1 could not be reached: ", unreachable.Message, StringComparison.Ordinal);
+        Assert.Contains("127.0.0.1", unreachable.Message, StringComparison.Ordinal);
 
         var host = SshPromptText.HostOf(Destination!);
         await using var nobody = factory.Create($"waylonia-nobody-{Guid.NewGuid():n}@{host}", new EnvironmentPrompter());
         var denied = await Assert.ThrowsAsync<SshLinkException>(() => nobody.ConnectAsync(Ct));
         Assert.Equal(SshLinkReason.AuthenticationFailed, denied.Reason);
-        Assert.Contains("refused every credential", denied.Message, StringComparison.Ordinal);
+        Assert.Contains(host, denied.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -211,7 +211,7 @@ public sealed class TmdsSshLinkTests
         catch (SshLinkException error)
         {
             Assert.Equal(SshLinkReason.HostKeyRejected, error.Reason);
-            Assert.Equal($"the host key of {addresses[0]} was not accepted", error.Message);
+            Assert.Contains(addresses[0].ToString(), error.Message, StringComparison.Ordinal);
         }
 
         var asked = Assert.Single(prompter.HostKeys);

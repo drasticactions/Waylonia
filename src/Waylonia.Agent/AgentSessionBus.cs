@@ -50,13 +50,15 @@ internal sealed class AgentSessionBus : IDisposable
         }
         catch (Exception failure) when (failure is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
-            error = $"dbus-daemon could not start, so the agent's applications have no session bus: {failure.Message}";
+            error = "dbus-daemon did not start, so launched applications get no session bus";
+            Log.Warn(failure, $"bus: {error}");
             return null;
         }
 
         if (process is null)
         {
-            error = "dbus-daemon could not start, so the agent's applications have no session bus";
+            error = "dbus-daemon did not start, so launched applications get no session bus";
+            Log.Warn($"bus: {error}");
             return null;
         }
 
@@ -67,7 +69,7 @@ internal sealed class AgentSessionBus : IDisposable
         }
         catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
         {
-            Log.Debug($"dbus-daemon's log {logPath} cannot be opened: {failure.Message}");
+            Log.Debug(failure, $"bus: dbus-daemon log {logPath} cannot be opened");
         }
 
         process.ErrorDataReceived += (_, e) =>
@@ -85,12 +87,13 @@ internal sealed class AgentSessionBus : IDisposable
         if (!line.Wait(TimeSpan.FromSeconds(5)) || line.Result is not { Length: > 0 } address)
         {
             Kill(process);
-            error = "dbus-daemon printed no address within 5 s, so the agent's applications have no session bus";
+            error = "dbus-daemon printed no address within 5 s, so launched applications get no session bus";
+            Log.Warn($"bus: {error}");
             return null;
         }
 
         error = null;
-        Log.Debug($"the agent's session bus is {address} (pid {process.Id})");
+        Log.Debug($"bus: session bus at {address}, pid {process.Id}");
         return new AgentSessionBus(process, address.Trim());
     }
 
@@ -118,7 +121,7 @@ internal sealed class AgentSessionBus : IDisposable
         }
         catch (Exception failure) when (failure is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
-            Log.Debug($"dbus-daemon did not end cleanly: {failure.Message}");
+            Log.Debug(failure, $"bus: dbus-daemon did not end cleanly");
         }
     }
 }

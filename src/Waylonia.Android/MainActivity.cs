@@ -34,24 +34,24 @@ internal sealed class MainActivity : AvaloniaMainActivity
             RequestPermissions([AndroidHead.LocalNetworkPermission], 0);
         }
 
-        Log.Debug($"the activity was created");
+        Log.Debug($"activity: created");
     }
 
     protected override void OnStart()
     {
         base.OnStart();
-        Log.Debug($"the activity started");
+        Log.Debug($"activity: started");
     }
 
     protected override void OnStop()
     {
-        Log.Debug($"the activity stopped");
+        Log.Debug($"activity: stopped");
         base.OnStop();
     }
 
     protected override void OnDestroy()
     {
-        Log.Debug($"the activity was destroyed; the shell view outlives it");
+        Log.Debug($"activity: destroyed, the shell view outlives it");
         base.OnDestroy();
     }
 }

@@ -47,7 +47,7 @@ internal sealed unsafe class CarbonHotkeys : IDisposable
             GetApplicationEventTarget(), &OnHotkeyEvent, 1, &spec, IntPtr.Zero, out instance._handler);
         if (status != 0)
         {
-            Log.Warn($"the hotkey event handler was refused ({status}), global hotkeys are off");
+            Log.Warn($"hotkeys: off, Carbon refused the event handler with status {status}");
             return null;
         }
 
@@ -57,7 +57,7 @@ internal sealed unsafe class CarbonHotkeys : IDisposable
         {
             if (KeyCode(hotkey.Key) is not { } code)
             {
-                Log.Warn($"hotkey '{hotkey.Chord}': no macOS key code for '{hotkey.Key}', skipping");
+                Log.Warn($"hotkeys: {hotkey.Chord} skipped, {hotkey.Key} has no macOS key code");
                 continue;
             }
 
@@ -66,7 +66,7 @@ internal sealed unsafe class CarbonHotkeys : IDisposable
                 code, CarbonModifiers(hotkey.Modifiers), id, GetApplicationEventTarget(), 0, out var registration);
             if (status != 0)
             {
-                Log.Warn($"hotkey '{hotkey.Chord}' was refused ({status}), skipping");
+                Log.Warn($"hotkeys: {hotkey.Chord} skipped, Carbon refused it with status {status}");
                 continue;
             }
 
@@ -81,7 +81,7 @@ internal sealed unsafe class CarbonHotkeys : IDisposable
             return null;
         }
 
-        Log.Debug($"{instance._bindings.Count} global hotkey(s) registered");
+        Log.Debug($"hotkeys: {instance._bindings.Count} registered with Carbon");
         return instance;
     }
 
@@ -123,7 +123,7 @@ internal sealed unsafe class CarbonHotkeys : IDisposable
         }
         catch (Exception error)
         {
-            Log.Warn($"hotkey dispatch failed: {error.Message}");
+            Log.Error(error, $"hotkeys: dispatch failed");
         }
 
         return 0;

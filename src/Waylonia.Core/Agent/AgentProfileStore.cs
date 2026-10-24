@@ -32,7 +32,7 @@ internal static class AgentProfileStore
         ArgumentNullException.ThrowIfNull(name);
         if (!IsValidName(name))
         {
-            error = $"--agent {name} is not a profile name; use letters, digits, '.', '_' and '-'";
+            error = $"profile: '{name}' is not a profile name, use letters, digits, '.', '_' and '-'";
             return null;
         }
 
@@ -66,12 +66,12 @@ internal static class AgentProfileStore
             if (!File.Exists(file))
             {
                 File.WriteAllText(file, Placeholder);
-                log.Info($"wrote a placeholder {file}");
+                log.Info($"profile: placeholder written to {file}");
             }
         }
         catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
         {
-            error = $"the agent profile {directory} cannot be created: {failure.Message}";
+            error = $"profile: {directory} cannot be created, {CliMessage.Text(failure.Message)}";
             return null;
         }
 
@@ -92,7 +92,7 @@ internal static class AgentProfileStore
             }
             else
             {
-                log.Warn($"agent.toml size takes WxH, such as 1280x800, ignoring '{sizeText}'");
+                log.Warn($"agent.toml: size takes WxH such as 1280x800, '{sizeText}' ignored");
             }
         }
 
@@ -104,7 +104,7 @@ internal static class AgentProfileStore
             }
             else
             {
-                log.Warn($"agent.toml scale takes 0.5 to 4, ignoring '{scale}'");
+                log.Warn($"agent.toml: scale takes 0.5 to 4, '{scale}' ignored");
             }
         }
 
@@ -118,7 +118,7 @@ internal static class AgentProfileStore
             }
             else
             {
-                log.Warn($"agent.toml takeover-timeout takes 0 to 3600 seconds, ignoring '{timeout}'");
+                log.Warn($"agent.toml: takeover-timeout takes 0 to 3600 seconds, '{timeout}' ignored");
             }
         }
 
@@ -128,13 +128,13 @@ internal static class AgentProfileStore
             {
                 "maximize" => profile with { Placement = PlacementMode.Maximize },
                 "automatic" => profile with { Placement = PlacementMode.Automatic },
-                _ => Warned(profile, log, $"agent.toml placement takes maximize or automatic, ignoring '{placement}'"),
+                _ => Warned(profile, log, $"agent.toml: placement takes maximize or automatic, '{placement}' ignored"),
             };
         }
 
         if (table.ContainsKey("launch"))
         {
-            log.Warn($"agent.toml [launch] is gone and ignored: waylonia/launch starts any program; add \"launch\" to [approve] actions to ask a person first");
+            log.Warn($"agent.toml: [launch] is gone and ignored, add \"launch\" to [approve] actions to have a person approve each launch");
         }
 
         if (table.TryGetValue("approve", out var approveValue) && approveValue is TomlTable approve
@@ -151,13 +151,13 @@ internal static class AgentProfileStore
                     }
                     else
                     {
-                        log.Warn($"agent.toml [approve] actions takes {string.Join(", ", AgentApprovals.Names)}, ignoring '{item}'");
+                        log.Warn($"agent.toml: [approve] actions takes {string.Join(", ", AgentApprovals.Names)}, '{item}' ignored");
                     }
                 }
             }
             else
             {
-                log.Warn($"agent.toml [approve] actions is a list of names");
+                log.Warn($"agent.toml: [approve] actions is not a list of names, ignored");
             }
 
             profile = profile with { Approve = actions };
@@ -172,7 +172,7 @@ internal static class AgentProfileStore
                     "none" => profile with { Screenshots = AgentScreenshots.None },
                     "acting" => profile with { Screenshots = AgentScreenshots.Acting },
                     "all" => profile with { Screenshots = AgentScreenshots.All },
-                    _ => Warned(profile, log, $"agent.toml [audit] screenshots takes none, acting or all, ignoring '{screenshots}'"),
+                    _ => Warned(profile, log, $"agent.toml: [audit] screenshots takes none, acting or all, '{screenshots}' ignored"),
                 };
             }
 
@@ -202,12 +202,12 @@ internal static class AgentProfileStore
         }
         catch (IOException)
         {
-            error = $"another waylonia --agent {profile.Name} is running; one run holds a profile at a time";
+            error = $"profile {profile.Name}: another run holds the profile, stop the other waylonia --agent {profile.Name} first";
             return null;
         }
         catch (UnauthorizedAccessException failure)
         {
-            error = $"the agent profile lock {profile.LockFile} cannot be opened: {failure.Message}";
+            error = $"profile {profile.Name}: lock {profile.LockFile} cannot be opened, {CliMessage.Text(failure.Message)}";
             return null;
         }
     }

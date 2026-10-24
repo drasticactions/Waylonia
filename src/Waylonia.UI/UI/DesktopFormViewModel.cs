@@ -15,10 +15,10 @@ internal sealed partial class DesktopFormViewModel : FormViewModel
 
     public const string VideoField = "video";
 
-    public const string NewLabel = "new desktop";
+    public const string NewLabel = "New desktop";
 
     public static IReadOnlyList<string> RecipeChoices { get; } =
-        ["same as the name", .. DesktopRecipes.All.Select(static recipe => recipe.Name), "custom"];
+        ["Same as the name", .. DesktopRecipes.All.Select(static recipe => recipe.Name), "custom"];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Label))]
@@ -84,7 +84,7 @@ internal sealed partial class DesktopFormViewModel : FormViewModel
         var name = Name.Trim();
         if (name.Length == 0)
         {
-            Complain(NameField, "Give the desktop a name.");
+            Complain(NameField, "Enter a name for the desktop.");
         }
         else if (!IsValidName(name))
         {
@@ -112,7 +112,7 @@ internal sealed partial class DesktopFormViewModel : FormViewModel
         var video = Blank(Video);
         if (video is not null && !VideoChoice.IsValid(video))
         {
-            Complain(VideoField, "Use none, h264, vp9 or av1. Add ,hw to decode on this host's GPU.");
+            Complain(VideoField, "Use none, h264, vp9 or av1, then any options such as ,hw.");
         }
 
         if (HasProblems)

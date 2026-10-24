@@ -59,13 +59,27 @@ public sealed class WayloniaCommand
             return body(result);
         });
 
-        var status = Command.Parse(args).Invoke();
+        var status = Invoke(args);
         if (wanted)
         {
             BasinReport.Line(baseline.Since(_frames));
         }
 
         return status;
+    }
+
+    private int Invoke(string[] args)
+    {
+        try
+        {
+            return Command.Parse(args).Invoke(new InvocationConfiguration { EnableDefaultExceptionHandler = false });
+        }
+        catch (Exception e)
+        {
+            BasinLog.Debug(e, $"waylonia: the program stopped on an exception");
+            Console.Error.WriteLine(CliMessage.Line(CliRefusal.Program, e));
+            return 1;
+        }
     }
 
     public void ConfigureLogging(ParseResult result, bool trace = false)

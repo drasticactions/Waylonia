@@ -15,6 +15,8 @@ internal sealed class SshSession : IDisposable
         "if [ ! -d \"$r\" ]; then r=/tmp/waylonia-run-$(id -u); mkdir -p \"$r\" && chmod 700 \"$r\"; fi; " +
         "XDG_RUNTIME_DIR=$r; export XDG_RUNTIME_DIR; fi; ";
 
+    private const string Interrupted = "The login was interrupted.";
+
     private static readonly TimeSpan SocketRemovalLimit = TimeSpan.FromSeconds(2);
 
     private static int _counter;
@@ -71,7 +73,7 @@ internal sealed class SshSession : IDisposable
 
     public string? LastError { get; private set; }
 
-    public string StatusText { get; private set; } = "disconnected";
+    public string StatusText { get; private set; } = "Not connected";
 
     public bool IsLive => Status != SessionStatus.Disconnected;
 
@@ -117,7 +119,7 @@ internal sealed class SshSession : IDisposable
         ArgumentNullException.ThrowIfNull(settings);
         if (IsLive)
         {
-            throw new InvalidOperationException($"{Name} is connected; disconnect it before changing its settings");
+            throw new InvalidOperationException($"Session {Name} is connected. Disconnect it before you change its settings.");
         }
 
         Settings = settings;
@@ -155,7 +157,7 @@ internal sealed class SshSession : IDisposable
         if (!kind.IsSsh && targets is null)
         {
             LastError = kind.Unreachable(Ssh);
-            Log.Error($"{LastError}");
+            Log.Error($"session {Name}: {CliMessage.Text(LastError)}");
             SetStatus(SessionStatus.Disconnected, LastError);
             if (!_host.ShuttingDown)
             {
@@ -165,7 +167,7 @@ internal sealed class SshSession : IDisposable
             return false;
         }
 
-        SetStatus(SessionStatus.Connecting, kind.IsSsh ? $"logging in to {Ssh}" : $"starting {Ssh}");
+        SetStatus(SessionStatus.Connecting, kind.IsSsh ? $"Logging in to {Ssh}…" : $"Starting {Ssh}…");
         var link = targets is null ? _host.Links.Create(Ssh, _host.Prompter) : targets.Create(Ssh, Settings.User, _host.Prompter);
         _link = link;
         try
@@ -174,17 +176,17 @@ internal sealed class SshSession : IDisposable
         }
         catch (SshLinkException error)
         {
-            return await FailAsync(link, error.Message, report: error.Reason != SshLinkReason.Canceled);
+            return await FailAsync(link, error.Message, report: error.Reason != SshLinkReason.Canceled, error);
         }
 
         if (_disconnecting || _host.ShuttingDown)
         {
-            return await FailAsync(link, "the login was interrupted", report: false);
+            return await FailAsync(link, Interrupted, report: false);
         }
 
         if (Settings.Audio && Settings.Kind.SharesHome)
         {
-            Log.Warn($"{Name}: audio = true is ignored, because {Settings.Kind.Noun} already plays through this machine's sound server");
+            Log.Warn($"session {Name}: audio = true ignored, {Settings.Kind.Noun} already plays through this host's sound server");
         }
 
         ISshListener? listener = null;
@@ -192,7 +194,7 @@ internal sealed class SshSession : IDisposable
         {
             if (await OpenDirectAsync(link) is { } problem)
             {
-                return await FailAsync(link, problem, report: true);
+                return await FailAsync(link, problem.Message, report: true, problem.Error);
             }
         }
         else
@@ -204,7 +206,7 @@ internal sealed class SshSession : IDisposable
             }
             catch (SshLinkException error)
             {
-                return await FailAsync(link, error.Message, report: true);
+                return await FailAsync(link, error.Message, report: true, error);
             }
 
             _listener = listener;
@@ -220,7 +222,7 @@ internal sealed class SshSession : IDisposable
         catch (SshLinkException error)
         {
             listener?.Dispose();
-            return await FailAsync(link, error.Message, report: true);
+            return await FailAsync(link, error.Message, report: true, error);
         }
 
         _master = master;
@@ -236,10 +238,10 @@ internal sealed class SshSession : IDisposable
             }
 
             var message = exited
-                ? $"the session script on {Ssh} exited with {master.Exited.Result}" + Detail()
+                ? $"The session script on {Ssh} exited with status {master.Exited.Result}." + Detail()
                 : started.Task.IsCompleted
-                    ? "the login was interrupted"
-                    : $"the session script on {Ssh} did not start within {ScriptStartLimit.TotalSeconds:0} seconds" + Detail();
+                    ? Interrupted
+                    : $"The session script on {Ssh} didn't start within {ScriptStartLimit.TotalSeconds:0} seconds." + Detail();
             listener?.Dispose();
             master.Dispose();
             return await FailAsync(link, message, report: !_disconnecting && !_host.ShuttingDown);
@@ -250,14 +252,14 @@ internal sealed class SshSession : IDisposable
             _audio = WayloniaAudio.TryStart(_host.Audio, Ssh, link, _sinkName, Settings.AudioFormat);
         }
 
-        SetStatus(SessionStatus.Connected, link.Notice is { } notice ? $"connected to {Ssh}; {notice}" : $"connected to {Ssh}");
+        SetStatus(SessionStatus.Connected, link.Notice is { } notice ? $"Connected to {Ssh}. {UiSentence.Of(notice)}" : $"Connected to {Ssh}");
         _ = WatchLinkAsync(link, master);
         if (Settings.Desktop is { } recipe)
         {
             var environment = DesktopSession.Environment(recipe, Settings.DesktopEnv, Settings.Gpu);
             var wrapper = DesktopSession.Wrapper(recipe, _display?.ClientDisplay ?? _displayName, recipe.Command, environment);
             _commandClient = await StartRemoteClientAsync(wrapper, exportDisplay: false);
-            SetStatus(SessionStatus.Connected, $"starting {recipe.Name} on {Ssh}");
+            SetStatus(SessionStatus.Connected, $"Starting {recipe.Name} on {Ssh}…");
             _ = WatchArrivalAsync(link, master, recipe.Name);
         }
         else
@@ -269,8 +271,8 @@ internal sealed class SshSession : IDisposable
             }
             else if (Settings.Autostart.Count == 0)
             {
-                Log.Info($"{Ssh} is open, waiting for client");
-                SetStatus(SessionStatus.Connected, $"connected to {Ssh}, waiting for a client");
+                Log.Info($"session {Name}: connected to {Ssh}, waiting for a client");
+                SetStatus(SessionStatus.Connected, $"Connected to {Ssh}, waiting for an application");
             }
 
             foreach (var autostart in Settings.Autostart)
@@ -284,12 +286,20 @@ internal sealed class SshSession : IDisposable
         return true;
     }
 
-    private async Task<bool> FailAsync(ISshLink link, string message, bool report)
+    private async Task<bool> FailAsync(ISshLink link, string message, bool report, Exception? error = null)
     {
         LastError = message;
         if (report)
         {
-            Log.Error($"{message}");
+            if (error is null)
+            {
+                Log.Error($"session {Name}: {CliMessage.Text(message)}");
+            }
+            else
+            {
+                Log.Error(error, $"session {Name}: {CliMessage.Text(message)}");
+            }
+
             Report(_output);
         }
 
@@ -314,7 +324,7 @@ internal sealed class SshSession : IDisposable
 
     private Task SettleOutputAsync() => Task.WhenAny(_masterDrained, Task.Delay(OutputSettleLimit));
 
-    private string Detail() => _output.LastLine() is { } line ? $": {line}" : string.Empty;
+    private string Detail() => _output.LastLine() is { } line ? $" Its last message was \"{line}\"." : string.Empty;
 
     private WaypipeAcceptor EnsureAcceptor()
     {
@@ -326,16 +336,16 @@ internal sealed class SshSession : IDisposable
         var acceptor = new WaypipeAcceptor(
             Name, _host, Settings.Compression, Settings.Gpu, Settings.Video, Settings.VideoDecoder, this);
         acceptor.Changed += () => Changed?.Invoke(this);
-        acceptor.Failed += error =>
+        acceptor.Failed += _ =>
         {
-            LastError = $"the channel listener failed: {error.Message}";
+            LastError = $"Waylonia stopped receiving windows from {Ssh}. Disconnect and connect again.";
             SetStatus(Status, LastError);
         };
         _acceptor = acceptor;
         return acceptor;
     }
 
-    private async Task<string?> OpenDirectAsync(ISshLink link)
+    private async Task<(string Message, Exception Error)?> OpenDirectAsync(ISshLink link)
     {
         var direct = _direct ??= new DirectOwner(Name, this, global => _host.Compositor.Dmabuf?.Owns(global) ?? false);
         ISessionDisplay display;
@@ -345,7 +355,7 @@ internal sealed class SshSession : IDisposable
         }
         catch (SshLinkException error)
         {
-            return error.Message;
+            return (error.Message, error);
         }
 
         _display = display;
@@ -355,7 +365,7 @@ internal sealed class SshSession : IDisposable
         }
         catch (IOException error)
         {
-            return $"the display socket for {Ssh} could not be adopted: {error.Message}";
+            return ($"Couldn't open the display socket for {Ssh}.", error);
         }
 
         _owner = direct;
@@ -412,6 +422,7 @@ internal sealed class SshSession : IDisposable
             }
             catch (Exception error) when (error is OperationCanceledException or ObjectDisposedException)
             {
+                Log.Debug(error, $"session: a command's error output closed");
             }
         });
         try
@@ -429,16 +440,17 @@ internal sealed class SshSession : IDisposable
         }
         catch (Exception error) when (error is IOException or ObjectDisposedException or OperationCanceledException or InvalidOperationException)
         {
+            Log.Debug(error, $"session: a command's output closed");
         }
 
         await errors;
     }
 
-    private static void Report(OutputTail tail)
+    private void Report(OutputTail tail)
     {
         foreach (var line in tail.Lines())
         {
-            Log.Error($"ssh: {line}");
+            Log.Error($"session {Name}: remote said {line}");
         }
     }
 
@@ -448,7 +460,7 @@ internal sealed class SshSession : IDisposable
         if (Settings.Kind.SlowFirstStart && !started.Task.IsCompleted && !master.Exited.IsCompleted
             && !_host.ShuttingDown && !_disconnecting)
         {
-            SetStatus(SessionStatus.Connecting, $"setting up {DestinationKinds.Name(Ssh)} ({Settings.Kind.Key}'s first start)");
+            SetStatus(SessionStatus.Connecting, $"Setting up {DestinationKinds.Name(Ssh)}. The first start of a {Settings.Kind.Key} container can take a few minutes.");
             await Task.WhenAny(started.Task, master.Exited);
         }
 
@@ -483,10 +495,8 @@ internal sealed class SshSession : IDisposable
             return;
         }
 
-        LastError = _display is null
-            ? $"no channel arrived from {Ssh} within 30 seconds of starting '{what}'"
-            : $"no client connected from {Ssh} within 30 seconds of starting '{what}'";
-        Log.Error($"{LastError}");
+        LastError = $"'{what}' on {Ssh} didn't connect to Waylonia within 30 seconds.";
+        Log.Error($"session {Name}: no {(_display is null ? "waypipe channel" : "client")} from '{what}' within 30 s");
         Report(_output);
         SetStatus(SessionStatus.Connected, LastError);
         if (Settings.AdHoc)
@@ -505,11 +515,11 @@ internal sealed class SshSession : IDisposable
 
         if (await StartRemoteClientAsync(command) is null)
         {
-            Log.Warn($"{label}: '{command}' failed to start on {Ssh}");
+            Log.Debug($"session {Name}: launching {label} failed");
             return false;
         }
 
-        _host.Status($"started '{command}' on {Ssh}");
+        _host.Status($"Started '{command}' on {Ssh}");
         return true;
     }
 
@@ -531,8 +541,8 @@ internal sealed class SshSession : IDisposable
             return true;
         }
 
-        Log.Info($"the connection to {Ssh} is gone; opening it again");
-        _host.Status($"reconnecting to {Ssh}");
+        Log.Info($"session {Name}: connection to {Ssh} gone, reconnecting");
+        _host.Status($"Reconnecting to {Ssh}…");
         return await ConnectAsync();
     }
 
@@ -561,7 +571,7 @@ internal sealed class SshSession : IDisposable
 
             if (await ReadRemoteApplicationsAsync(locale) is not { } output)
             {
-                Notice($"The applications on {Ssh} could not be read");
+                Notice($"Couldn't read the applications on {Ssh}");
                 return;
             }
 
@@ -569,8 +579,8 @@ internal sealed class SshSession : IDisposable
         }
         catch (Exception error) when (error is IOException or InvalidOperationException)
         {
-            Log.Warn($"{Name}: the application list could not be read: {error.Message}");
-            Notice("The applications could not be read");
+            Log.Warn(error, $"session {Name}: reading the application list failed");
+            Notice($"Couldn't read the applications on {Ssh}");
             return;
         }
 
@@ -591,10 +601,10 @@ internal sealed class SshSession : IDisposable
         var items = ApplicationMenu.Build(listable, terminal, EntryIcon, _host.ThemeIconFor);
         if (terminal is null && listable.Any(static entry => entry.Terminal))
         {
-            Log.Info($"{Name}: set terminal in the config to list terminal applications");
+            Log.Info($"session {Name}: terminal applications left out of the menu, set terminal in the config to list them");
         }
 
-        Log.Debug($"{Name}: {listable.Count} application(s) in {items.Count} categor(ies) for the tray menu");
+        Log.Debug($"session {Name}: {listable.Count} application(s) in {items.Count} categor(ies) for the menu");
         Applications = items;
         ApplicationsNotice = items.Count == 0 ? "No applications found" : null;
         Changed?.Invoke(this);
@@ -686,7 +696,7 @@ internal sealed class SshSession : IDisposable
         }
         catch (Exception error) when (error is IOException or InvalidOperationException)
         {
-            Log.Warn($"{Name}: the icons could not be fetched: {error.Message}");
+            Log.Warn(error, $"session {Name}: fetching icons failed");
             return;
         }
 
@@ -709,7 +719,7 @@ internal sealed class SshSession : IDisposable
             }
         }
 
-        Log.Debug($"{Name}: fetched {fetched.Icons.Count} icon(s), {fetched.Missing.Count} missing");
+        Log.Debug($"session {Name}: fetched {fetched.Icons.Count} icon(s), {fetched.Missing.Count} missing");
         IconsChanged?.Invoke(this);
     }
 
@@ -737,7 +747,7 @@ internal sealed class SshSession : IDisposable
         }
         catch (SshLinkException error)
         {
-            Log.Warn($"reading the {what} on {Ssh} failed: {error.Message}");
+            Log.Warn(error, $"session {Name}: reading the {what} failed");
             return null;
         }
 
@@ -760,7 +770,7 @@ internal sealed class SshSession : IDisposable
                 var code = await command.Exited.WaitAsync(timeout.Token);
                 if (code != 0 && !_disconnecting && !_host.ShuttingDown)
                 {
-                    Log.Warn($"reading the {what} on {Ssh} exited with {code}");
+                    Log.Warn($"session {Name}: reading the {what} exited with {code}");
                     await drain;
                     Report(errors);
                 }
@@ -769,7 +779,7 @@ internal sealed class SshSession : IDisposable
             }
             catch (OperationCanceledException)
             {
-                Log.Warn($"reading the {what} on {Ssh} took over {limit.TotalSeconds:0} s; giving up");
+                Log.Warn($"session {Name}: reading the {what} took over {limit.TotalSeconds:0} s, gave up");
                 return null;
             }
         }
@@ -819,7 +829,7 @@ internal sealed class SshSession : IDisposable
     {
         if (LiveLink() is not { } link)
         {
-            Log.Warn($"'{command}' cannot start on {Ssh}: the remote session is not up");
+            Log.Warn($"session {Name}: '{command}' not started, the session is not connected");
             return null;
         }
 
@@ -830,7 +840,7 @@ internal sealed class SshSession : IDisposable
         }
         catch (SshLinkException error)
         {
-            Log.Warn($"'{command}' failed to start on {Ssh}: {error.Message}");
+            Log.Warn(error, $"session {Name}: '{command}' did not start");
             return null;
         }
 
@@ -864,16 +874,16 @@ internal sealed class SshSession : IDisposable
 
         if (code != 0)
         {
-            Log.Warn($"'{command}' exited with {code}");
+            Log.Warn($"session {Name}: '{command}' exited with {code}");
             foreach (var line in tail.Lines())
             {
-                Log.Error($"{command}: {line}");
+                Log.Warn($"session {Name}: '{command}' said {line}");
             }
         }
 
         if (Settings.AdHoc && last && ReferenceEquals(client, _commandClient))
         {
-            Log.Info($"'{command}' on {Ssh} has ended and nothing else was started there; disconnecting");
+            Log.Info($"session {Name}: '{command}' ended with nothing else started, disconnecting");
             CommandFinished = true;
             await DisconnectAsync();
             Ended?.Invoke(this, code == 0 ? 0 : 1);
@@ -961,15 +971,15 @@ internal sealed class SshSession : IDisposable
         var code = master.Exited.IsCompleted ? master.Exited.Result : -1;
         var clean = code == 0;
         LastError = code > 0
-            ? $"the session script on {Ssh} exited with {code}" + Detail()
-            : $"the connection to {Ssh} ended";
+            ? $"The session script on {Ssh} exited with status {code}." + Detail()
+            : $"The connection to {Ssh} ended.";
         if (hadClients || clean)
         {
-            Log.Info($"the connection to {Ssh} ended");
+            Log.Info($"session {Name}: connection to {Ssh} ended");
         }
         else
         {
-            Log.Error($"{LastError}");
+            Log.Error($"session {Name}: {CliMessage.Text(LastError)}");
             Report(_output);
         }
 
@@ -982,7 +992,7 @@ internal sealed class SshSession : IDisposable
         _master = null;
         _listener = null;
         _scriptStarted = null;
-        SetStatus(SessionStatus.Disconnected, $"disconnected from {Ssh}");
+        SetStatus(SessionStatus.Disconnected, $"Disconnected from {Ssh}");
         Ended?.Invoke(this, clean ? 0 : 1);
     }
 
@@ -1042,7 +1052,7 @@ internal sealed class SshSession : IDisposable
         _scriptStarted = null;
         Applications = null;
         ApplicationsNotice = null;
-        SetStatus(SessionStatus.Disconnected, $"disconnected from {Ssh}");
+        SetStatus(SessionStatus.Disconnected, $"Disconnected from {Ssh}");
     }
 
     private async Task RemoveRemoteSocketAsync(ISshLink link)
@@ -1061,12 +1071,12 @@ internal sealed class SshSession : IDisposable
             if (code != 0)
             {
                 await drain.WaitAsync(SocketRemovalLimit);
-                Log.Debug($"{_remoteSocket} may still exist on {Ssh}: {complaints.LastLine()}");
+                Log.Debug($"session {Name}: removing {_remoteSocket} exited with {code}, {complaints.LastLine()}");
             }
         }
         catch (Exception error) when (error is SshLinkException or TimeoutException or IOException)
         {
-            Log.Debug($"{_remoteSocket} could not be removed from {Ssh}: {error.Message}");
+            Log.Debug(error, $"session {Name}: removing {_remoteSocket} failed");
         }
     }
 
@@ -1096,8 +1106,9 @@ internal sealed class SshSession : IDisposable
             {
                 RemoveRemoteSocketAsync(link).Wait(SocketRemovalLimit + SocketRemovalLimit);
             }
-            catch (AggregateException)
+            catch (AggregateException error)
             {
+                Log.Debug(error, $"session {Name}: removing the remote socket at shutdown failed");
             }
 
             _listener?.Dispose();

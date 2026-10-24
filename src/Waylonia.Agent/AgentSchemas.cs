@@ -5,7 +5,7 @@ namespace Waylonia.Agent;
 internal static class AgentSchemas
 {
     public static IpcMethodInfo Describe { get; } = new(
-        "Describe this agent session: the profile, headless or visible, the output size and scale, the Wayland socket and X display the launched applications use, whether launches wait for approval, which methods this compositor leaves out and whether accessibility is up.",
+        "Describe this agent session: the profile, headless or visible, the output size and scale, the Wayland socket and X display that launched applications use, whether launches wait for approval, which methods this compositor leaves out, whether accessibility is up and whether a person has paused the agent.",
         "{\"type\":\"object\",\"properties\":{}}",
         IpcMethodTraits.ReadOnly | IpcMethodTraits.Idempotent);
 
@@ -15,17 +15,17 @@ internal static class AgentSchemas
         IpcMethodTraits.ReadOnly | IpcMethodTraits.Idempotent);
 
     public static IpcMethodInfo Launch { get; } = new(
-        "Start a program in this agent session: command plus args, or desktop_id. There is no shell. Any program starts at once unless the profile holds launches for a person's approval. The program gets the profile's own home, session bus and accessibility bus, and its output goes to a log that process/log reads. Returns the launch id and the pid; wait for its window with windows/wait.",
+        "Start a program in this agent session: command plus args, or desktop_id. There is no shell. Any program starts at once unless the profile holds launches for a person's approval. The program gets the profile's own home, session bus and accessibility bus, and its output goes to a log that process/log reads. Returns the launch id and the pid. Wait for its window with windows/wait.",
         "{\"type\":\"object\",\"properties\":{\"command\":{\"type\":\"string\",\"description\":\"The program, such as foot or /usr/bin/foot. Not with desktop_id.\"},\"args\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":\"Arguments after the program.\"},\"desktop_id\":{\"type\":\"string\",\"description\":\"A .desktop id, such as org.gnome.TextEditor or org.gnome.TextEditor.desktop. Not with command.\"}},\"examples\":[{\"command\":\"foot\"}]}",
         IpcMethodTraits.None);
 
     public static IpcMethodInfo WindowInfo { get; } = new(
-        "What windows/list does not say about a window: the launch id of the waylonia/launch whose process tree owns it, whether it is an X11 window or a dialog, its parent, and whether its accessibility tree was found. Without id, every window.",
+        "Describe what windows/list does not say about a window: the launch id of the waylonia/launch whose process tree owns it, whether it is an X11 window or a dialog, its parent, and whether its accessibility tree was found. Without id, it describes every window.",
         "{\"type\":\"object\",\"properties\":{\"id\":{\"anyOf\":[{\"type\":\"integer\",\"minimum\":0},{\"type\":\"string\",\"pattern\":\"^[0-9]+$\"}],\"description\":\"A window id from windows/list. A string of decimal digits is also accepted.\"}}}",
         IpcMethodTraits.ReadOnly | IpcMethodTraits.Idempotent);
 
     public static IpcMethodInfo A11yTree { get; } = new(
-        "Read a window's accessibility tree as indented text, one node per line: [node] role \"name\" {states} @x,y wxh, with boxes relative to the window's client area, the same coordinates input/pointer-button takes with window.",
+        "Read a window's accessibility tree as indented text, one node per line: [node] role \"name\" {states} @x,y wxh. Boxes are relative to the window's client area, the same coordinates that input/pointer-button takes with window. A last line in parentheses says when depth or max_nodes cut the tree short.",
         "{\"type\":\"object\",\"properties\":{\"window\":{\"anyOf\":[{\"type\":\"integer\",\"minimum\":0},{\"type\":\"string\",\"pattern\":\"^[0-9]+$\"}],\"description\":\"A window id from windows/list. A string of decimal digits is also accepted.\"},\"depth\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":64,\"description\":\"How deep to read. The default is 12.\"},\"max_nodes\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":5000,\"description\":\"The most nodes to read. The default is 400.\"}},\"required\":[\"window\"]}",
         IpcMethodTraits.ReadOnly | IpcMethodTraits.Idempotent);
 
@@ -60,7 +60,7 @@ internal static class AgentSchemas
         IpcMethodTraits.None);
 
     public static IpcMethodInfo A11yWaitText { get; } = new(
-        "Wait until a node under a window has a name or text that contains the given text. It checks again on each accessibility event, not on a timer.",
+        "Wait until a node in a window has a name or text that contains the given text, and describe that node. It checks again on each accessibility event, not on a timer, and answers failed at the timeout.",
         "{\"type\":\"object\",\"properties\":{\"window\":{\"anyOf\":[{\"type\":\"integer\",\"minimum\":0},{\"type\":\"string\",\"pattern\":\"^[0-9]+$\"}],\"description\":\"A window id from windows/list. A string of decimal digits is also accepted.\"},\"text\":{\"type\":\"string\"},\"timeout_ms\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":120000,\"description\":\"How long to wait. The default is 5000.\"}},\"required\":[\"window\",\"text\"]}",
         IpcMethodTraits.ReadOnly);
 }

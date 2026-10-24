@@ -44,7 +44,7 @@ internal sealed class AVAudioSink : IAudioSink
             engine.Prepare();
             if (!engine.StartAndReturnError(out var error))
             {
-                whyNot = error?.LocalizedDescription ?? "the audio engine did not start";
+                whyNot = error?.LocalizedDescription ?? "The audio engine did not start.";
                 sink.Dispose();
                 return null;
             }

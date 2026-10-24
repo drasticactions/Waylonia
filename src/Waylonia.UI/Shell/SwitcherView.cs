@@ -51,7 +51,7 @@ internal sealed class SwitcherView : Border
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 Foreground = Brushes.White,
                 FontSize = 13,
-                Text = entry.Session is { } session ? $"{entry.Title} — {session}" : entry.Title,
+                Text = entry.Session is { } session ? $"{entry.Title} · {session}" : entry.Title,
             };
             var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
             if (entry.Icon is { } icon)

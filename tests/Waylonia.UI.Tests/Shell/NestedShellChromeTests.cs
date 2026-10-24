@@ -160,20 +160,20 @@ public sealed class NestedShellChromeTests
             Assert.Same(surface, shell.Router.KeyboardFocus);
 
             var view = Assert.IsType<ManagerView>(surface.Content);
-            var menu = view.GetVisualDescendants().OfType<Menu>().First();
-            var session = menu.GetVisualDescendants().OfType<MenuItem>().First();
-            session.Open();
+            var list = view.FindControl<ListBox>("SessionList")!;
+            var rowMenu = view.FindControl<ContextMenu>("RowMenu")!;
+            rowMenu.Open(list);
             harness.PumpInput();
-            Assert.True(session.IsSubMenuOpen);
+            Assert.True(rowMenu.IsOpen);
             Assert.Same(surface, shell.Router.KeyboardFocus);
             Assert.False(shell.PanelHasKeyboard);
-            session.Close();
+            rowMenu.Close();
             harness.PumpInput();
             Assert.Same(surface, shell.Router.KeyboardFocus);
 
-            session.Open();
+            rowMenu.Open(list);
             harness.PumpInput();
-            Assert.True(session.IsSubMenuOpen);
+            Assert.True(rowMenu.IsOpen);
             var desktop = window.FrameBox;
             var requested = 0;
             shell.PopupDismissRequested += () => requested++;
@@ -185,7 +185,7 @@ public sealed class NestedShellChromeTests
             Dispatcher.UIThread.RunJobs();
             harness.PumpInput();
             Assert.Equal(1, requested);
-            Assert.False(session.IsSubMenuOpen);
+            Assert.False(rowMenu.IsOpen);
             Assert.Same(surface, shell.Router.KeyboardFocus);
 
             var combo = view.GetVisualDescendants().OfType<ComboBox>().First(box => box.IsEffectivelyVisible);

@@ -1,4 +1,5 @@
 using Waylonia.Agent;
+using Waylonia.Cli;
 using static Waylonia.WayloniaLog;
 
 namespace Waylonia;
@@ -9,15 +10,13 @@ internal static partial class DesktopHead
     {
         if (!OperatingSystem.IsLinux())
         {
-            Log.Error($"--agent runs local Linux applications for an agent, which needs Linux");
-            return 1;
+            return CliRefusal.Write("--agent runs local Linux applications for an agent, which needs Linux");
         }
 
         using var runtime = new AgentRuntime(profile, headless: false);
         if (!runtime.Prepare(out var error))
         {
-            Log.Error($"{error}");
-            return 1;
+            return CliRefusal.Write(error ?? string.Empty);
         }
 
         DesktopWayloniaApp.PreparedAgent = runtime;
@@ -35,15 +34,13 @@ internal static partial class DesktopHead
     {
         if (!OperatingSystem.IsLinux())
         {
-            Log.Error($"--agent runs local Linux applications for an agent, which needs Linux");
-            return 1;
+            return CliRefusal.Write("--agent runs local Linux applications for an agent, which needs Linux");
         }
 
         using var runtime = new AgentRuntime(profile, headless: true);
         if (!runtime.Prepare(out var error))
         {
-            Log.Error($"{error}");
-            return 1;
+            return CliRefusal.Write(error ?? string.Empty);
         }
 
         var icons = new IconCache(request.Paths.IconCacheRoot);

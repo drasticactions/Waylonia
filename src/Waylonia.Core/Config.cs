@@ -103,7 +103,7 @@ internal sealed class Config
         {
             if (value is TomlTable && name is not ("host" or "hosts" or "hotkeys" or "desktops" or "shell" or "panel"))
             {
-                log.Warn($"{path} has an unknown section '[{name}]', ignoring it; a remote session is a file in {config.SessionsDirectory}");
+                log.Warn($"config: unknown section '[{name}]' in {path} ignored, sessions are files in {config.SessionsDirectory}");
             }
         }
 
@@ -118,7 +118,7 @@ internal sealed class Config
             }
             else
             {
-                log.Warn($"Invalid --video, ignoring '{videoCodec}'");
+                log.Warn($"config: video '{videoCodec}' is not a video setting, ignored");
             }
         }
 
@@ -151,7 +151,7 @@ internal sealed class Config
                 }
                 else
                 {
-                    log.Warn($"[host] ssh-timeout takes 1 to {ConfigValues.MaxSshTimeout} seconds, ignoring '{timeout}'");
+                    log.Warn($"config: [host] ssh-timeout takes 1 to {ConfigValues.MaxSshTimeout} seconds, '{timeout}' ignored");
                 }
             }
 
@@ -170,7 +170,7 @@ internal sealed class Config
                 }
                 else
                 {
-                    log.Warn($"[host] shell takes {ShellModes.Names}, ignoring '{shell}'");
+                    log.Warn($"config: [host] shell takes {ShellModes.Names}, '{shell}' ignored");
                 }
             }
         }
@@ -195,7 +195,7 @@ internal sealed class Config
                     continue;
                 }
 
-                log.Warn($"[hosts.{name}] moved to sessions/{name}.toml; run waylonia --migrate-hosts to convert it");
+                log.Warn($"config: [hosts.{name}] belongs in sessions/{name}.toml now, run waylonia --migrate-hosts to move it");
                 if (SessionStore.FromTable(name, profileTable, BasinLogger.None, out var why) is { } profile
                     && SessionStore.IsValidName(name))
                 {
@@ -203,7 +203,7 @@ internal sealed class Config
                 }
                 else
                 {
-                    log.Warn($"[hosts.{name}] cannot become a session: {why ?? SessionStore.WhyInvalidName(name)}");
+                    log.Warn($"config: [hosts.{name}] cannot become a session, {CliMessage.Text(why ?? SessionStore.WhyInvalidName(name) ?? string.Empty)}");
                 }
             }
 
@@ -317,7 +317,7 @@ internal sealed class Config
             # gtk-xft-dpi is 96, so a remote desktop's own display scaling does
             # not size GTK windows twice. Off leaves the remote config alone.
             #gtk-dpi = true
-            # End every window title with " — NAME", the session it belongs to.
+            # End every window title with " · NAME", the session it belongs to.
             #session-titles = true
             # How long a session waits for its ssh server to answer, in seconds.
             #ssh-timeout = 30
@@ -466,11 +466,11 @@ internal sealed class Config
             using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
             using var writer = new StreamWriter(stream);
             writer.Write(placeholder.Replace("\r\n", "\n", StringComparison.Ordinal));
-            log.Info($"wrote a placeholder config to {path}");
+            log.Info($"config: wrote a placeholder to {path}");
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            log.Warn($"cannot write a placeholder config to {path}: {error.Message}");
+            log.Warn(error, $"config: writing a placeholder to {path} failed, built-in defaults in use");
         }
     }
 
@@ -492,7 +492,7 @@ internal sealed class Config
             return name;
         }
 
-        log.Warn($"compress takes lz4, zstd or none, ignoring '{name}'");
+        log.Warn($"config: compress takes lz4, zstd or none, '{name}' ignored");
         return null;
     }
 
@@ -509,7 +509,7 @@ internal sealed class Config
             return lang;
         }
 
-        log.Warn($"lang '{lang}' is not a locale name like C.UTF-8 or en_US.UTF-8, ignoring it");
+        log.Warn($"config: lang '{lang}' is not a locale name like C.UTF-8 or en_US.UTF-8, ignored");
         return null;
     }
 

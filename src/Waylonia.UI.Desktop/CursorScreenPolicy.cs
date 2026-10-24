@@ -55,7 +55,7 @@ internal sealed class CursorScreenPolicy(IHostCursor cursor) : IAvaloniaShellPol
 
         window.WindowStartupLocation = WindowStartupLocation.Manual;
         window.Position = position;
-        Log.Debug($"placed '{info.Title}' on '{screen.DisplayName ?? "?"}' at {position.X},{position.Y}");
+        Log.Debug($"placement: '{info.Title}' on '{screen.DisplayName ?? "?"}' at {position.X},{position.Y}");
     }
 
     internal static string? Containing(IReadOnlyCollection<HostScreenInfo> screens, PixelPoint point)
@@ -83,7 +83,7 @@ internal sealed class CursorScreenPolicy(IHostCursor cursor) : IAvaloniaShellPol
         var key = Containing(screens, cursor);
         if (key is not null)
         {
-            Log.Debug($"a layer surface named no output, taking '{key}' under the pointer");
+            Log.Debug($"placement: a layer surface named no output, taking '{key}' under the pointer");
         }
 
         return key;

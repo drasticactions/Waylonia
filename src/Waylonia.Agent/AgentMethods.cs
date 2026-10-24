@@ -4,6 +4,7 @@ using System.Text.Json;
 using Basin;
 using Basin.Ipc;
 using Basin.Shell.Nested;
+using static Waylonia.Agent.AgentLog;
 
 namespace Waylonia.Agent;
 
@@ -21,7 +22,7 @@ internal static class AgentMethods
     }
 
     public const string Boundary =
-        "the control socket is the boundary and the uid is the socket's boundary: approvals and the audit log bind the tool path, and they do not contain a process that runs as this user";
+        "The control socket is the boundary, and the user id is the socket's boundary. Approvals and the audit log cover calls through the socket. They do not contain a process that runs as this user.";
 
     private static void Describe(AgentRuntime runtime, IpcServer server, IpcReply reply)
     {
@@ -55,10 +56,10 @@ internal static class AgentMethods
 
         w.WriteEndArray();
         w.WriteString("accessibility", runtime.AccessibilityStatus);
-        w.WriteString("takeover", runtime.Takeover.Status);
+        w.WriteString("takeover", runtime.Takeover.Report);
         w.WriteBoolean("virtual_input", false);
         w.WriteBoolean("clipboard_isolated", true);
-        w.WriteString("processes", "every process that waylonia/launch starts is ended when this run ends");
+        w.WriteString("processes", "Every process that waylonia/launch starts ends when this run ends.");
         w.WriteString("audit", runtime.Audit.Path);
         w.WriteString("boundary", Boundary);
         w.WriteNumber("running", server.Processes.Processes.Count(static process => process.IsRunning));
@@ -110,7 +111,7 @@ internal static class AgentMethods
 
         if (profile.Gates(AgentApprovals.Launch) && !runtime.Interceptor.ConsumeLaunchApproval(AgentLauncher.Key(plan)))
         {
-            reply.Error(IpcErrorCodes.Refused, $"agent profile {profile.Name} holds every launch for approval, and no one approved {AgentLauncher.Key(plan)}");
+            reply.Error(IpcErrorCodes.Refused, $"Agent profile {profile.Name} holds every launch for a person's approval, and no one approved {AgentLauncher.Key(plan)}. Ask the user to approve it.");
             return;
         }
 
@@ -121,7 +122,7 @@ internal static class AgentMethods
             out var spawnError);
         if (launched is null)
         {
-            reply.Error(IpcErrorCodes.Failed, $"{plan.Argv[0]} did not start: {spawnError}");
+            reply.Error(IpcErrorCodes.Failed, spawnError ?? $"'{plan.Argv[0]}' did not start. Check that the program is installed and on PATH.");
             return;
         }
 
@@ -161,7 +162,7 @@ internal static class AgentMethods
 
         if (only is { } missing && rows.Count == 0)
         {
-            reply.Error(IpcErrorCodes.NotFound, $"no window {missing.ToString(CultureInfo.InvariantCulture)}");
+            reply.Error(IpcErrorCodes.NotFound, $"No window has id {missing.ToString(CultureInfo.InvariantCulture)}. List the windows with windows/list.");
             return;
         }
 
@@ -184,7 +185,8 @@ internal static class AgentMethods
                 }
                 catch (Exception failure) when (failure is not OutOfMemoryException)
                 {
-                    problem = failure.Message;
+                    Log.Debug(failure, $"a11y: window {rows[i].Id} lookup failed");
+                    problem = CliMessage.Text(failure.Message);
                 }
             }
 

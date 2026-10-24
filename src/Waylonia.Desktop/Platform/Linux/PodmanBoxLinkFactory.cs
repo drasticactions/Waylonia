@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using static Waylonia.WayloniaLog;
 
 namespace Waylonia.Sessions;
 
@@ -12,7 +13,7 @@ internal sealed class PodmanBoxLinkFactory(PodmanBox box) : ITargetLinkFactory
         ArgumentNullException.ThrowIfNull(destination);
         if (!box.Kind.TryParse(destination, out var name))
         {
-            throw new ArgumentException($"'{destination}' is not a {box.Program} destination", nameof(destination));
+            throw new ArgumentException($"The destination '{destination}' is not a {box.Program} container. Give {box.Program}:NAME.", nameof(destination));
         }
 
         return new PodmanBoxLink(box, destination, name);
@@ -28,6 +29,7 @@ internal sealed class PodmanBoxLinkFactory(PodmanBox box) : ITargetLinkFactory
         }
         catch (Exception error) when (error is Win32Exception or InvalidOperationException)
         {
+            Log.Debug(error, $"{box.Program}: containers not listed");
             return [];
         }
     }

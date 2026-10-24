@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using AvaUnion.Controls;
 using Waylonia.Agent;
 
 namespace Waylonia.Shell;
@@ -29,7 +30,7 @@ internal sealed partial class ApprovalView : UserControl
         AvaloniaXamlLoader.Load(this);
         _now = now ?? (() => DateTime.UtcNow);
         _deadline = _now() + prompt.Timeout;
-        this.FindControl<TextBlock>("HeadingText")!.Text = prompt.Heading;
+        this.FindControl<Heading>("HeadingText")!.Content = prompt.Heading;
         var subject = this.FindControl<SelectableTextBlock>("SubjectText")!;
         subject.Text = prompt.Subject;
         subject.IsVisible = prompt.Subject is { Length: > 0 };

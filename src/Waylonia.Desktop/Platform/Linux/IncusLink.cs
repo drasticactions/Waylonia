@@ -41,24 +41,24 @@ internal sealed class IncusLink(string destination, string name, string? userNam
     {
         if (!CliProcess.OnPath(Incus.Program))
         {
-            throw Unreachable($"incus is not installed; the session names {DestinationKinds.Incus.Noun}");
+            throw Unreachable($"The session names {DestinationKinds.Incus.Noun}, and the incus command is not installed.");
         }
 
         var instance = await ReadAsync(cancellation).ConfigureAwait(false);
         if (!instance.IsRunning)
         {
-            Log.Info($"{destination}: starting the stopped instance {name}");
+            Log.Info($"{destination}: starting the stopped instance");
             var started = await IncusAsync(Incus.Start(name), cancellation).ConfigureAwait(false);
             if (started.Code != 0)
             {
-                throw Unreachable($"'incus start {name}' failed: {CliProcess.LastLine(started.Error)}");
+                throw Unreachable($"The command incus start {name} failed.{Said(started.Error)}");
             }
         }
 
         await WaitForExecAsync(instance.IsVm ? VmStartLimit : ContainerStartLimit, cancellation).ConfigureAwait(false);
         _instance = instance.IsRunning && (!instance.IsVm || instance.VsockId is not null) ? instance : await ReadAsync(cancellation).ConfigureAwait(false);
         _user = await ResolveUserAsync(cancellation).ConfigureAwait(false);
-        Log.Debug($"{destination}: {(_instance.IsVm ? "VM" : "container")} in project {_instance.Project}, scripts run as {_user.Name}");
+        Log.Debug($"{destination}: connected, {(_instance.IsVm ? "VM" : "container")} in project {_instance.Project}, scripts run as {_user.Name}");
         _connected = true;
     }
 
@@ -67,7 +67,7 @@ internal sealed class IncusLink(string destination, string name, string? userNam
         var listed = await IncusAsync(Incus.List(), cancellation).ConfigureAwait(false);
         if (listed.Code != 0)
         {
-            throw Unreachable($"'incus list' failed: {CliProcess.LastLine(listed.Error)}");
+            throw Unreachable($"The command incus list failed.{Said(listed.Error)}");
         }
 
         IReadOnlyList<IncusInstance> instances;
@@ -77,11 +77,11 @@ internal sealed class IncusLink(string destination, string name, string? userNam
         }
         catch (System.Text.Json.JsonException error)
         {
-            throw Unreachable($"'incus list' printed something other than JSON: {error.Message}");
+            throw Unreachable("The command incus list printed something other than JSON.", error);
         }
 
         return instances.FirstOrDefault(instance => instance.Name == name)
-            ?? throw Unreachable($"there is no Incus instance named {name}; 'incus list' shows the ones there are");
+            ?? throw Unreachable($"There is no Incus instance named {name}. Run incus list to see the instances.");
     }
 
     private async Task WaitForExecAsync(TimeSpan limit, CancellationToken cancellation)
@@ -99,7 +99,7 @@ internal sealed class IncusLink(string destination, string name, string? userNam
             last = CliProcess.LastLine(probe.Error);
             if (DateTime.UtcNow >= deadline)
             {
-                throw Unreachable($"{name} did not accept a command within {limit.TotalSeconds:0} seconds: {last}");
+                throw Unreachable($"The instance {name} did not accept a command within {limit.TotalSeconds:0} seconds.{Said(last)}");
             }
 
             await Task.Delay(TimeSpan.FromSeconds(1), cancellation).ConfigureAwait(false);
@@ -117,11 +117,11 @@ internal sealed class IncusLink(string destination, string name, string? userNam
 
         if (userName is not null)
         {
-            throw new SshLinkException(SshLinkReason.AuthenticationFailed, $"the instance {name} has no user named {userName}");
+            throw new SshLinkException(SshLinkReason.AuthenticationFailed, $"The instance {name} has no user named {userName}.");
         }
 
-        Notice = "the instance has no account with uid 1000, so scripts run as root";
-        Log.Info($"{destination}: {Notice}");
+        Notice = "The instance has no account with uid 1000, so scripts run as root.";
+        Log.Info($"{destination}: no account with uid 1000, scripts run as root");
         return IncusUser.Root;
     }
 
@@ -129,13 +129,13 @@ internal sealed class IncusLink(string destination, string name, string? userNam
     {
         if (_instance is not { IsVm: true, VsockId: { } cid })
         {
-            throw new SshLinkException(SshLinkReason.ForwardRefused, $"{destination} has no vsock id; it is not a running Incus VM");
+            throw new SshLinkException(SshLinkReason.ForwardRefused, $"The instance {name} has no vsock id, so it is not a running Incus VM.");
         }
 
         if (!File.Exists(IncusVsockListener.VhostDevice))
         {
             throw new SshLinkException(
-                SshLinkReason.ForwardRefused, "this machine has no vhost-vsock; load the vhost_vsock module to reach Incus VMs");
+                SshLinkReason.ForwardRefused, "This machine has no vhost-vsock device. Load the vhost_vsock module to reach Incus VMs.");
         }
 
         try
@@ -144,14 +144,14 @@ internal sealed class IncusLink(string destination, string name, string? userNam
         }
         catch (SocketException error)
         {
-            throw new SshLinkException(SshLinkReason.ForwardRefused, $"a vsock listener for {destination} could not be bound: {error.Message}", error);
+            throw new SshLinkException(SshLinkReason.ForwardRefused, $"A vsock listener for {destination} could not be bound. {error.Message}", error);
         }
     }
 
     public async Task<ISessionDisplay> OpenDisplayAsync(DisplayRequest request, CancellationToken cancellation)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var instance = _instance ?? throw new InvalidOperationException("the link is not connected");
+        var instance = _instance ?? throw new InvalidOperationException("The link is not connected. Call ConnectAsync first.");
         var root = StateDirectory();
         await SweepAsync(instance, root, cancellation).ConfigureAwait(false);
         var device = request.Name;
@@ -167,7 +167,7 @@ internal sealed class IncusLink(string destination, string name, string? userNam
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            throw new SshLinkException(SshLinkReason.ForwardRefused, $"{directory} could not be made: {error.Message}", error);
+            throw new SshLinkException(SshLinkReason.ForwardRefused, $"The directory {directory} could not be made. {error.Message}", error);
         }
 
         var added = await IncusAsync(Incus.AddDisk(name, device, directory, Incus.MountPath(device)), cancellation).ConfigureAwait(false);
@@ -176,13 +176,13 @@ internal sealed class IncusLink(string destination, string name, string? userNam
             TryDelete(directory);
             throw new SshLinkException(
                 SshLinkReason.ForwardRefused,
-                $"Incus refused the display device for {name}: {CliProcess.LastLine(added.Error)}");
+                $"Incus refused the display device for {name}.{Said(added.Error)}");
         }
 
         var x11 = await AddX11Async(instance, device, request.XDisplay, cancellation).ConfigureAwait(false);
         if (request.Gpu && !instance.HasGpu)
         {
-            Log.Warn($"{name} has no gpu device, so its clients draw in shared memory; 'incus config device add {name} gpu gpu' gives it one");
+            Log.Warn($"{destination}: no gpu device, so clients draw in shared memory, 'incus config device add {name} gpu gpu' adds one");
         }
 
         try
@@ -197,7 +197,7 @@ internal sealed class IncusLink(string destination, string name, string? userNam
         catch (Exception error) when (error is SocketException or IOException or UnauthorizedAccessException)
         {
             Release(device, directory, x11 is not null);
-            throw new SshLinkException(SshLinkReason.ForwardRefused, $"the display socket for {destination} could not be bound: {error.Message}", error);
+            throw new SshLinkException(SshLinkReason.ForwardRefused, $"The display socket for {destination} could not be bound. {error.Message}", error);
         }
     }
 
@@ -216,10 +216,15 @@ internal sealed class IncusLink(string destination, string name, string? userNam
         }
 
         var said = CliProcess.LastLine(added.Error);
-        var warning = said.Contains("Proxy devices are forbidden", StringComparison.OrdinalIgnoreCase)
-            ? $"the Incus project {instance.Project} forbids proxy devices, so X11 applications in {name} cannot reach Waylonia's XWayland"
-            : $"X11 applications in {name} cannot reach Waylonia's XWayland: {said}";
-        Log.Warn($"{warning}");
+        if (said.Contains("Proxy devices are forbidden", StringComparison.OrdinalIgnoreCase))
+        {
+            Log.Warn($"{destination}: no X11 proxy device, project {instance.Project} forbids proxy devices, so X11 applications get no DISPLAY");
+        }
+        else
+        {
+            Log.Warn($"{destination}: no X11 proxy device, so X11 applications get no DISPLAY, incus said {said}");
+        }
+
         return null;
     }
 
@@ -228,10 +233,15 @@ internal sealed class IncusLink(string destination, string name, string? userNam
         foreach (var stale in Incus.StaleDevices(instance.Devices, IsLiveWaylonia))
         {
             var removed = await IncusAsync(Incus.RemoveDevice(name, stale), cancellation).ConfigureAwait(false);
-            var outcome = removed.Code == 0
-                ? $"{name}: removed the device {stale}, which a waylonia that is gone left behind"
-                : $"{name}: the stale device {stale} could not be removed: {CliProcess.LastLine(removed.Error)}";
-            Log.Info($"{outcome}");
+            if (removed.Code == 0)
+            {
+                Log.Info($"{destination}: removed the stale device {stale}, left by a waylonia that is gone");
+            }
+            else
+            {
+                Log.Warn($"{destination}: stale device {stale} not removed, incus said {CliProcess.LastLine(removed.Error)}");
+            }
+
             if (!stale.EndsWith("-x11", StringComparison.Ordinal))
             {
                 TryDelete(Path.Combine(root, stale));
@@ -276,12 +286,12 @@ internal sealed class IncusLink(string destination, string name, string? userNam
             var removing = IncusAsync(Incus.RemoveDevice(name, device), CancellationToken.None);
             if (!removing.Wait(DeviceLimit) || removing.Result.Code != 0)
             {
-                Log.Warn($"{name}: the device {device} may still be there; the next connect removes it");
+                Log.Warn($"{destination}: device {device} may still be there, the next connect removes it");
             }
         }
         catch (AggregateException error)
         {
-            Log.Warn($"{name}: the device {device} could not be removed: {error.InnerException?.Message}");
+            Log.Warn(error.InnerException ?? error, $"{destination}: device {device} not removed");
         }
     }
 
@@ -296,7 +306,7 @@ internal sealed class IncusLink(string destination, string name, string? userNam
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            Log.Debug($"{directory} could not be removed: {error.Message}");
+            Log.Debug(error, $"incus: directory {directory} not removed");
         }
     }
 
@@ -360,8 +370,11 @@ internal sealed class IncusLink(string destination, string name, string? userNam
         }
     }
 
-    private SshLinkException Unreachable(string detail) =>
-        new(SshLinkReason.Unreachable, $"{destination} could not be reached: {detail}");
+    private SshLinkException Unreachable(string detail, Exception? inner = null) =>
+        new(SshLinkReason.Unreachable, $"Couldn't reach {destination}. {detail}", inner);
+
+    private static string Said(string error) =>
+        CliProcess.LastLine(error) is { Length: > 0 } line ? $" Incus said: {line}" : string.Empty;
 
     public ValueTask DisposeAsync()
     {

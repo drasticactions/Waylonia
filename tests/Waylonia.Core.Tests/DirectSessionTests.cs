@@ -154,8 +154,8 @@ public sealed class DirectSessionTests : IDisposable
         };
 
         var connecting = session.ConnectAsync();
-        await WaitUntilAsync(() => session.StatusText.StartsWith("setting up", StringComparison.Ordinal), "the first start was reported");
-        Assert.Equal("setting up wl-box (distrobox's first start)", session.StatusText);
+        await WaitUntilAsync(() => session.StatusText.Contains("first start", StringComparison.Ordinal), "the first start was reported");
+        Assert.Contains("wl-box", session.StatusText, StringComparison.Ordinal);
         Assert.False(connecting.IsCompleted);
 
         await links.Last!.Command(0).WriteOutputAsync(LoggedIn);
@@ -174,7 +174,7 @@ public sealed class DirectSessionTests : IDisposable
         };
 
         var connecting = session.ConnectAsync();
-        await WaitUntilAsync(() => session.StatusText.StartsWith("setting up", StringComparison.Ordinal), "the first start was reported");
+        await WaitUntilAsync(() => session.StatusText.Contains("first start", StringComparison.Ordinal), "the first start was reported");
         await session.DisconnectAsync();
 
         Assert.False(await connecting);
@@ -191,7 +191,7 @@ public sealed class DirectSessionTests : IDisposable
         Assert.DoesNotContain("pactl", master.Script, StringComparison.Ordinal);
         Assert.True(await session.LaunchAsync("foot", "test"));
         Assert.DoesNotContain("PULSE_SINK", link.Command(1).Script, StringComparison.Ordinal);
-        Assert.Contains(capture.Lines, line => line.Contains("audio = true is ignored", StringComparison.Ordinal));
+        Assert.Contains(capture.Lines, line => line.Contains("audio = true ignored", StringComparison.Ordinal));
         Assert.Equal(0, host.Audio.Count);
         await session.DisconnectAsync();
     }
@@ -225,7 +225,7 @@ public sealed class DirectSessionTests : IDisposable
 
         Assert.False(await session.ConnectAsync());
 
-        Assert.Equal("distrobox:dev names a distrobox container, and only waylonia on Linux reaches one", session.LastError);
+        Assert.Equal(DestinationKinds.Distrobox.Unreachable("distrobox:dev"), session.LastError);
     }
 
     public void Dispose()

@@ -37,7 +37,7 @@ internal sealed class AgentRuntimeDirectory : IDisposable
         }
         catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
         {
-            error = $"the agent's runtime directory {path} cannot be created: {failure.Message}";
+            error = $"runtime: directory {path} cannot be created, {CliMessage.Text(failure.Message)}";
             return null;
         }
 
@@ -59,7 +59,7 @@ internal sealed class AgentRuntimeDirectory : IDisposable
         }
         catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
         {
-            Log.Error($"the agent's Wayland socket link {WaylandSocket} cannot be made: {failure.Message}");
+            Log.Error(failure, $"runtime: Wayland socket link {WaylandSocket} not made");
             return false;
         }
     }
@@ -79,7 +79,7 @@ internal sealed class AgentRuntimeDirectory : IDisposable
         }
         catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
         {
-            Log.Warn($"the agent's runtime directory {Path} was not removed: {failure.Message}");
+            Log.Warn(failure, $"runtime: directory {Path} not removed");
         }
     }
 
@@ -95,7 +95,7 @@ internal sealed class AgentRuntimeDirectory : IDisposable
 
         foreach (var mount in mounts)
         {
-            Log.Debug($"{mount} is still mounted {MountGrace.TotalSeconds:0} s after the agent's bus ended; detaching it");
+            Log.Debug($"runtime: {mount} still mounted {MountGrace.TotalSeconds:0} s after the bus ended, detaching it");
             _ = AgentMounts.Detach(mount);
         }
     }

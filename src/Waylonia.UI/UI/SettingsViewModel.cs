@@ -23,6 +23,9 @@ internal sealed partial class SettingsViewModel : ObservableObject
     private string? _note;
 
     [ObservableProperty]
+    private IReadOnlyList<string> _restartKeys = [];
+
+    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveSettingsCommand))]
     private bool _canSave;
 
@@ -53,15 +56,15 @@ internal sealed partial class SettingsViewModel : ObservableObject
         Note = null;
         if (_path is not { } path)
         {
-            StatusText = "The config file is off.";
-            Problem = "This run skips the config file (--config false), so there is nothing to edit.";
+            StatusText = "No settings file";
+            Problem = "Waylonia started with --config false, so there's no settings file to edit.";
             CanSave = false;
             Load(new ConfigValues());
             return;
         }
 
         StatusText = path;
-        if (ParseProblem(path) is { } parseProblem)
+        if (ParseProblem(path, _log) is { } parseProblem)
         {
             Problem = parseProblem;
             CanSave = false;
@@ -72,7 +75,8 @@ internal sealed partial class SettingsViewModel : ObservableObject
         }
 
         Load(Config.Load(WayloniaPaths.ConfigOnly(path), _log).Values);
-        Note = RestartNote(_running.RestartKeysChanged(_loaded));
+        RestartKeys = _running.RestartKeysChanged(_loaded);
+        Note = RestartNote(RestartKeys);
     }
 
     [RelayCommand(CanExecute = nameof(CanSave))]
@@ -94,7 +98,7 @@ internal sealed partial class SettingsViewModel : ObservableObject
             if (form.Validate() is not { } profile)
             {
                 SelectedDesktop = form;
-                Problem = $"The desktop {form.Label} has a problem. See its fields.";
+                Problem = $"Check the desktop {form.Label}. One of its fields needs fixing.";
                 return false;
             }
 
@@ -102,7 +106,7 @@ internal sealed partial class SettingsViewModel : ObservableObject
             {
                 form.Complain(DesktopFormViewModel.NameField, $"Two desktops are named {profile.Name}. Use another name.");
                 SelectedDesktop = form;
-                Problem = $"The desktop {form.Label} has a problem. See its fields.";
+                Problem = $"Check the desktop {form.Label}. One of its fields needs fixing.";
                 return false;
             }
 
@@ -111,21 +115,23 @@ internal sealed partial class SettingsViewModel : ObservableObject
 
         if (values is null)
         {
-            Problem = "Some fields have a problem. See the messages under them.";
+            Problem = "Some fields need fixing. Look for the messages under them.";
             return false;
         }
 
         values = values with { Desktops = desktops };
         if (ConfigWriter.Save(path, values) is { } error)
         {
-            Problem = $"The config file was not written: {error}";
+            _log.Warn($"settings: saving {path} failed, {error}");
+            Problem = $"Couldn't save your settings. {error}";
             return false;
         }
 
         var config = Config.Load(WayloniaPaths.ConfigOnly(path), _log);
         _loaded = config.Values;
         StatusText = path;
-        Note = RestartNote(_running.RestartKeysChanged(_loaded)) ?? "Saved.";
+        RestartKeys = _running.RestartKeysChanged(_loaded);
+        Note = RestartNote(RestartKeys) is { } restart ? $"Saved. {restart}" : "Saved.";
         _applied?.Invoke(config);
         return true;
     }
@@ -168,7 +174,7 @@ internal sealed partial class SettingsViewModel : ObservableObject
         SelectedDesktop = Desktops.FirstOrDefault();
     }
 
-    private static string? ParseProblem(string path)
+    private static string? ParseProblem(string path, BasinLogger log)
     {
         string text;
         try
@@ -182,18 +188,29 @@ internal sealed partial class SettingsViewModel : ObservableObject
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            return $"{path} cannot be read: {error.Message}";
+            log.Warn(error, $"settings: reading {path} failed");
+            return $"Couldn't read {path}. {error.Message}";
         }
 
         return Cli.TomlDocument.Parse(text, out var error2) is null
-            ? $"{path} did not parse: {error2}. Fix the file by hand; nothing is saved until it loads."
+            ? $"Your settings file has a mistake, so you can't save here until it's fixed. Fix {path} in a text editor, then choose Revert. {error2}"
             : null;
     }
 
-    private static string? RestartNote(IReadOnlyList<string> keys) => keys.Count switch
+    private static string? RestartNote(IReadOnlyList<string> keys) =>
+        keys.Count == 0 ? null : $"Restart Waylonia to apply: {string.Join(", ", keys.Select(RestartLabel))}.";
+
+    private static string RestartLabel(string key) => key switch
     {
-        0 => null,
-        1 => $"Saved. {keys[0]} takes effect when Waylonia restarts.",
-        _ => $"Saved. {string.Join(", ", keys.Take(keys.Count - 1))} and {keys[^1]} take effect when Waylonia restarts.",
+        "xwayland" => "Start XWayland",
+        "shell" => "Window mode",
+        "tray" => "Tray icon",
+        "clipboard" => "Share the clipboard",
+        "drag" => "Drag and drop",
+        "follow-cursor" => "Open windows where the pointer is",
+        "virtual-input" => "Virtual keyboard and pointer",
+        "socket" => "Wayland socket",
+        "command" => "Startup app",
+        _ => key,
     };
 }

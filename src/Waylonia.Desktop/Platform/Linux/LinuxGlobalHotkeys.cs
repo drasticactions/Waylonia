@@ -26,7 +26,7 @@ internal sealed class LinuxGlobalHotkeys : IGlobalHotkeys
             return X11GlobalHotkeys.Start(hotkeys, view, host, launch);
         }
 
-        Log.Warn($"this host has neither WAYLAND_DISPLAY nor DISPLAY, global hotkeys are off");
+        Log.Warn($"hotkeys: off, this host has neither WAYLAND_DISPLAY nor DISPLAY");
         return null;
     }
 }

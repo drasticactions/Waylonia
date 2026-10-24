@@ -309,7 +309,7 @@ internal static class ShellConfig
         {
             if (!ShellKeyNames.IsKnown(name))
             {
-                log.Warn($"[shell.keys] {name} is not a key, ignoring it; the keys are {ShellKeyNames.Listed}");
+                log.Warn($"[shell.keys] {name} is not a key, ignored, the keys are {ShellKeyNames.Listed}");
                 continue;
             }
 

@@ -18,7 +18,7 @@ internal static class PanelApplets
             }
             else
             {
-                log.Warn($"[panel] {panel}: '{name}' is not an applet, skipping it; the applets are {AppletNames}");
+                log.Warn($"[panel] {panel}: '{name}' is not an applet, skipped, the applets are {AppletNames}");
             }
         }
 

@@ -30,8 +30,7 @@ internal sealed class LinuxHostCapture : IHostCapture, IDisposable
         var display = HostSession.Display;
         if (!string.IsNullOrEmpty(HostSession.WaylandDisplay) || string.IsNullOrEmpty(display))
         {
-            Log.Warn($"a Wayland host keeps its own chords: no client protocol inhibits them, " +
-                $"so Super and the host's bindings stay with it while the desktop is captured");
+            Log.Warn($"capture: the Wayland host keeps Super and its own bindings, no client protocol can take them");
             return null;
         }
 
@@ -53,11 +52,11 @@ internal sealed class LinuxHostCapture : IHostCapture, IDisposable
                 }));
             if (instance._grab is null)
             {
-                Log.Warn($"the host's chords stay with it while the desktop is captured");
+                Log.Warn($"capture: the X keyboard grab failed, the host keeps its own bindings");
             }
             else
             {
-                Log.Debug($"the X keyboard is grabbed on {display}; every key goes to the desktop");
+                Log.Debug($"capture: X keyboard grabbed on {display}, every key goes to the desktop");
             }
         });
         return instance;

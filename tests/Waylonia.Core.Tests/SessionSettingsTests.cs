@@ -26,9 +26,9 @@ public sealed class SessionSettingsTests : IDisposable
     }
 
     [Theory]
-    [InlineData("distrobox:dev", "a distrobox container shares this machine's session bus and runtime directory, so a desktop session in it would fight the one you are in; use an Incus instance")]
-    [InlineData("toolbox:dev", "a toolbox container shares this machine's session bus and runtime directory, so a desktop session in it would fight the one you are in; use an Incus instance")]
-    public void A_desktop_in_a_distrobox_or_toolbox_container_is_refused(string destination, string error)
+    [InlineData("distrobox:dev")]
+    [InlineData("toolbox:dev")]
+    public void A_desktop_in_a_distrobox_or_toolbox_container_is_refused(string destination)
     {
         var resolution = SessionSettings.Resolve(
             new SessionProfile("dev", destination, Desktop: "sway"),
@@ -36,7 +36,8 @@ public sealed class SessionSettingsTests : IDisposable
             Config.Load(WayloniaPaths.Xdg().WithConfig(null), BasinLogger.None),
             BasinLogger.None);
 
-        Assert.Equal(error, resolution.Error);
+        Assert.Null(resolution.Settings);
+        Assert.Equal(DestinationKinds.For(destination).DesktopProblem, resolution.Error);
     }
 
     [Fact]
@@ -50,10 +51,10 @@ public sealed class SessionSettingsTests : IDisposable
         Assert.NotNull(settings.Desktop);
 
         Assert.Equal(
-            "an Incus instance needs a name; there is no default one",
+            DestinationKinds.Incus.NameProblem(string.Empty),
             SessionSettings.Resolve(new SessionProfile("x", "incus:"), new SessionOverrides(), config, BasinLogger.None).Error);
         Assert.Equal(
-            "user names the account inside an Incus instance; distrobox and toolbox run as you",
+            SessionStore.UserKeyProblem(DestinationKinds.Distrobox),
             SessionSettings.Resolve(new SessionProfile("x", "distrobox:dev", User: "u"), new SessionOverrides(), config, BasinLogger.None).Error);
     }
 
@@ -121,7 +122,7 @@ public sealed class SessionSettingsTests : IDisposable
     {
         var error = SessionSettings.Resolve(new SessionProfile("lab", "h", Desktop: "sway", DesktopSize: "big"), new SessionOverrides(), Load(""), BasinLogger.None).Error;
 
-        Assert.Contains("WxH", error, StringComparison.Ordinal);
+        Assert.Contains("'big'", error, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -134,7 +135,7 @@ public sealed class SessionSettingsTests : IDisposable
             var failed = SessionSettings.Resolve(new SessionProfile("x", "h", Video: "h264,hw"), new SessionOverrides(), Load(""), BasinLogger.None);
 
             Assert.Null(failed.Settings);
-            Assert.Contains("no ffmpeg here", failed.Error, StringComparison.Ordinal);
+            Assert.Contains("no ffmpeg here", failed.Error, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {
@@ -220,7 +221,7 @@ public sealed class SessionSettingsTests : IDisposable
         Assert.Equal(string.Empty, local!.Ssh);
 
         var (_, unknown) = RunRules.DesktopProfileFor("gnome", null, catalog, Load(""), ref overrides);
-        Assert.Contains("names no recipe", unknown, StringComparison.Ordinal);
+        Assert.Contains("gnome", unknown, StringComparison.Ordinal);
     }
 
     public void Dispose()

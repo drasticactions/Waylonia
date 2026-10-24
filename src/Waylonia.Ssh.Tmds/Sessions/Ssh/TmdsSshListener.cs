@@ -15,6 +15,7 @@ internal sealed class TmdsSshListener(RemoteListener listener, string remotePath
         }
         catch (Exception error) when (error is SshConnectionClosedException or ObjectDisposedException or SshException)
         {
+            WayloniaLog.Log.Debug(error, $"ssh: the listener on {remotePath} stopped");
             return null;
         }
     }
@@ -27,6 +28,7 @@ internal sealed class TmdsSshListener(RemoteListener listener, string remotePath
         }
         catch (Exception error) when (error is ObjectDisposedException or SshException)
         {
+            WayloniaLog.Log.Debug(error, $"ssh: the listener on {remotePath} was already closed");
         }
 
         listener.Dispose();

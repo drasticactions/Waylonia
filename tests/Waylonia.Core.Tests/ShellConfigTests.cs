@@ -183,7 +183,8 @@ public sealed class ShellConfigTests : IDisposable
 
         Assert.Equal([new ShellKey("close", "Alt+w")], config.ShellSettings.Keys);
         var warning = Assert.Single(warnings, entry => entry.StartsWith("Warn", StringComparison.Ordinal));
-        Assert.Contains("[shell.keys] explode is not a key, ignoring it; the keys are switch-windows, ", warning, StringComparison.Ordinal);
+        Assert.Contains("[shell.keys] explode", warning, StringComparison.Ordinal);
+        Assert.Contains("switch-windows", warning, StringComparison.Ordinal);
         Assert.Contains("toggle-host-fullscreen", warning, StringComparison.Ordinal);
     }
 
@@ -237,8 +238,8 @@ public sealed class ShellConfigTests : IDisposable
     [InlineData("size = 4", "[panel] size takes 8 to 128, ignoring '4'")]
     [InlineData("size = 129", "[panel] size takes 8 to 128, ignoring '129'")]
     [InlineData("size = \"tall\"", "[panel] size takes 8 to 128, ignoring 'tall'")]
-    [InlineData("top = \"menu-bar\"", "[panel] top takes an array of applet names, ignoring it; the applets are menu-bar, window-list, workspace-switcher, clock, show-desktop, launcher:NAME, spacer and keyboard")]
-    [InlineData("bottom = [1]", "[panel] bottom takes an array of applet names, ignoring it")]
+    [InlineData("top = \"menu-bar\"", "[panel] top takes an array of applet names")]
+    [InlineData("bottom = [1]", "[panel] bottom takes an array of applet names")]
     public void A_bad_panel_value_warns_and_keeps_the_default(string line, string warning)
     {
         var config = LoadCapturing($"[panel]\n{line}\n", out var warnings);

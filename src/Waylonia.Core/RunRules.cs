@@ -27,12 +27,12 @@ internal static class RunRules
             var found = DesktopRecipes.Find(recipeName);
             if (found is null && recipeName != "custom")
             {
-                return (null, $"--desktop {desktopName} names no recipe; the built-in ones are {DesktopRecipes.Names}");
+                return (null, $"--desktop {desktopName} names no recipe. The built-in recipes are {DesktopRecipes.Names}.");
             }
 
             if (found is null && desktopProfile.Command is null)
             {
-                return (null, $"[desktops.{desktopName}] has recipe = \"custom\" and no command");
+                return (null, $"[desktops.{desktopName}] has recipe = \"custom\" and no command. Give it a command.");
             }
 
             if (sshDestination is null && desktopProfile.Host is { } host)
@@ -57,7 +57,7 @@ internal static class RunRules
 
         if (DesktopRecipes.Find(desktopName) is null)
         {
-            return (null, $"--desktop {desktopName} names no recipe; the built-in ones are {DesktopRecipes.Names}");
+            return (null, $"--desktop {desktopName} names no recipe. The built-in recipes are {DesktopRecipes.Names}.");
         }
 
         overrides = overrides with { Desktop = desktopName };
@@ -96,7 +96,7 @@ internal static class RunRules
         }
 
         return desktop is not null
-            ? $"--shell nested manages the windows itself and --desktop hands the screen to {desktop}"
+            ? $"--shell nested manages the windows itself, and --desktop gives the whole screen to {desktop}."
             : null;
     }
 
@@ -120,7 +120,7 @@ internal static class RunRules
             {
                 if (initial.Any(static other => other.IsDesktop) && settings.IsDesktop)
                 {
-                    log.Warn($"session {profile.Name} autoconnects a desktop and another desktop is already starting, skipping it");
+                    log.Warn($"session {profile.Name}: autoconnect skipped, another desktop is already starting");
                     continue;
                 }
 
@@ -128,7 +128,7 @@ internal static class RunRules
             }
             else
             {
-                log.Warn($"session {profile.Name} cannot autoconnect: {resolved.Error}");
+                log.Warn($"session {profile.Name}: autoconnect skipped, {CliMessage.Text(resolved.Error ?? string.Empty)}");
             }
         }
 
@@ -140,7 +140,7 @@ internal static class RunRules
         ArgumentNullException.ThrowIfNull(capabilities);
         return capabilities.LocalDesktops
             ? null
-            : "--desktop with no --ssh runs the session on this machine, which needs Linux";
+            : "--desktop with no --ssh runs the desktop on this machine, which needs Linux.";
     }
 
     internal static string? AgentProblem(
@@ -149,31 +149,31 @@ internal static class RunRules
         ArgumentNullException.ThrowIfNull(capabilities);
         if (!capabilities.LocalCommands)
         {
-            return "--agent runs local Linux applications for an agent, which needs Linux";
+            return "--agent runs local Linux applications for an agent, which needs Linux.";
         }
 
         if (ssh is not null)
         {
-            return "--agent runs its own applications and --ssh connects a session";
+            return "--agent runs its own applications, and --ssh connects a session.";
         }
 
         if (desktop is not null)
         {
-            return "--agent runs its own applications and --desktop runs a whole desktop session";
+            return "--agent runs its own applications, and --desktop runs a whole desktop session.";
         }
 
         if (listen is not null)
         {
-            return "--agent runs its own applications and --waypipe-listen waits for someone else's";
+            return "--agent runs its own applications, and --waypipe-listen waits for the applications of someone else.";
         }
 
         if (command is not null)
         {
-            return "--agent starts what the agent asks for through waylonia/launch and a trailing command starts a client of its own";
+            return "--agent starts what the agent asks for through waylonia/launch, and a trailing command starts a client of its own.";
         }
 
         return shell == ShellMode.Windows
-            ? "--agent holds every window in one nested shell and --shell windows opens one host window per client"
+            ? "--agent holds every window in one nested shell, and --shell windows opens one host window per client."
             : null;
     }
 
@@ -182,6 +182,6 @@ internal static class RunRules
         ArgumentNullException.ThrowIfNull(capabilities);
         return command is null || capabilities.LocalCommands
             ? null
-            : "a trailing command runs a local Wayland client, which needs Linux; --ssh HOST runs it on a remote";
+            : "A trailing command runs a local Wayland client, which needs Linux. Use --ssh HOST to run it on a remote host.";
     }
 }

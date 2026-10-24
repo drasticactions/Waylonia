@@ -31,10 +31,10 @@ public sealed class AgentLauncherTests
     }
 
     [Theory]
-    [InlineData("foot", "org.gnome.TextEditor", "not both")]
-    [InlineData(null, null, "not neither")]
+    [InlineData("foot", "org.gnome.TextEditor", "exactly one")]
+    [InlineData(null, null, "exactly one")]
     [InlineData("foot -e top", null, "has spaces")]
-    [InlineData(null, "missing.app", "no .desktop entry")]
+    [InlineData(null, "missing.app", "No .desktop entry")]
     [InlineData(null, "../etc/passwd", "not a .desktop id")]
     public void A_bad_request_says_why(string? command, string? desktopId, string why)
     {

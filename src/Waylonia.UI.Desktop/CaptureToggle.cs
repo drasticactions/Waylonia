@@ -58,7 +58,7 @@ internal sealed class CaptureToggle : IDisposable
         _lastTap = 0;
         target.KeyFilter = OnKey;
         window.Deactivated += OnDeactivated;
-        Log.Info($"the desktop takes this host's keyboard on {_chord.Text}");
+        Log.Info($"capture: the desktop takes this host's keyboard on {_chord.Text}");
     }
 
     public void Detach()
@@ -149,8 +149,8 @@ internal sealed class CaptureToggle : IDisposable
         _hotkeys(false);
         _target?.CaptureInput(true);
         _grab = _capture.TryGrab(_window!, _view, _host, _hooks);
-        _overrideTitle?.Invoke($"{_title} — captured, {_chord.Text} to release");
-        Log.Info($"the desktop has this host's keyboard; use {_chord.Text} to release");
+        _overrideTitle?.Invoke($"{_title} (keyboard captured, press {_chord.Text} to release)");
+        Log.Info($"capture: the desktop has this host's keyboard, {_chord.Text} releases it");
     }
 
     private void Release()
@@ -166,6 +166,6 @@ internal sealed class CaptureToggle : IDisposable
         _target?.CaptureInput(false);
         _hotkeys(true);
         _overrideTitle?.Invoke(_title);
-        Log.Info($"the host has its keyboard back");
+        Log.Info($"capture: the host has its keyboard back");
     }
 }

@@ -49,7 +49,7 @@ internal sealed class AgentAudit : IDisposable
             }
             catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
             {
-                Log.Warn($"the audit screenshot {path} was not written: {failure.Message}");
+                Log.Warn(failure, $"audit: screenshot {path} not written");
             }
         });
     }
@@ -65,7 +65,7 @@ internal sealed class AgentAudit : IDisposable
         _work.Writer.TryComplete();
         if (!_writer.Wait(TimeSpan.FromSeconds(5)))
         {
-            Log.Warn($"the audit log {Path} did not finish writing within 5 s");
+            Log.Warn($"audit: log {Path} did not finish writing within 5 s");
         }
     }
 
@@ -78,7 +78,7 @@ internal sealed class AgentAudit : IDisposable
         }
         catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
         {
-            Log.Error($"the audit log {Path} cannot be opened, so calls are not recorded: {failure.Message}");
+            Log.Error(failure, $"audit: log {Path} cannot be opened, calls are not recorded");
         }
 
         try
@@ -96,7 +96,7 @@ internal sealed class AgentAudit : IDisposable
                 }
                 catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
                 {
-                    Log.Warn($"the audit log {Path} could not be written: {failure.Message}");
+                    Log.Warn(failure, $"audit: log {Path} not written");
                 }
             }
         }

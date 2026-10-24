@@ -20,11 +20,10 @@ internal static class DestinationKinds
         Key = "ssh",
         Label = "ssh",
         Noun = "an ssh destination",
-        Verb = "ssh logs in to a host",
         Caption = "ssh",
         HostOs = "any host",
         Placeholder = "user@host",
-        UserNote = "an ssh destination names it as user@host",
+        UserNote = "For ssh, put the user in the destination, as user@host.",
         NameRule = static _ => null,
     };
 
@@ -33,15 +32,14 @@ internal static class DestinationKinds
         Key = "wsl",
         Label = "WSL",
         Noun = "a WSL distribution",
-        Verb = "wsl starts a WSL distribution",
         Caption = "distribution",
         HostOs = "Windows",
-        Placeholder = "the default distribution",
+        Placeholder = "Default distribution",
         FormHint = "Use the distribution name wsl -l shows, or leave it empty for the default one.",
-        UserNote = "wsl runs as the distribution's default user",
+        UserNote = "WSL runs as the distribution's default user.",
         AllowsEmptyName = true,
         NameRule = static name => name.AsSpan().ContainsAnyExcept(WslCharacters)
-            ? $"'{name}' is not a WSL distribution name; one is letters, digits, '.', '_' and '-'"
+            ? $"'{name}' isn't a WSL distribution name. Use only letters, digits, '.', '_' and '-'."
             : null,
     };
 
@@ -54,15 +52,14 @@ internal static class DestinationKinds
         Key = "incus",
         Label = "Incus",
         Noun = "an Incus instance",
-        Verb = "incus enters a local Incus instance",
         Caption = "instance",
         HostOs = "Linux",
-        Placeholder = "instance name",
+        Placeholder = "Instance name",
         FormHint = "Use the instance name incus list shows.",
         TakesUser = true,
         NameRule = static name =>
             name.Length > IncusNameLimit || !char.IsAsciiLetter(name[0]) || name.AsSpan().ContainsAnyExcept(IncusCharacters)
-                ? $"'{name}' is not an Incus instance name; one starts with a letter, holds letters, digits and '-', and has at most {IncusNameLimit} characters"
+                ? $"'{name}' isn't an Incus instance name. Start with a letter, use only letters, digits and '-', and keep it to {IncusNameLimit} characters."
                 : null,
     };
 
@@ -93,26 +90,25 @@ internal static class DestinationKinds
     }
 
     public static string BothProblem(DestinationKind first, DestinationKind second) =>
-        $"{first.Verb} and {second.Verb}; a session takes one of them";
+        $"This session names both {first.Noun} and {second.Noun}. Keep only one of them.";
 
     private static DestinationKind Podman(string key) => new()
     {
         Key = key,
         Label = key,
         Noun = $"a {key} container",
-        Verb = $"{key} enters a local container",
         Caption = "container",
         HostOs = "Linux",
-        Placeholder = "container name",
+        Placeholder = "Container name",
         FormHint = $"Use the container name {key} list shows.",
-        UserNote = "distrobox and toolbox run as you",
+        UserNote = $"A {key} container runs as you.",
         SharesHome = true,
         SlowFirstStart = true,
         DesktopProblem =
-            $"a {key} container shares this machine's session bus and runtime directory, so a desktop session in it would fight the one you are in; use an Incus instance",
+            $"A {key} container shares this machine's session bus and runtime directory, so a desktop session in it would conflict with yours. Use an Incus instance for a desktop.",
         NameRule = static name =>
             !char.IsAsciiLetterOrDigit(name[0]) || name.AsSpan().ContainsAnyExcept(PodmanCharacters)
-                ? $"'{name}' is not a container name; one starts with a letter or digit and goes on with letters, digits, '_', '.' and '-'"
+                ? $"'{name}' isn't a container name. Start with a letter or digit, and use only letters, digits, '_', '.' and '-'."
                 : null,
     };
 }

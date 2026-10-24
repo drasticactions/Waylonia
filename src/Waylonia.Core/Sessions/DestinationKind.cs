@@ -8,8 +8,6 @@ internal sealed record DestinationKind
 
     public required string Noun { get; init; }
 
-    public required string Verb { get; init; }
-
     public required string Caption { get; init; }
 
     public required string HostOs { get; init; }
@@ -62,14 +60,14 @@ internal sealed record DestinationKind
         ArgumentNullException.ThrowIfNull(name);
         if (name.Length == 0 && !AllowsEmptyName)
         {
-            return $"{Noun} needs a name; there is no default one";
+            return $"{char.ToUpperInvariant(Noun[0])}{Noun[1..]} needs a name. There's no default one.";
         }
 
         return name.Length == 0 ? null : NameRule(name);
     }
 
     public string Unreachable(string destination) =>
-        $"{destination} names {Noun}, and only waylonia on {HostOs} reaches one";
+        $"{destination} is {Noun}, and only Waylonia on {HostOs} can reach one.";
 
     public bool Equals(DestinationKind? other) => other is not null && other.Key == Key;
 

@@ -1,16 +1,21 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:union="https://github.com/avaunion"
              x:Class="Waylonia.UI.AskPassView"
              Background="{DynamicResource Union.Active.Window.Background.NormalBrush}"
              Foreground="{DynamicResource Union.Active.Window.Foreground.TextBrush}">
-  <StackPanel Margin="16" Spacing="12">
-    <TextBlock x:Name="PromptText" TextWrapping="Wrap" />
-    <TextBox x:Name="SecretBox" PasswordChar="•" PlaceholderText="Password" />
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+  <DockPanel Margin="16" LastChildFill="True">
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,16,0,0">
       <Button x:Name="NoButton" Content="No" IsCancel="True" />
       <Button x:Name="YesButton" Content="Yes" IsDefault="True" />
       <Button x:Name="CancelButton" Content="Cancel" IsCancel="True" />
       <Button x:Name="OkButton" Content="OK" IsDefault="True" />
     </StackPanel>
-  </StackPanel>
+    <union:UnionIcon x:Name="PromptIcon" DockPanel.Dock="Left" IconName="dialog-password"
+                     Width="48" Height="48" VerticalAlignment="Top" Margin="0,0,16,0" />
+    <StackPanel Spacing="12">
+      <TextBlock x:Name="PromptText" TextWrapping="Wrap" />
+      <union:ActionTextField x:Name="SecretBox" PasswordChar="•" PlaceholderText="Password" />
+    </StackPanel>
+  </DockPanel>
 </UserControl>

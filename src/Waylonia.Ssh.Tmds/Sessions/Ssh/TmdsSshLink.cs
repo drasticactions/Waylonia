@@ -49,7 +49,7 @@ internal sealed class TmdsSshLink : ISshLink
             ConnectTimeout = LoginLimit,
             PasswordPrompt = AskPasswordAsync,
             HostAuthentication = ConfirmHostAsync,
-            BannerHandler = context => _log.Info($"{destination}: {context.Message.TrimEnd()}"),
+            BannerHandler = context => _log.Info($"ssh {destination}: server banner, {context.Message.TrimEnd()}"),
             PostConfigure = PostConfigure,
         };
         _client = new SshClient(destination, settings, _events);
@@ -90,7 +90,7 @@ internal sealed class TmdsSshLink : ISshLink
             throw _timedOut
                 ? new SshLinkException(
                     SshLinkReason.Unreachable,
-                    SshLinkException.Sentence(SshLinkReason.Unreachable, Destination, $"no answer within {_timeout.TotalSeconds:0} seconds"),
+                    SshLinkException.Sentence(SshLinkReason.Unreachable, Destination, $"It didn't answer within {_timeout.TotalSeconds:0} seconds."),
                     error)
                 : new SshLinkException(SshLinkReason.Canceled, SshLinkException.Sentence(SshLinkReason.Canceled, Destination), error);
         }
@@ -233,7 +233,7 @@ internal sealed class TmdsSshLink : ISshLink
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            _log.Warn($"the keys in {_sshDirectory} could not be listed: {error.Message}");
+            _log.Warn(error, $"ssh: listing the keys in {_sshDirectory} failed, only the agent and a password are offered");
         }
 
         return keys;
@@ -332,7 +332,7 @@ internal sealed class TmdsSshLink : ISshLink
                 case TimeoutException:
                     return new SshLinkException(
                         SshLinkReason.Unreachable,
-                        SshLinkException.Sentence(SshLinkReason.Unreachable, Destination, $"no answer within {_timeout.TotalSeconds:0} seconds"),
+                        SshLinkException.Sentence(SshLinkReason.Unreachable, Destination, $"It didn't answer within {_timeout.TotalSeconds:0} seconds."),
                         error);
             }
         }
@@ -369,6 +369,7 @@ internal sealed class TmdsSshLink : ISshLink
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)
             {
+                _log.Debug(error, $"ssh {Destination}: {path} not readable, skipped in the IdentityFile check");
             }
         }
 

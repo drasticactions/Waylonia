@@ -39,8 +39,7 @@ internal sealed unsafe class MacHostCapture : IHostCapture, IDisposable
             SessionEventTap, HeadInsertEventTap, EventTapOptionDefault, mask, &OnEvent, IntPtr.Zero);
         if (tap == IntPtr.Zero)
         {
-            Log.Warn($"the event tap was refused: Waylonia needs Accessibility permission to grab the host. " +
-                $"Command+Tab, Command+Space and the function row stay with macOS while the desktop is captured");
+            Log.Warn($"capture: event tap refused, give Waylonia the Accessibility permission to take Command+Tab, Command+Space and the function row");
             return null;
         }
 
@@ -97,8 +96,9 @@ internal sealed unsafe class MacHostCapture : IHostCapture, IDisposable
                 }
             }
         }
-        catch (Exception)
+        catch (Exception error)
         {
+            Log.Error(error, $"capture: the event tap callback failed");
             return eventRef;
         }
 

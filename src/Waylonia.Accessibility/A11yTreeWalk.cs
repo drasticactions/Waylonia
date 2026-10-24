@@ -28,7 +28,7 @@ internal sealed class A11yTreeWalk
     public async Task<A11yWalkResult> RunAsync(A11yNodeRef root)
     {
         var node = await InfoAsync(root).ConfigureAwait(false) ??
-            throw new A11yException($"node {root.Id} no longer exists");
+            throw A11yCalls.Gone(root);
         await VisitAsync(node, 0).ConfigureAwait(false);
         return new A11yWalkResult(_visits, _capHit, _depthCut);
     }
@@ -149,7 +149,7 @@ internal sealed class A11yTreeWalk
         }
         catch (Exception error) when (error is DBusConnectionClosedException or DBusConnectionException)
         {
-            throw A11yCalls.Closed();
+            throw A11yCalls.Closed(error);
         }
 
         return new A11yNode(node, role.Result, name.Result ?? string.Empty, states.Result, interfaces.Result, -1);

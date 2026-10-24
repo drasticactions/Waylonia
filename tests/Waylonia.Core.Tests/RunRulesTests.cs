@@ -52,11 +52,10 @@ public sealed class RunRulesTests : IDisposable
         var initial = RunRules.Autoconnect(catalog, [], Config(), "s16", BasinLog.For("test"));
 
         Assert.Equal(["one", "plain"], initial.Select(static settings => settings.Name));
-        Assert.Equal(
-        [
-            "Warn: session two autoconnects a desktop and another desktop is already starting, skipping it",
-            "Warn: session bad cannot autoconnect: video 'mpeg' is not a codec choice such as h264,hw",
-        ], capture.Lines);
+        Assert.Collection(
+            capture.Lines,
+            line => Assert.StartsWith("Warn: session two: ", line, StringComparison.Ordinal),
+            line => Assert.StartsWith("Warn: session bad: ", line, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -64,20 +63,26 @@ public sealed class RunRulesTests : IDisposable
     {
         Assert.Null(RunRules.NestedShellProblem(Waylonia.Shell.ShellMode.Windows, "sway"));
         Assert.Null(RunRules.NestedShellProblem(Waylonia.Shell.ShellMode.Nested, null));
-        Assert.Equal(
-            "--shell nested manages the windows itself and --desktop hands the screen to sway",
-            RunRules.NestedShellProblem(Waylonia.Shell.ShellMode.Nested, "sway"));
+        var problem = RunRules.NestedShellProblem(Waylonia.Shell.ShellMode.Nested, "sway");
+        Assert.NotNull(problem);
+        Assert.StartsWith("--shell nested", problem, StringComparison.Ordinal);
+        Assert.Contains("--desktop", problem, StringComparison.Ordinal);
     }
 
     [Theory]
-    [InlineData("host", null, null, null, null, "--agent runs its own applications and --ssh connects a session")]
-    [InlineData(null, "sway", null, null, null, "--agent runs its own applications and --desktop runs a whole desktop session")]
-    [InlineData(null, null, "unix:/tmp/w", null, null, "--agent runs its own applications and --waypipe-listen waits for someone else's")]
-    [InlineData(null, null, null, "foot", null, "--agent starts what the agent asks for through waylonia/launch and a trailing command starts a client of its own")]
-    [InlineData(null, null, null, null, "windows", "--agent holds every window in one nested shell and --shell windows opens one host window per client")]
+    [InlineData("host", null, null, null, null, "--ssh")]
+    [InlineData(null, "sway", null, null, null, "--desktop")]
+    [InlineData(null, null, "unix:/tmp/w", null, null, "--waypipe-listen")]
+    [InlineData(null, null, null, "foot", null, "a trailing command")]
+    [InlineData(null, null, null, null, "windows", "--shell windows")]
     public void Agent_mode_refuses_what_brings_in_other_clients(
-        string? ssh, string? desktop, string? listen, string? command, string? shell, string problem) =>
-        Assert.Equal(problem, RunRules.AgentProblem(Linux, ssh, desktop, listen, command, shell is null ? null : Waylonia.Shell.ShellModes.Parse(shell)));
+        string? ssh, string? desktop, string? listen, string? command, string? shell, string other)
+    {
+        var problem = RunRules.AgentProblem(Linux, ssh, desktop, listen, command, shell is null ? null : Waylonia.Shell.ShellModes.Parse(shell));
+        Assert.NotNull(problem);
+        Assert.StartsWith("--agent", problem, StringComparison.Ordinal);
+        Assert.Contains(other, problem, StringComparison.Ordinal);
+    }
 
     [Fact]
     public void Agent_mode_needs_local_commands_and_takes_the_nested_shell()

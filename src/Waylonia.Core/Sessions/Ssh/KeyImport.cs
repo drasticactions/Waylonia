@@ -11,13 +11,13 @@ internal static class KeyImport
         ArgumentNullException.ThrowIfNull(content);
         if (name.Length == 0 || name is "." or ".." || name.IndexOfAny(['/', '\\', '\0']) >= 0)
         {
-            return $"'{name}' is not a file name a key can have";
+            return $"'{name}' can't be the file name of a key. Rename the file and import it again.";
         }
 
         var path = Path.Combine(sshDirectory, name);
         if (File.Exists(path))
         {
-            return $"a key named {name} is already imported; remove it in Files first";
+            return $"You already imported a key named {name}. Remove that one from the ssh folder first, or rename the new one.";
         }
 
         try
@@ -35,7 +35,7 @@ internal static class KeyImport
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            return $"{name} was not imported: {error.Message}";
+            return $"Couldn't import {name}. {UiSentence.Of(error.Message)}";
         }
 
         return null;

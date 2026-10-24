@@ -22,7 +22,7 @@ internal static class AgentMounts
         }
         catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
         {
-            Log.Debug($"{MountInfo} cannot be read: {failure.Message}");
+            Log.Debug(failure, $"mounts: {MountInfo} cannot be read");
             return [];
         }
     }
@@ -79,13 +79,13 @@ internal static class AgentMounts
                 if (!process.WaitForExit(2000))
                 {
                     process.Kill();
-                    Log.Debug($"{tool} did not detach {mountPoint} within 2 s");
+                    Log.Debug($"mounts: {tool} did not detach {mountPoint} within 2 s");
                     return false;
                 }
 
                 if (process.ExitCode != 0)
                 {
-                    Log.Debug($"{tool} did not detach {mountPoint}: {errors.Trim()}");
+                    Log.Debug($"mounts: {tool} did not detach {mountPoint}, {errors.Trim()}");
                 }
 
                 return process.ExitCode == 0;
@@ -96,7 +96,7 @@ internal static class AgentMounts
             }
         }
 
-        Log.Debug($"neither fusermount3 nor fusermount is installed, so {mountPoint} stays mounted");
+        Log.Debug($"mounts: fusermount3 and fusermount are missing, {mountPoint} stays mounted");
         return false;
     }
 

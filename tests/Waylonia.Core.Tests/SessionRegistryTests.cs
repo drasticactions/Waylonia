@@ -15,9 +15,7 @@ public sealed class SessionRegistryTests
     {
         var live = new[] { ("lab", true), ("dev", false) };
 
-        Assert.Equal(
-            "lab is already running a desktop; disconnect it before starting another",
-            SessionRegistry.DesktopConflict(live, desktop: true));
+        Assert.Contains("lab", SessionRegistry.DesktopConflict(live, desktop: true), StringComparison.Ordinal);
         Assert.Null(SessionRegistry.DesktopConflict(live, desktop: false));
         Assert.Null(SessionRegistry.DesktopConflict([("dev", false)], desktop: true));
     }

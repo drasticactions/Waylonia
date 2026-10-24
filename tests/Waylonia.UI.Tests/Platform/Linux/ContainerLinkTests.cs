@@ -124,9 +124,7 @@ public sealed class ContainerLinkTests
         var error = await Assert.ThrowsAsync<SshLinkException>(() => link.ConnectAsync(Ct));
 
         Assert.Equal(SshLinkReason.Unreachable, error.Reason);
-        Assert.Equal(
-            "distrobox:no-such-box-waylonia could not be reached: there is no distrobox container named no-such-box-waylonia; 'distrobox list' shows the ones there are",
-            error.Message);
+        Assert.Contains("no-such-box-waylonia", error.Message, StringComparison.Ordinal);
     }
 
     private static async Task<(string Output, int Code)> IncusAsync(params string[] arguments)

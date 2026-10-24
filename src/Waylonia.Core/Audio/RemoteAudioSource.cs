@@ -95,7 +95,7 @@ internal sealed class RemoteAudioSource : IDisposable
 
         if (!_delivered)
         {
-            Complain($"nothing has been captured from {_monitor} on {_sshHost}, so the session has no sound");
+            Complain($"audio {_sshHost}: nothing captured from {_monitor} in {SilenceMillis / 1000} s, the session has no sound");
         }
     }
 
@@ -115,7 +115,7 @@ internal sealed class RemoteAudioSource : IDisposable
             {
                 if (!_stopping.IsCancellationRequested)
                 {
-                    Complain($"the capture channel to {_sshHost} could not start: {error.Message}");
+                    Complain($"audio {_sshHost}: the capture channel did not start, the session has no sound", error);
                 }
 
                 return;
@@ -137,6 +137,7 @@ internal sealed class RemoteAudioSource : IDisposable
                 }
                 catch (Exception error) when (error is OperationCanceledException or ObjectDisposedException)
                 {
+                    Log.Debug(error, $"audio {_sshHost}: the capture's error output closed");
                 }
             });
             try
@@ -145,6 +146,7 @@ internal sealed class RemoteAudioSource : IDisposable
             }
             catch (Exception error) when (error is IOException or ObjectDisposedException or OperationCanceledException or InvalidOperationException)
             {
+                Log.Debug(error, $"audio {_sshHost}: the capture stream closed");
             }
 
             var code = await capture.Exited;
@@ -158,25 +160,23 @@ internal sealed class RemoteAudioSource : IDisposable
 
             if (code == NoCaptureToolExit)
             {
-                Complain($"{_sshHost} has neither parec nor pw-record, so the session has no sound");
+                Complain($"audio {_sshHost}: the remote has neither parec nor pw-record, the session has no sound");
                 return;
             }
 
             if (code == NoMonitorExit && _attempts >= Attempts - 1)
             {
-                Complain($"{_sshHost} never created {_monitor}, so the session has no sound");
+                Complain($"audio {_sshHost}: the remote never created {_monitor}, the session has no sound");
                 return;
             }
 
             if (!_delivered && ++_attempts == Attempts)
             {
-                Complain(
-                    $"nothing was captured from {_monitor} on {_sshHost} in {Attempts} tries, " +
-                    "so the session has no sound");
+                Complain($"audio {_sshHost}: nothing captured from {_monitor} in {Attempts} tries, the session has no sound");
                 return;
             }
 
-            Log.Debug($"the capture channel to {_sshHost} ended with {code}; opening it again");
+            Log.Debug($"audio {_sshHost}: the capture channel ended with {code}, opening it again");
             try
             {
                 await Task.Delay(backoff, _stopping.Token);
@@ -234,7 +234,7 @@ internal sealed class RemoteAudioSource : IDisposable
         return destination;
     }
 
-    private void Complain(string message)
+    private void Complain(string message, Exception? error = null)
     {
         if (_complained)
         {
@@ -242,10 +242,18 @@ internal sealed class RemoteAudioSource : IDisposable
         }
 
         _complained = true;
-        Log.Warn($"{message}");
+        if (error is null)
+        {
+            Log.Warn($"{message}");
+        }
+        else
+        {
+            Log.Warn(error, $"{message}");
+        }
+
         foreach (var line in _errors.Lines())
         {
-            Log.Error($"audio: {line}");
+            Log.Warn($"audio {_sshHost}: remote said {line}");
         }
     }
 

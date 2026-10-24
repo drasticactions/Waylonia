@@ -36,7 +36,7 @@ public static class A11yTreeText
     /// <param name="maxNodes">The cap.</param>
     /// <returns>The line.</returns>
     public static string NodeCapLine(int maxNodes) =>
-        $"(stopped at the node cap of {maxNodes}; more nodes remain)";
+        $"(Stopped at {maxNodes} nodes. More nodes remain, so raise max_nodes to see them.)";
 
     /// <summary>
     /// The closing line when the depth limit hid children.
@@ -45,7 +45,7 @@ public static class A11yTreeText
     /// <param name="hidden">How many nodes at the limit have children that were not listed.</param>
     /// <returns>The line.</returns>
     public static string DepthCapLine(int maxDepth, int hidden) =>
-        $"(depth limit of {maxDepth} reached; the children of {hidden} {(hidden == 1 ? "node" : "nodes")} are not listed)";
+        $"(Stopped at depth {maxDepth}. The children of {hidden} {(hidden == 1 ? "node are" : "nodes are")} not listed, so raise depth to see them.)";
 
     /// <summary>
     /// A name in double quotes, with quotes, backslashes and line breaks escaped so the line stays one line.

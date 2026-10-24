@@ -9,7 +9,7 @@ left out of an agent session; `waylonia_launch` and `input_*` replace them.
 
 | Tool | Use |
 | --- | --- |
-| `waylonia_describe` | Profile, output size and scale, whether launches wait for approval, missing methods, accessibility state. Call first. |
+| `waylonia_describe` | Profile, output size and scale, whether launches wait for approval, missing methods, accessibility state, and `takeover` (`driving …`, or `paused …` while a person uses the window). Call first. |
 | `waylonia_launchable` | The installed applications `waylonia_launch` can start by `desktop_id`. |
 | `session_describe`, `outputs_list` | The compositor and its one output. |
 
@@ -46,7 +46,7 @@ Boxes are in the window's client-area coordinates, the same ones `input_*` takes
 
 | Tool | Use |
 | --- | --- |
-| `waylonia_a11y-tree` | The tree as indented text: `[node] role "name" {states} @x,y wxh`. `depth` default 12, `max_nodes` default 400. |
+| `waylonia_a11y-tree` | The tree as indented text: `[node] role "name" {states} @x,y wxh`. `depth` default 12, `max_nodes` default 400. A last line in parentheses says when either one cut the tree short. |
 | `waylonia_a11y-find` | Nodes by `role` (`push-button`, `text`, `entry`, `menu-item`, `link`, `check-box`, …), `name` substring and `states` (`showing`, `enabled`, `focusable`, …). |
 | `waylonia_a11y-action` | Run a node's action by name (`click`, `activate`, `press`, `toggle`), or its first one. |
 | `waylonia_a11y-set-text` | Replace the whole text of an editable node. |

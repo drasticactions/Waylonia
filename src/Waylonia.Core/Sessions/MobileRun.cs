@@ -50,7 +50,7 @@ internal static class MobileRun
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            log.Warn($"cannot create {path}: {error.Message}");
+            log.Warn(error, $"mobile: creating {path} failed");
         }
     }
 }

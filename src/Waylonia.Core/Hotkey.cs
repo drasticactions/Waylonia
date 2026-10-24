@@ -9,14 +9,14 @@ internal sealed record Hotkey(string Chord, ShellModifiers Modifiers, string Key
     {
         if (command is null)
         {
-            log.Warn($"hotkey '{chord}' has no command, skipping");
+            log.Warn($"hotkeys: '{chord}' has no command, skipped");
             return null;
         }
 
         var tokens = chord.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (tokens.Length == 0)
         {
-            log.Warn($"hotkey '{chord}' names no key, skipping");
+            log.Warn($"hotkeys: '{chord}' names no key, skipped");
             return null;
         }
 
@@ -29,7 +29,7 @@ internal sealed record Hotkey(string Chord, ShellModifiers Modifiers, string Key
             }
             else
             {
-                log.Warn($"unknown modifier '{(tokens[i])}' in hotkey '{chord}', skipping");
+                log.Warn($"hotkeys: unknown modifier '{tokens[i]}' in '{chord}', skipped");
                 return null;
             }
         }

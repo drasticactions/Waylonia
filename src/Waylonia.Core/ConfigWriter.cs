@@ -25,12 +25,12 @@ internal static class ConfigWriter
             document = File.Exists(path) ? TomlDocument.Parse(File.ReadAllText(path), out error) : TomlDocument.Empty();
             if (document is null)
             {
-                return $"{path} did not parse: {error}";
+                return $"Your settings weren't saved, because {path} has an error. Fix it by hand first. {error}";
             }
         }
         catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
         {
-            return $"{path} cannot be read: {failure.Message}";
+            return $"Your settings weren't saved, because {path} couldn't be read. {UiSentence.Of(failure.Message)}";
         }
 
         Apply(document, values);
@@ -41,7 +41,7 @@ internal static class ConfigWriter
         }
         catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
         {
-            return $"{path} cannot be written: {failure.Message}";
+            return $"Your settings weren't saved, because {path} couldn't be written. {UiSentence.Of(failure.Message)}";
         }
 
         return null;

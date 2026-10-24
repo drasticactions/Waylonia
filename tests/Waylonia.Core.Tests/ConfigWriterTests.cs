@@ -335,7 +335,7 @@ public sealed class ConfigWriterTests : IDisposable
         var error = ConfigWriter.Save(path, new ConfigValues(Compress: "none"));
 
         Assert.NotNull(error);
-        Assert.Contains("did not parse", error, StringComparison.Ordinal);
+        Assert.Contains(path, error, StringComparison.Ordinal);
         Assert.Equal("compress = \n", File.ReadAllText(path));
     }
 

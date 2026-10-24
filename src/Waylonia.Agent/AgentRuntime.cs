@@ -105,14 +105,13 @@ internal sealed class AgentRuntime : IDisposable
         if (_bus is null)
         {
             BusProblem = busError;
-            Log.Warn($"{busError}");
         }
         else if (Profile.Accessibility)
         {
             if (AgentAccessibility.Unavailable() is { } why)
             {
                 BusProblem = why;
-                Log.Warn($"{why}");
+                Log.Warn($"a11y: {why}");
             }
             else
             {
@@ -269,7 +268,7 @@ internal sealed class AgentRuntime : IDisposable
         }
         catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
         {
-            Log.Debug($"the profile lock {Profile.LockFile} stays: {failure.Message}");
+            Log.Debug(failure, $"profile: lock {Profile.LockFile} not removed");
         }
     }
 

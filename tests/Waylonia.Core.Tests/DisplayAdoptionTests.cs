@@ -40,7 +40,7 @@ public sealed class DisplayAdoptionTests : IDisposable
         Assert.Equal(1, owner.Attached);
         Assert.Contains(boxed.Globals, entry => entry.Interface == "wl_compositor");
         var window = Assert.Single(harness.Shell.Windows);
-        Assert.Equal("foot — box", window.DecoratedTitle);
+        Assert.Equal("foot · box", window.DecoratedTitle);
 
         owner.CloseClients();
         harness.PumpUntil(() => harness.Shell.Windows.Count == 0, "closing the owner's clients left the window");

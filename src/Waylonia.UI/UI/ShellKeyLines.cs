@@ -30,7 +30,7 @@ internal static class ShellKeyLines
 
             if (chord.Length > 0 && KeyTable.ChordProblem(chord, out _, out _) is { } chordProblem)
             {
-                problem = $"{name}: {chordProblem}.";
+                problem = $"Fix the chord for {name}: {chordProblem}.";
                 return null;
             }
 

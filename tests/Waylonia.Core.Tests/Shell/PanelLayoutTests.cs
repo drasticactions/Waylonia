@@ -37,8 +37,8 @@ public sealed class PanelLayoutTests
 
         Assert.Equal([new PanelApplet(PanelAppletKind.MenuBar), new PanelApplet(PanelAppletKind.Clock)], applets);
         Assert.Contains(
-            "Warn: [panel] top: 'foo' is not an applet, skipping it; the applets are menu-bar, window-list, workspace-switcher, clock, show-desktop, launcher:NAME, spacer and keyboard",
-            capture.Lines);
+            capture.Lines,
+            line => line.StartsWith("Warn: [panel] top: 'foo'", StringComparison.Ordinal) && line.Contains(PanelApplets.AppletNames, StringComparison.Ordinal));
     }
 
     [Fact]

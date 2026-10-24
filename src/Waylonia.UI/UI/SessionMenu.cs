@@ -10,7 +10,7 @@ internal static class SessionMenu
 
     public const string RefreshLabel = "Refresh applications";
 
-    public const string ShellWindowLabel = "Open shell";
+    public const string ShellWindowLabel = "Show Waylonia";
 
     public static IReadOnlyList<ApplicationMenuItem> BuildNested(Action openShell)
     {

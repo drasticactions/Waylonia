@@ -41,6 +41,9 @@ public static class VideoChoice
         return true;
     }
 
+    public static string Problem(string value) =>
+        $"'{value}' isn't a video setting. Use none, or a codec (h264, vp9 or av1) with options, such as h264,hw.";
+
     public static bool DecodesOnGpu(string? value) =>
         value is not null && value.Split(',').Contains("hw", StringComparer.Ordinal);
 

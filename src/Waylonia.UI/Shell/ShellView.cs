@@ -54,7 +54,7 @@ internal sealed class ShellView : UserControl
         ArgumentNullException.ThrowIfNull(createView);
         if (_toplevel is not null)
         {
-            throw new InvalidOperationException("the shell view already holds a compositor view");
+            throw new InvalidOperationException("The shell view already holds a compositor view. Attach a host once.");
         }
 
         _toplevel = new BasinToplevelView(host, createView);

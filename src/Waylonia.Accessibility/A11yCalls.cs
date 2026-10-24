@@ -19,13 +19,13 @@ internal static class A11yCalls
         {
             throw Translate(error, node, what, unsupportedMeansGone);
         }
-        catch (DBusConnectionClosedException)
+        catch (DBusConnectionClosedException error)
         {
-            throw Closed();
+            throw Closed(error);
         }
-        catch (DBusConnectionException)
+        catch (DBusConnectionException error)
         {
-            throw Closed();
+            throw Closed(error);
         }
     }
 
@@ -39,13 +39,13 @@ internal static class A11yCalls
         {
             throw Translate(error, node, what);
         }
-        catch (DBusConnectionClosedException)
+        catch (DBusConnectionClosedException error)
         {
-            throw Closed();
+            throw Closed(error);
         }
-        catch (DBusConnectionException)
+        catch (DBusConnectionException error)
         {
-            throw Closed();
+            throw Closed(error);
         }
     }
 
@@ -59,17 +59,21 @@ internal static class A11yCalls
         {
             return default;
         }
-        catch (DBusConnectionClosedException)
+        catch (DBusConnectionClosedException error)
         {
-            throw Closed();
+            throw Closed(error);
         }
-        catch (DBusConnectionException)
+        catch (DBusConnectionException error)
         {
-            throw Closed();
+            throw Closed(error);
         }
     }
 
-    public static A11yException Closed() => new("the accessibility bus connection is closed");
+    public static A11yException Closed(Exception inner) =>
+        new("The connection to the accessibility bus closed. The accessibility methods stay unavailable until the agent session restarts.", inner);
+
+    public static A11yException Gone(A11yNodeRef node) =>
+        new($"Node {node.Id} no longer exists. Read the tree again for the current node ids.");
 
     public static A11yException Translate(
         DBusErrorReplyException error,
@@ -82,22 +86,20 @@ internal static class A11yCalls
         return name switch
         {
             "org.freedesktop.DBus.Error.ServiceUnknown" or "org.freedesktop.DBus.Error.NameHasNoOwner" =>
-                new A11yException($"the application behind node {node.Id} is gone"),
+                new A11yException($"The application behind node {node.Id} has exited. Launch it again and read its tree.", error),
             "org.freedesktop.DBus.Error.UnknownObject" =>
-                new A11yException($"node {node.Id} no longer exists"),
+                new A11yException(Gone(node).Message, error),
             "org.freedesktop.DBus.Error.UnknownMethod" or "org.freedesktop.DBus.Error.UnknownInterface"
                 or "org.freedesktop.DBus.Error.UnknownProperty" when unsupportedMeansGone || LooksGone(message) =>
-                new A11yException($"node {node.Id} no longer exists"),
+                new A11yException(Gone(node).Message, error),
             "org.freedesktop.DBus.Error.UnknownMethod" or "org.freedesktop.DBus.Error.UnknownInterface"
-                or "org.freedesktop.DBus.Error.UnknownProperty" =>
-                new A11yException($"node {node.Id} does not support {what}"),
-            "org.freedesktop.DBus.Error.NotSupported" =>
-                new A11yException($"node {node.Id} does not support {what}"),
+                or "org.freedesktop.DBus.Error.UnknownProperty" or "org.freedesktop.DBus.Error.NotSupported" =>
+                new A11yException($"Node {node.Id} does not support {what}.", error),
             "org.freedesktop.DBus.Error.NoReply" or "org.freedesktop.DBus.Error.Timeout"
                 or "org.freedesktop.DBus.Error.TimedOut" =>
-                new A11yException($"the application behind node {node.Id} did not answer {what}"),
+                new A11yException($"The application behind node {node.Id} did not answer a request for {what}. It may be busy, so try again.", error),
             _ => new A11yException(
-                $"node {node.Id} failed {what}: {(message.Length > 0 ? message : name)}"),
+                $"Node {node.Id} failed a request for {what}. The application said \"{(message.Length > 0 ? message : name)}\".", error),
         };
     }
 

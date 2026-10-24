@@ -2,7 +2,7 @@ namespace Waylonia.Agent;
 
 internal sealed class AgentTakeover
 {
-    public const string PausedMessage = "paused: someone is using the window";
+    public const string PausedMessage = "The agent is paused because a person is using the window. Stop and wait until they resume the agent.";
 
     private long _lastHostInput;
     public AgentTakeover(int timeoutSeconds)
@@ -39,10 +39,18 @@ internal sealed class AgentTakeover
 
     public string Status => (PendingApprovals > 0, IsPaused) switch
     {
-        (true, true) => "Agent: paused, waiting for approval",
-        (true, false) => "Agent: waiting for approval",
-        (false, true) => "Agent: paused",
-        _ => "Agent: driving",
+        (true, true) => "Agent paused, waiting for your approval",
+        (true, false) => "Agent waiting for your approval",
+        (false, true) => "Agent paused while you use the window",
+        _ => "Agent working",
+    };
+
+    public string Report => (PendingApprovals > 0, IsPaused) switch
+    {
+        (true, true) => "paused because a person is using the window, and a call is waiting for approval",
+        (true, false) => "driving, and a call is waiting for approval",
+        (false, true) => "paused because a person is using the window, so input calls are refused",
+        _ => "driving",
     };
 
     public bool HostInput(long nowMs, bool pressOrKey)

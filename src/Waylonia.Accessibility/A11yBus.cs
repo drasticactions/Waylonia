@@ -41,6 +41,12 @@ public sealed class A11yBus : IAsyncDisposable
     public event Action? EventReceived;
 
     /// <summary>
+    /// Raised on a D-Bus thread with the exception when an <see cref="EventReceived"/> handler throws. The bus
+    /// catches it, so the next event still arrives.
+    /// </summary>
+    public event Action<Exception>? HandlerFailed;
+
+    /// <summary>
     /// Turns accessibility on for a session bus: sets <c>org.a11y.Status.IsEnabled</c> and
     /// <c>ScreenReaderEnabled</c>, which Firefox and Chromium wait for before they build a tree. at-spi2-core 2.62
     /// dropped <c>ScreenReaderEnabled</c>; without it, <c>IsEnabled</c> alone turns accessibility on. The call
@@ -66,12 +72,12 @@ public sealed class A11yBus : IAsyncDisposable
         {
             await status.SetScreenReaderEnabledAsync(true).WaitAsync(cancel).ConfigureAwait(false);
         }
-        catch (DBusErrorReplyException error) when (IsUnknownProperty(error))
-        {
-        }
         catch (DBusErrorReplyException error)
         {
-            throw LauncherProblem(error);
+            if (!IsUnknownProperty(error))
+            {
+                throw LauncherProblem(error);
+            }
         }
     }
 
@@ -102,7 +108,7 @@ public sealed class A11yBus : IAsyncDisposable
 
         if (string.IsNullOrEmpty(address))
         {
-            throw new A11yException("at-spi-bus-launcher answered with no accessibility bus address");
+            throw new A11yException("The accessibility bus launcher gave no bus address. Check that at-spi2-core is installed and working.");
         }
 
         var connection = new DBusConnection(address);
@@ -113,7 +119,7 @@ public sealed class A11yBus : IAsyncDisposable
         catch (Exception error) when (error is DBusConnectFailedException or DBusConnectionException)
         {
             connection.Dispose();
-            throw new A11yException($"the accessibility bus at {address} could not be reached: {error.Message}");
+            throw new A11yException($"The accessibility bus at {address} could not be reached. Check that at-spi2-core is installed and working.", error);
         }
 
         var bus = new A11yBus(connection, address);
@@ -162,7 +168,7 @@ public sealed class A11yBus : IAsyncDisposable
         }
         catch (Exception error) when (error is DBusConnectFailedException or DBusConnectionException)
         {
-            throw new A11yException($"the accessibility bus at {address} could not be reached: {error.Message}");
+            throw new A11yException($"The accessibility bus at {address} could not be reached. Check that at-spi2-core is installed and working.", error);
         }
 
         var deadline = DateTime.UtcNow + timeout;
@@ -219,8 +225,9 @@ public sealed class A11yBus : IAsyncDisposable
         {
             EventReceived?.Invoke();
         }
-        catch (Exception)
+        catch (Exception error)
         {
+            HandlerFailed?.Invoke(error);
         }
     }
 
@@ -228,7 +235,7 @@ public sealed class A11yBus : IAsyncDisposable
     {
         if (string.IsNullOrWhiteSpace(address))
         {
-            throw new A11yException("no session bus address was given, so the accessibility bus cannot be found");
+            throw new A11yException("No session bus address was given, so the accessibility bus cannot be found. Pass the address of a running session bus.");
         }
 
         var session = new DBusConnection(address);
@@ -240,7 +247,7 @@ public sealed class A11yBus : IAsyncDisposable
         catch (Exception error) when (error is DBusConnectFailedException or DBusConnectionException)
         {
             session.Dispose();
-            throw new A11yException($"the session bus at {address} could not be reached: {error.Message}");
+            throw new A11yException($"The session bus at {address} could not be reached. Check that its dbus-daemon is running.", error);
         }
     }
 
@@ -248,8 +255,8 @@ public sealed class A11yBus : IAsyncDisposable
         error.ErrorName is "org.freedesktop.DBus.Error.ServiceUnknown" or "org.freedesktop.DBus.Error.NameHasNoOwner"
             or "org.freedesktop.DBus.Error.Spawn.ExecFailed" or "org.freedesktop.DBus.Error.Spawn.ChildExited"
             ? new A11yException(
-                $"the session bus has no org.a11y.Bus, so there is no accessibility bus; at-spi2-core provides it ({error.ErrorMessage})")
-            : new A11yException($"org.a11y.Bus refused the request: {error.ErrorMessage}");
+                "The session bus has no org.a11y.Bus, so there is no accessibility bus. Install at-spi2-core, which provides it.", error)
+            : new A11yException($"The accessibility bus launcher refused the request. It said \"{error.ErrorMessage}\".", error);
 
     /// <summary>
     /// Stops listening and closes the accessibility bus connection.

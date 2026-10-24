@@ -71,6 +71,7 @@ internal sealed class UnixSessionDisplay : ISessionDisplay
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
+            WayloniaLog.Log.Debug(error, $"session display: removing {_path} failed");
         }
 
         _cleanup?.Invoke();

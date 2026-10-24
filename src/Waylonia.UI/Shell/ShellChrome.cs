@@ -115,7 +115,7 @@ internal sealed class ShellChrome : IDisposable
             Width = Math.Max(1, strip.Width),
             Height = Math.Max(1, strip.Height),
             Scale = _shell.Scale,
-        }) ?? throw new InvalidOperationException("the attached Avalonia host declined to create a panel surface"));
+        }) ?? throw new InvalidOperationException("Avalonia declined to create a panel surface. The shell needs one for each panel."));
         var view = new PanelView { DataContext = new PanelViewModel(_model, applets) };
         surface.Content = view;
         if (surface.Root is { } root)
@@ -312,7 +312,7 @@ internal sealed class ShellChrome : IDisposable
         });
         if (surface is null)
         {
-            _log.Error($"the attached Avalonia host declined to create the {title} window");
+            _log.Error($"shell: Avalonia declined to create the {title} window");
             return;
         }
 
@@ -532,7 +532,7 @@ internal sealed class ShellChrome : IDisposable
             if (attached.PublishDamage() && !_reportedFrame)
             {
                 _reportedFrame = true;
-                _log.Debug($"the first panel frame reached the scene");
+                _log.Debug($"shell: the first panel frame reached the scene");
             }
         });
     }

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using static Waylonia.WayloniaLog;
 
 namespace Waylonia.Sessions;
 
@@ -14,7 +15,7 @@ internal sealed class IncusLinkFactory : ITargetLinkFactory
         ArgumentNullException.ThrowIfNull(destination);
         if (!DestinationKinds.Incus.TryParse(destination, out var name))
         {
-            throw new ArgumentException($"'{destination}' is not an Incus destination", nameof(destination));
+            throw new ArgumentException($"The destination '{destination}' is not an Incus instance. Give incus:NAME.", nameof(destination));
         }
 
         return new IncusLink(destination, name, user);
@@ -29,6 +30,7 @@ internal sealed class IncusLinkFactory : ITargetLinkFactory
         }
         catch (Exception error) when (error is Win32Exception or InvalidOperationException or System.Text.Json.JsonException)
         {
+            Log.Debug(error, $"incus: instances not listed");
             return [];
         }
     }

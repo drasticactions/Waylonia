@@ -31,13 +31,13 @@ internal sealed class WayloniaAudio : IDisposable
 
         if (waypipeListen is not null)
         {
-            Log.Warn($"--audio carries sound over a connection of its own and --waypipe-listen opens none, so this session stays silent");
+            Log.Warn($"audio: --audio is ignored with --waypipe-listen, which opens no connection to carry the sound");
             return false;
         }
 
         if (sshHost is null)
         {
-            Log.Warn($"--audio carries a remote session's sound and this session is local, where the application already plays to this host's sound server");
+            Log.Warn($"audio: --audio is ignored for a local session, whose applications already play through this host's sound server");
             return false;
         }
 
@@ -52,13 +52,13 @@ internal sealed class WayloniaAudio : IDisposable
         if (!mixer.Add(ring))
         {
             mixer.Remove(ring);
-            Log.Warn($"{sshHost} has no sound here, because this host has no playback device");
+            Log.Warn($"audio {sshHost}: no sound, this host has no playback device");
             return null;
         }
 
         var source = new RemoteAudioSource(ring, sshHost, link, sink, Rate, Channels, format == "s16");
         source.Start();
-        Log.Info($"playing {sshHost}'s sound on this host from {sink}.monitor as {format}");
+        Log.Info($"audio {sshHost}: playing from {sink}.monitor as {format}");
         return new WayloniaAudio(ring, mixer, source);
     }
 
@@ -66,6 +66,6 @@ internal sealed class WayloniaAudio : IDisposable
     {
         _source.Dispose();
         _mixer.Remove(_ring);
-        Log.Debug($"audio ended with {_ring.Underruns} underrun(s) and {_ring.Dropped} sample(s) dropped");
+        Log.Debug($"audio: ended, {_ring.Underruns} underrun(s), {_ring.Dropped} sample(s) dropped");
     }
 }

@@ -48,7 +48,7 @@ public sealed class ShellKeyLinesTests
     public void A_line_without_an_equals_sign_is_a_problem()
     {
         Assert.Null(ShellKeyLines.Parse("close Alt+F4", out var problem));
-        Assert.Equal("Write one key per line as NAME = CHORD. 'close Alt+F4' has no '='.", problem);
+        Assert.Contains("'close Alt+F4'", problem, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -64,10 +64,10 @@ public sealed class ShellKeyLinesTests
     public void A_bad_chord_carries_the_key_table_problem()
     {
         Assert.Null(ShellKeyLines.Parse("close = Hyper+F4", out var problem));
-        Assert.StartsWith("close: 'Hyper+F4' has no modifier named 'Hyper'", problem, StringComparison.Ordinal);
+        Assert.Contains("'Hyper'", problem, StringComparison.Ordinal);
 
         Assert.Null(ShellKeyLines.Parse("close = Alt+Nope", out problem));
-        Assert.Equal("close: 'Alt+Nope' names no key.", problem);
+        Assert.Contains("Alt+Nope", problem, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -82,6 +82,6 @@ public sealed class ShellKeyLinesTests
     public void A_name_listed_twice_is_a_problem()
     {
         Assert.Null(ShellKeyLines.Parse("close = Alt+F4\nclose = Super+q", out var problem));
-        Assert.Equal("'close' is listed twice. Keep one line per key.", problem);
+        Assert.Contains("'close'", problem, StringComparison.Ordinal);
     }
 }

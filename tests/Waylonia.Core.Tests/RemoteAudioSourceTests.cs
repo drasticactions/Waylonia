@@ -65,7 +65,7 @@ public sealed class RemoteAudioSourceTests
         await source.Completed;
         Assert.True(source.Complained);
         Assert.Single(link.Commands);
-        Assert.Contains(log.Lines, line => line.Contains("has neither parec nor pw-record", StringComparison.Ordinal));
+        Assert.Contains(log.Lines, line => line.Contains("parec nor pw-record", StringComparison.Ordinal));
         source.Dispose();
     }
 

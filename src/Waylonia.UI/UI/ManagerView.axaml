@@ -1,174 +1,171 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:union="https://github.com/avaunion"
              xmlns:ui="clr-namespace:Waylonia.UI"
              x:Class="Waylonia.UI.ManagerView"
              x:DataType="ui:ManagerViewModel"
              Background="{DynamicResource Union.Active.Window.Background.NormalBrush}"
              Foreground="{DynamicResource Union.Active.Window.Foreground.TextBrush}">
-  <UserControl.Styles>
-    <Style Selector="TextBlock.problem">
-      <Setter Property="Foreground" Value="{DynamicResource Union.Active.Window.Foreground.NegativeBrush}" />
-      <Setter Property="TextWrapping" Value="Wrap" />
-      <Setter Property="Margin" Value="120,0,0,0" />
-    </Style>
-    <Style Selector="TextBlock.caption">
-      <Setter Property="Width" Value="120" />
-      <Setter Property="VerticalAlignment" Value="Center" />
-    </Style>
-    <Style Selector="StackPanel.field">
-      <Setter Property="Spacing" Value="2" />
-    </Style>
-    <Style Selector="TextBox.lines">
-      <Setter Property="AcceptsReturn" Value="True" />
-      <Setter Property="MinHeight" Value="48" />
-    </Style>
-  </UserControl.Styles>
   <DockPanel LastChildFill="True">
-    <Menu DockPanel.Dock="Top" x:Name="MenuBar">
-      <MenuItem Header="Session">
-        <MenuItem Header="New" Command="{Binding NewSessionCommand}" />
-      </MenuItem>
-      <MenuItem Header="Settings" Command="{Binding OpenSettingsCommand}" />
-    </Menu>
-    <StackPanel DockPanel.Dock="Top" x:Name="Toolbar" Orientation="Horizontal" Spacing="6" Margin="12,6,12,0">
-      <Button x:Name="NewButton" Content="New" Command="{Binding NewSessionCommand}" />
-      <Button x:Name="SaveButton" Content="Save" Command="{Binding SaveSessionCommand}" />
-      <Button x:Name="DeleteButton" Content="Delete" Command="{Binding DeleteSessionCommand}" />
-      <Button x:Name="ConnectButton" Content="{Binding ConnectLabel}" Command="{Binding ToggleConnectionCommand}" />
-    </StackPanel>
+    <CommandBar DockPanel.Dock="Top" x:Name="Toolbar" DefaultLabelPosition="Right">
+      <CommandBar.PrimaryCommands>
+        <CommandBarButton x:Name="NewButton" Label="New" Command="{Binding NewSessionCommand}">
+          <CommandBarButton.Icon>
+            <union:UnionIcon IconName="document-new" />
+          </CommandBarButton.Icon>
+        </CommandBarButton>
+        <CommandBarButton x:Name="SaveButton" Label="Save" Command="{Binding SaveSessionCommand}">
+          <CommandBarButton.Icon>
+            <union:UnionIcon IconName="document-save" />
+          </CommandBarButton.Icon>
+        </CommandBarButton>
+        <CommandBarButton x:Name="DeleteButton" Label="Delete" Command="{Binding DeleteSessionCommand}">
+          <CommandBarButton.Icon>
+            <union:UnionIcon IconName="edit-delete" />
+          </CommandBarButton.Icon>
+        </CommandBarButton>
+        <CommandBarSeparator />
+        <CommandBarButton x:Name="ConnectButton" Label="{Binding ConnectLabel}" Command="{Binding ToggleConnectionCommand}">
+          <CommandBarButton.Icon>
+            <union:UnionIcon IconName="{Binding ConnectIcon}" />
+          </CommandBarButton.Icon>
+        </CommandBarButton>
+        <CommandBarSeparator />
+        <CommandBarButton x:Name="ImportKeyButton" Label="Import key…" Command="{Binding ImportKeyCommand}"
+                          IsVisible="{Binding CanImportKey}">
+          <CommandBarButton.Icon>
+            <union:UnionIcon IconName="document-import" />
+          </CommandBarButton.Icon>
+        </CommandBarButton>
+        <CommandBarButton x:Name="SettingsButton" Label="Settings" Command="{Binding OpenSettingsCommand}">
+          <CommandBarButton.Icon>
+            <union:UnionIcon IconName="configure" />
+          </CommandBarButton.Icon>
+        </CommandBarButton>
+      </CommandBar.PrimaryCommands>
+    </CommandBar>
     <Grid ColumnDefinitions="240,*">
-      <ListBox x:Name="SessionList" Grid.Column="0" Margin="12" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}">
+      <ListBox x:Name="SessionList" Grid.Column="0" Margin="12,12,6,12" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow}">
         <ListBox.ContextMenu>
           <ContextMenu x:Name="RowMenu">
-            <MenuItem Header="{Binding ConnectLabel}" Command="{Binding ToggleConnectionCommand}" />
-            <MenuItem Header="Save" Command="{Binding SaveSessionCommand}" />
-            <MenuItem Header="Delete" Command="{Binding DeleteSessionCommand}" />
+            <MenuItem Header="{Binding ConnectLabel}" Command="{Binding ToggleConnectionCommand}">
+              <MenuItem.Icon>
+                <union:UnionIcon IconName="{Binding ConnectIcon}" />
+              </MenuItem.Icon>
+            </MenuItem>
+            <MenuItem Header="Save" Command="{Binding SaveSessionCommand}">
+              <MenuItem.Icon>
+                <union:UnionIcon IconName="document-save" />
+              </MenuItem.Icon>
+            </MenuItem>
+            <MenuItem Header="Delete" Command="{Binding DeleteSessionCommand}">
+              <MenuItem.Icon>
+                <union:UnionIcon IconName="edit-delete" />
+              </MenuItem.Icon>
+            </MenuItem>
           </ContextMenu>
         </ListBox.ContextMenu>
         <ListBox.ItemTemplate>
           <DataTemplate x:DataType="ui:SessionRowViewModel">
-            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="2" />
+            <StackPanel Margin="2,3" Spacing="1">
+              <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" Opacity="0.7"
+                         IsVisible="{Binding Detail, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
       <ScrollViewer Grid.Column="1">
-        <StackPanel Spacing="6" Margin="12">
-          <GroupBox Header="Status">
-            <StackPanel Spacing="6">
-              <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
-              <TextBlock Classes="problem" Margin="0" Text="{Binding Problem}"
-                     IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-          </GroupBox>
-          <GroupBox Header="Setup">
-            <StackPanel Classes="field" DataContext="{Binding Form}" x:DataType="ui:SessionFormViewModel" Spacing="6">
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="Name" />
-                <TextBox x:Name="NameBox" Text="{Binding Name}" PlaceholderText="name" />
-              </DockPanel>
-              <TextBlock Classes="problem" Text="{Binding NameProblem}"
-                         IsVisible="{Binding NameProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <StackPanel Classes="field" IsVisible="{Binding ShowsKind}">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="kind" />
-                <ComboBox x:Name="KindBox" ItemsSource="{Binding Kinds}"
-                          SelectedItem="{Binding Kind}" />
-              </DockPanel>
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel IsVisible="{Binding IsSsh}">
-                <TextBlock Classes="caption" Text="ssh" />
-                <TextBox Text="{Binding Ssh}" PlaceholderText="user@host" />
-              </DockPanel>
-              <DockPanel IsVisible="{Binding IsTarget}">
-                <TextBlock Classes="caption" Text="{Binding TargetCaption}" />
-                <ComboBox x:Name="TargetBox" IsEditable="True" ItemsSource="{Binding Targets}"
-                          Text="{Binding Target}" PlaceholderText="{Binding TargetPlaceholder}" />
-              </DockPanel>
-              <TextBlock Classes="problem" Text="{Binding SshProblem}"
-                         IsVisible="{Binding SshProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <StackPanel Classes="field" IsVisible="{Binding ShowsUser}">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="user" />
-                <TextBox x:Name="UserBox" Text="{Binding User}" PlaceholderText="uid 1000, else root" />
-              </DockPanel>
-              <TextBlock Classes="problem" Text="{Binding UserProblem}"
-                         IsVisible="{Binding UserProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="command" />
-                <TextBox Text="{Binding Command}" PlaceholderText="run at connect, or the desktop command" />
-              </DockPanel>
-              <TextBlock Classes="problem" Text="{Binding CommandProblem}"
-                         IsVisible="{Binding CommandProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <DockPanel>
-              <TextBlock Classes="caption" Text="autostart" />
-              <TextBox Classes="lines" Text="{Binding Autostart}" PlaceholderText="one command per line" />
-            </DockPanel>
-            <DockPanel>
-              <TextBlock Classes="caption" Text="compress" />
+        <StackPanel Margin="6,12,18,18" Spacing="10">
+          <union:Heading Classes="page" Content="{Binding SelectedRow.Name, FallbackValue='New session'}" />
+          <NotificationCard x:Name="StatusCard" Classes="inline" NotificationType="Information"
+                            IsVisible="{Binding SelectedRow, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <SelectableTextBlock x:Name="StatusText" Text="{Binding StatusText}" />
+          </NotificationCard>
+          <NotificationCard x:Name="ProblemCard" Classes="inline" NotificationType="Error"
+                            IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <SelectableTextBlock Text="{Binding Problem}" />
+          </NotificationCard>
+          <StackPanel Classes="form" DataContext="{Binding Form}" x:DataType="ui:SessionFormViewModel">
+            <union:Heading Classes="section" Content="Connection" />
+            <ui:FormField Label="Name" Problem="{Binding NameProblem}" ToolTip.Tip="sessions/NAME.toml">
+              <TextBox x:Name="NameBox" Text="{Binding Name}" PlaceholderText="devbox" />
+            </ui:FormField>
+            <ui:FormField Label="Connection type" IsVisible="{Binding ShowsKind}" ToolTip.Tip="ssh, wsl, distrobox, toolbox or incus">
+              <ComboBox x:Name="KindBox" ItemsSource="{Binding Kinds}" SelectedItem="{Binding Kind}" HorizontalAlignment="Left" />
+            </ui:FormField>
+            <ui:FormField Label="SSH destination" Problem="{Binding SshProblem}" IsVisible="{Binding IsSsh}" ToolTip.Tip="ssh"
+                          Hint="A user@host, or a Host alias from your ssh config.">
+              <TextBox Text="{Binding Ssh}" PlaceholderText="user@host" />
+            </ui:FormField>
+            <ui:FormField Label="{Binding TargetCaption}" Problem="{Binding SshProblem}" IsVisible="{Binding IsTarget}" ToolTip.Tip="{Binding TargetKey}">
+              <ComboBox x:Name="TargetBox" IsEditable="True" ItemsSource="{Binding Targets}"
+                        Text="{Binding Target}" PlaceholderText="{Binding TargetPlaceholder}" HorizontalAlignment="Stretch" />
+            </ui:FormField>
+            <ui:FormField Label="User" Problem="{Binding UserProblem}" IsVisible="{Binding ShowsUser}" ToolTip.Tip="user"
+                          Hint="The account inside the instance. Leave it empty for uid 1000, or root when there's none.">
+              <TextBox x:Name="UserBox" Text="{Binding User}" PlaceholderText="ubuntu" />
+            </ui:FormField>
+
+            <union:Heading Classes="section" Content="Transport" />
+            <ui:FormField Label="Compression" ToolTip.Tip="compress">
               <ComboBox ItemsSource="{Binding CompressChoices}" SelectedIndex="{Binding CompressIndex}" HorizontalAlignment="Left" />
-            </DockPanel>
-            <StackPanel Orientation="Horizontal" Spacing="16">
-              <CheckBox Content="gpu" IsThreeState="True" IsChecked="{Binding Gpu}" />
-              <CheckBox Content="audio" IsThreeState="True" IsChecked="{Binding Audio}" />
-              <CheckBox Content="autoconnect" IsChecked="{Binding Autoconnect}" />
-            </StackPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="video" />
-                <TextBox Text="{Binding Video}" PlaceholderText="h264,hw" />
-              </DockPanel>
-              <TextBlock Classes="problem" Text="{Binding VideoProblem}"
-                         IsVisible="{Binding VideoProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <DockPanel>
-              <TextBlock Classes="caption" Text="terminal" />
+            </ui:FormField>
+            <ui:FormField Hint="Leave a box partly filled to use the default from Settings.">
+              <StackPanel Classes="options">
+                <CheckBox Content="Use the GPU" IsThreeState="True" IsChecked="{Binding Gpu}" ToolTip.Tip="gpu" />
+                <CheckBox Content="Play sound here" IsThreeState="True" IsChecked="{Binding Audio}" ToolTip.Tip="audio" />
+              </StackPanel>
+            </ui:FormField>
+            <ui:FormField Label="Video encoding" Problem="{Binding VideoProblem}" ToolTip.Tip="video"
+                          Hint="Sends window contents as video. Add ,hw to decode on this computer's GPU.">
+              <TextBox Text="{Binding Video}" PlaceholderText="h264,hw" />
+            </ui:FormField>
+
+            <union:Heading Classes="section" Content="Startup" />
+            <ui:FormField>
+              <ToggleSwitch Content="Connect when Waylonia starts" IsChecked="{Binding Autoconnect}" ToolTip.Tip="autoconnect" />
+            </ui:FormField>
+            <ui:FormField Label="Command" Problem="{Binding CommandProblem}" ToolTip.Tip="command"
+                          Hint="Runs when you connect. For a custom desktop, it starts the desktop.">
+              <TextBox Text="{Binding Command}" PlaceholderText="tmux new -A -s main" />
+            </ui:FormField>
+            <ui:FormField Label="Start with session" Classes="lines" ToolTip.Tip="autostart"
+                          Hint="One command per line. Each one starts after the session connects.">
+              <TextBox Classes="lines" Text="{Binding Autostart}" PlaceholderText="foot" />
+            </ui:FormField>
+            <ui:FormField Label="Language" Problem="{Binding LangProblem}" ToolTip.Tip="lang"
+                          Hint="The LANG the session gets when its login sets none. Write &quot;&quot; to leave it alone.">
+              <TextBox Text="{Binding Lang}" PlaceholderText="en_US.UTF-8" />
+            </ui:FormField>
+            <ui:FormField Label="Terminal" ToolTip.Tip="terminal"
+                          Hint="Opens apps that run in a terminal, such as htop. End it with the option that takes a command.">
               <TextBox Text="{Binding Terminal}" PlaceholderText="foot -e" />
-            </DockPanel>
-            <DockPanel>
-              <TextBlock Classes="caption" Text="current-desktop" />
+            </ui:FormField>
+            <ui:FormField Label="Show apps for" ToolTip.Tip="current-desktop"
+                          Hint="Lists the apps meant for this desktop, by its XDG_CURRENT_DESKTOP name.">
               <TextBox Text="{Binding CurrentDesktop}" PlaceholderText="KDE" />
-            </DockPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="lang" />
-                <TextBox Text="{Binding Lang}" PlaceholderText="en_US.UTF-8" />
-              </DockPanel>
-              <TextBlock Classes="problem" Text="{Binding LangProblem}"
-                         IsVisible="{Binding LangProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <DockPanel>
-              <TextBlock Classes="caption" Text="desktop" />
+            </ui:FormField>
+
+            <union:Heading Classes="section" Content="Desktop" />
+            <ui:FormField Label="Desktop" ToolTip.Tip="desktop"
+                          Hint="Runs a whole desktop in one window instead of single apps.">
               <ComboBox ItemsSource="{Binding DesktopChoices}" SelectedIndex="{Binding DesktopIndex}" HorizontalAlignment="Left" />
-            </DockPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="desktop-size" />
-                <TextBox Text="{Binding DesktopSize}" PlaceholderText="1920x1080" />
-              </DockPanel>
-              <TextBlock Classes="problem" Text="{Binding DesktopSizeProblem}"
-                         IsVisible="{Binding DesktopSizeProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
-            <DockPanel>
-              <TextBlock Classes="caption" Text="desktop-env" />
-              <TextBox Classes="lines" Text="{Binding DesktopEnv}" PlaceholderText="NAME=value, one per line" />
-            </DockPanel>
-            <StackPanel Classes="field">
-              <DockPanel>
-                <TextBlock Classes="caption" Text="hotkeys" />
-                <TextBox Classes="lines" Text="{Binding Hotkeys}" PlaceholderText="ctrl+alt+t = foot, one per line" />
-              </DockPanel>
-              <TextBlock Classes="problem" Text="{Binding HotkeysProblem}"
-                         IsVisible="{Binding HotkeysProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            </StackPanel>
+            </ui:FormField>
+            <ui:FormField Label="Desktop size" Problem="{Binding DesktopSizeProblem}" ToolTip.Tip="desktop-size">
+              <TextBox Text="{Binding DesktopSize}" PlaceholderText="1920x1080" />
+            </ui:FormField>
+            <ui:FormField Label="Environment" Classes="lines" ToolTip.Tip="desktop-env"
+                          Hint="Variables for the desktop, as NAME=value, one per line.">
+              <TextBox Classes="lines" Text="{Binding DesktopEnv}" PlaceholderText="QT_QPA_PLATFORM=wayland" />
+            </ui:FormField>
+
+            <union:Heading Classes="section" Content="Hotkeys" />
+            <ui:FormField Label="Hotkeys" Classes="lines" Problem="{Binding HotkeysProblem}" ToolTip.Tip="[hotkeys]"
+                          Hint="One per line, as CHORD = COMMAND. They run in this session while it's connected.">
+              <TextBox Classes="lines" Text="{Binding Hotkeys}" PlaceholderText="ctrl+alt+t = foot" />
+            </ui:FormField>
           </StackPanel>
-          </GroupBox>
         </StackPanel>
       </ScrollViewer>
     </Grid>

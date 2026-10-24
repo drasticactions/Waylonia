@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
 using Basin.Avalonia;
 using Basin.Hosted;
@@ -15,9 +16,10 @@ internal sealed class ShellWindow : Window, IShellHost
     private ShellWindowState _lastNormal = ShellWindowState.Default;
     private TextBlock? _agentStatus;
     private Button? _resume;
+    private NotificationCard? _agentCard;
     private bool _fixedSize;
 
-    public const int AgentStripHeight = 32;
+    public const int AgentStripHeight = 44;
 
     public ShellWindow(BasinCompositorHost host, ShellWindowState state, Func<BasinCompositorHost, BasinViewOutput> createView)
     {
@@ -118,22 +120,31 @@ internal sealed class ShellWindow : Window, IShellHost
         _agentStatus = new TextBlock
         {
             VerticalAlignment = global::Avalonia.Layout.VerticalAlignment.Center,
-            Margin = new Thickness(8, 0),
+            TextTrimming = global::Avalonia.Media.TextTrimming.CharacterEllipsis,
         };
         _resume = new Button
         {
             Content = "Resume agent",
             IsVisible = false,
             VerticalAlignment = global::Avalonia.Layout.VerticalAlignment.Center,
-            Margin = new Thickness(4, 0),
+            Margin = new Thickness(8, 0, 0, 0),
         };
         _resume.Click += (_, _) => resume();
-        var strip = new DockPanel { Height = AgentStripHeight, LastChildFill = true };
-        strip.Bind(Panel.BackgroundProperty, strip.GetResourceObservable("Union.Active.Window.Background.NormalBrush"));
-        _agentStatus.Bind(TextBlock.ForegroundProperty, _agentStatus.GetResourceObservable("Union.Active.Window.Foreground.TextBrush"));
+        var row = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(_resume, global::Avalonia.Controls.Dock.Right);
-        strip.Children.Add(_resume);
-        strip.Children.Add(_agentStatus);
+        row.Children.Add(_resume);
+        row.Children.Add(_agentStatus);
+        _agentCard = new NotificationCard
+        {
+            NotificationType = NotificationType.Information,
+            Width = double.NaN,
+            HorizontalAlignment = global::Avalonia.Layout.HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = global::Avalonia.Layout.HorizontalAlignment.Stretch,
+            Margin = new Thickness(4, 2),
+            Content = row,
+        };
+        var strip = new Border { Height = AgentStripHeight, Child = _agentCard };
+        strip.Bind(Border.BackgroundProperty, strip.GetResourceObservable("Union.Active.Window.Background.NormalBrush"));
         var layout = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(strip, global::Avalonia.Controls.Dock.Top);
         Content = null;
@@ -192,6 +203,11 @@ internal sealed class ShellWindow : Window, IShellHost
         if (_resume is not null)
         {
             _resume.IsVisible = paused;
+        }
+
+        if (_agentCard is not null)
+        {
+            _agentCard.NotificationType = paused ? NotificationType.Warning : NotificationType.Information;
         }
     }
 

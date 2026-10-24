@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using static Waylonia.WayloniaLog;
 
 namespace Waylonia.Sessions;
 
@@ -24,7 +25,7 @@ internal static class WslProcess
             info.ArgumentList.Add(argument);
         }
 
-        return Process.Start(info) ?? throw new InvalidOperationException("wsl.exe did not start");
+        return Process.Start(info) ?? throw new InvalidOperationException("The wsl.exe program did not start.");
     }
 
     public static async Task<(int Code, string Output, string Error)> RunAsync(IReadOnlyList<string> arguments, CancellationToken cancellation)
@@ -56,6 +57,7 @@ internal static class WslProcess
         }
         catch (Exception error) when (error is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
         {
+            Log.Debug(error, $"wsl: process already gone");
         }
     }
 

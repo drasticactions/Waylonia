@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Basin.Ipc;
 using Waylonia.Accessibility;
+using static Waylonia.Agent.AgentLog;
 
 namespace Waylonia.Agent;
 
@@ -169,7 +170,7 @@ internal static class AgentA11yMethods
             var node = await service.WaitTextAsync(window, text, TimeSpan.FromMilliseconds(timeout), cancel).ConfigureAwait(false)
                 ?? throw new AgentCallException(
                     IpcErrorCodes.Failed,
-                    $"no node under window {Id(id)} had a name or text containing '{text}' within {Id((ulong)timeout)} ms");
+                    $"No node in window {Id(id)} had a name or text containing '{text}' within {Id((ulong)timeout)} ms. Read the window with waylonia/a11y-tree, or wait longer with timeout_ms.");
             return w =>
             {
                 w.WriteStartObject();
@@ -192,7 +193,7 @@ internal static class AgentA11yMethods
 
         if (button is not ("left" or "right" or "middle"))
         {
-            reply.Error(IpcErrorCodes.InvalidParams, "'button' is left, right or middle");
+            reply.Error(IpcErrorCodes.InvalidParams, "'button' must be left, right or middle.");
             return;
         }
 
@@ -205,7 +206,7 @@ internal static class AgentA11yMethods
                 var service = await a11y.ServiceAsync(CancellationToken.None).ConfigureAwait(false);
                 var window = await Window(service, target, id, CancellationToken.None).ConfigureAwait(false);
                 box = await service.ExtentsAsync(window, node, CancellationToken.None).ConfigureAwait(false)
-                    ?? throw new AgentCallException(IpcErrorCodes.Failed, $"node {node} reports no box, so there is nothing to click; try waylonia/a11y-action");
+                    ?? throw new AgentCallException(IpcErrorCodes.Failed, $"Node {node} reports no box, so there is nothing to click. Use waylonia/a11y-action instead.");
             }
             catch (Exception failure) when (failure is A11yException or AgentCallException)
             {
@@ -224,7 +225,7 @@ internal static class AgentA11yMethods
                 server.Invoke("input/pointer-button", default, json, inner);
                 if (inner.ErrorCode is { } code)
                 {
-                    pending.Error(code, $"the click at ({x}, {y}) in window {Id(id)} was not sent: {inner.ErrorMessage}");
+                    pending.Error(code, $"The click at ({x}, {y}) in window {Id(id)} was not sent. {inner.ErrorMessage}");
                 }
                 else
                 {
@@ -245,7 +246,7 @@ internal static class AgentA11yMethods
     {
         if (runtime.Shell is not { } shell)
         {
-            reply.Error(IpcErrorCodes.Unavailable, "the shell is not up");
+            reply.Error(IpcErrorCodes.Unavailable, "The shell is not running yet. Try again in a moment.");
             return null;
         }
 
@@ -258,7 +259,7 @@ internal static class AgentA11yMethods
             }
         }
 
-        reply.Error(IpcErrorCodes.NotFound, $"no window {Id(id)}");
+        reply.Error(IpcErrorCodes.NotFound, $"No window has id {Id(id)}. List the windows with windows/list.");
         return null;
     }
 
@@ -266,7 +267,7 @@ internal static class AgentA11yMethods
         await service.FindWindowAsync(target, cancel).ConfigureAwait(false)
             ?? throw new AgentCallException(
                 IpcErrorCodes.NotFound,
-                $"window {Id(id)} (pid {target.Pid}, \"{target.Title}\") has no accessibility tree; the toolkit may not expose one, or it has not registered yet");
+                $"Window {Id(id)} (pid {target.Pid}, \"{target.Title}\") has no accessibility tree. Its toolkit may not expose one, or it has not registered yet, so wait a moment and try again.");
 
     private static void Run(AgentRuntime runtime, IpcReply reply, Func<CancellationToken, Task<Action<Utf8JsonWriter>>> work)
     {
@@ -306,9 +307,14 @@ internal static class AgentA11yMethods
         {
             AgentCallException call => (call.Code, call.Message),
             A11yException a11y => (IpcErrorCodes.Failed, a11y.Message),
-            OperationCanceledException => (IpcErrorCodes.Failed, "the accessibility call took longer than 2 minutes"),
-            _ => (IpcErrorCodes.Failed, $"the accessibility call failed: {failure.Message}"),
+            OperationCanceledException => (IpcErrorCodes.Failed, "The accessibility call took longer than 2 minutes. The application may be busy, so try again."),
+            _ => (IpcErrorCodes.Failed, $"The accessibility call failed. {failure.Message}"),
         };
+        if (failure is not (AgentCallException or A11yException or OperationCanceledException))
+        {
+            Log.Error(failure, $"a11y: call failed");
+        }
+
         pending.Error(code, message);
         _ = pending.Complete();
     }

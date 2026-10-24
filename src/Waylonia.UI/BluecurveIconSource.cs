@@ -116,7 +116,7 @@ internal sealed class BluecurveIconSource
         }
         catch (Exception error) when (error is IOException or InvalidOperationException or FormatException)
         {
-            _log.Debug($"the Bluecurve icon set could not be read for {name}: {error.Message}");
+            _log.Debug(error, $"icons: the Bluecurve set could not be read for {name}");
             return null;
         }
 
@@ -140,7 +140,7 @@ internal sealed class BluecurveIconSource
         }
         catch (Exception error) when (error is IOException or InvalidOperationException)
         {
-            _log.Debug($"the Bluecurve icon {icon.Path} could not be extracted: {error.Message}");
+            _log.Debug(error, $"icons: the Bluecurve icon {icon.Path} could not be extracted");
             return null;
         }
     }

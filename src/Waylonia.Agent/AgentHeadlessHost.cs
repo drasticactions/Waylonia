@@ -94,7 +94,7 @@ internal sealed class AgentHeadlessHost : IAgentCompositor, IDisposable
         }
         catch (Exception failure) when (failure is not OutOfMemoryException)
         {
-            Log.Error($"the headless compositor could not start: {failure.Message}");
+            Log.Error(failure, $"headless: compositor did not start");
             return 1;
         }
 
@@ -110,7 +110,7 @@ internal sealed class AgentHeadlessHost : IAgentCompositor, IDisposable
         ArgumentNullException.ThrowIfNull(work);
         if (_driver is not { } driver)
         {
-            return Task.FromException<T>(new InvalidOperationException("the headless compositor is not running"));
+            return Task.FromException<T>(new InvalidOperationException("The headless compositor is not running. Start it before posting work to it."));
         }
 
         return driver.InvokeAsync(() => work(_shell!)).WaitAsync(cancel);

@@ -27,15 +27,15 @@ public sealed class AgentApprovalTests
         control.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         control.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.Equal([expected], answers);
-        Assert.Equal("Close window", view.FindControl<TextBlock>("HeadingText")!.Text);
+        Assert.Equal(prompt.Heading, view.FindControl<global::AvaUnion.Controls.Heading>("HeadingText")!.Content);
         Assert.Equal("da@mini-lab:~  (foot)", view.FindControl<SelectableTextBlock>("SubjectText")!.Text);
-        Assert.Equal("Yes, and don't ask again for closing windows this run", view.FindControl<Button>("YesRunButton")!.Content);
+        Assert.Equal(prompt.DontAskAgain, view.FindControl<Button>("YesRunButton")!.Content);
         Assert.Equal("windows/close\n{\"id\":7}", view.FindControl<SelectableTextBlock>("DetailsText")!.Text);
         Assert.False(view.FindControl<Expander>("DetailsExpander")!.IsExpanded);
-        Assert.Equal("No answer in 2:00 means No.", view.FindControl<TextBlock>("CountdownText")!.Text);
+        Assert.Equal(AgentApprovalText.Countdown(TimeSpan.FromMinutes(2)), view.FindControl<TextBlock>("CountdownText")!.Text);
         now = start.AddSeconds(18.5);
         view.Tick();
-        Assert.Equal("No answer in 1:42 means No.", view.FindControl<TextBlock>("CountdownText")!.Text);
+        Assert.Equal(AgentApprovalText.Countdown(TimeSpan.FromSeconds(102)), view.FindControl<TextBlock>("CountdownText")!.Text);
     }
 
     [AvaloniaFact]

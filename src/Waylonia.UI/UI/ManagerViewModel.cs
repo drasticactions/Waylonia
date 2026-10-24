@@ -35,6 +35,9 @@ internal sealed partial class ManagerViewModel : ObservableObject
     private string _connectLabel = "Connect";
 
     [ObservableProperty]
+    private string _connectIcon = "network-connect";
+
+    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(DeleteSessionCommand))]
     private bool _canDelete;
 
@@ -86,7 +89,7 @@ internal sealed partial class ManagerViewModel : ObservableObject
         }
         catch (Exception error) when (error is IOException or InvalidOperationException or System.ComponentModel.Win32Exception)
         {
-            _log.Debug($"listing the {kind.Label} targets failed: {error.Message}");
+            _log.Debug(error, $"manager: listing {kind.Label} targets failed");
             return;
         }
 
@@ -116,7 +119,7 @@ internal sealed partial class ManagerViewModel : ObservableObject
 
         foreach (var broken in _catalog.Broken)
         {
-            rows.Add(new SessionRowViewModel(broken.Name, $"broken: {broken.Error}", null, broken));
+            rows.Add(new SessionRowViewModel(broken.Name, $"Can't load. {broken.Error}", null, broken));
         }
 
         foreach (var session in _registry.Sessions)
@@ -178,7 +181,8 @@ internal sealed partial class ManagerViewModel : ObservableObject
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or NotSupportedException)
         {
-            Problem = $"No key was picked: {error.Message}";
+            _log.Warn(error, $"manager: the key picker failed");
+            Problem = $"Couldn't open the key you picked. {error.Message}";
             return;
         }
 
@@ -187,7 +191,7 @@ internal sealed partial class ManagerViewModel : ObservableObject
         {
             using (key.Content)
             {
-                results.Add(KeyImport.Import(directory, key.Name, key.Content) ?? $"Imported {key.Name}; the next connection offers it.");
+                results.Add(KeyImport.Import(directory, key.Name, key.Content) ?? $"Imported {key.Name}. Your next connection offers it.");
             }
         }
 
@@ -225,7 +229,8 @@ internal sealed partial class ManagerViewModel : ObservableObject
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            Problem = $"The session file was not written: {error.Message}";
+            _log.Warn(error, $"manager: saving session {profile.Name} failed");
+            Problem = $"Couldn't save the session file. {error.Message}";
             return false;
         }
 
@@ -254,7 +259,8 @@ internal sealed partial class ManagerViewModel : ObservableObject
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            Problem = $"The session file was not deleted: {error.Message}";
+            _log.Warn(error, $"manager: deleting session {name} failed");
+            Problem = $"Couldn't delete the session file. {error.Message}";
             return;
         }
 
@@ -339,7 +345,7 @@ internal sealed partial class ManagerViewModel : ObservableObject
             Form.Load(new SessionProfile(row.Name, string.Empty));
         }
 
-        Problem = row.Broken is { } broken ? $"This file does not load: {broken.Error}" : null;
+        Problem = row.Broken is { } broken ? $"Can't load this session file. Fix it in a text editor. {broken.Error}" : null;
         ShowStatus(row.Name);
     }
 
@@ -356,6 +362,7 @@ internal sealed partial class ManagerViewModel : ObservableObject
         var session = name is null ? null : _registry.Get(name);
         var live = session is { IsLive: true };
         ConnectLabel = live ? "Disconnect" : "Connect";
+        ConnectIcon = live ? "network-disconnect" : "network-connect";
         CanConnect = name is null || _catalog.Broken.All(broken => broken.Name != name);
         CanDelete = name is not null && !live;
         if (session is null)

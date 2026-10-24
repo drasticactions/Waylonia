@@ -118,7 +118,7 @@ public sealed class AgentProfileTests : IDisposable
         Assert.Null(firstError);
 
         Assert.Null(AgentProfileStore.Lock(profile, out var secondError));
-        Assert.Contains("another waylonia --agent locked is running", secondError, StringComparison.Ordinal);
+        Assert.Contains("another run holds the profile", secondError, StringComparison.Ordinal);
 
         first.Dispose();
         using var third = AgentProfileStore.Lock(profile, out _);
@@ -144,7 +144,7 @@ public sealed class AgentProfileTests : IDisposable
             var method = AgentApprovals.MethodOf(action);
             Assert.NotNull(method);
             Assert.Equal(action, AgentApprovals.ActionOf(method));
-            Assert.StartsWith("the agent wants", AgentApprovals.Reason(action), StringComparison.Ordinal);
+            Assert.StartsWith("The agent wants", AgentApprovals.Reason(action), StringComparison.Ordinal);
         }
 
         Assert.Null(AgentApprovals.ActionOf("windows/list"));

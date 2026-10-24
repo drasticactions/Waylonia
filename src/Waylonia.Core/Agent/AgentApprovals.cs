@@ -36,11 +36,17 @@ internal static class AgentApprovals
 
     public static string Reason(string action) => action switch
     {
-        Launch => "the agent wants to start a program",
-        ClipboardRead => "the agent wants to read the clipboard of its own session",
-        ClipboardWrite => "the agent wants to put text on the clipboard of its own session",
-        CloseWindow => "the agent wants to close a window",
-        Kill => "the agent wants to end a program it started",
-        _ => $"the agent wants to call {action}",
+        Launch => "The agent wants to start a program.",
+        ClipboardRead => "The agent wants to read the clipboard of its own session.",
+        ClipboardWrite => "The agent wants to put text on the clipboard of its own session.",
+        CloseWindow => "The agent wants to close a window.",
+        Kill => "The agent wants to end a program it started.",
+        _ => $"The agent wants to call {action}.",
     };
+
+    public static string LaunchReason(IReadOnlyList<string> argv)
+    {
+        ArgumentNullException.ThrowIfNull(argv);
+        return $"The agent wants to start this program: {string.Join(' ', argv)}";
+    }
 }

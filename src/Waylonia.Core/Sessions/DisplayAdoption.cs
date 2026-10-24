@@ -30,14 +30,14 @@ internal sealed class DisplayAdoption : IDisposable
         var fd = fcntl(listenFd, DuplicateCloexec, 0);
         if (fd < 0)
         {
-            throw new IOException($"the display socket could not be duplicated: errno {Marshal.GetLastPInvokeError()}");
+            throw new IOException($"The display socket could not be duplicated, errno {Marshal.GetLastPInvokeError()}.");
         }
 
         var flags = fcntl(fd, GetStatusFlags, 0);
         if (flags < 0 || fcntl(fd, SetStatusFlags, flags | NonBlocking) < 0)
         {
             close(fd);
-            throw new IOException($"the display socket could not be made non-blocking: errno {Marshal.GetLastPInvokeError()}");
+            throw new IOException($"The display socket could not be made non-blocking, errno {Marshal.GetLastPInvokeError()}.");
         }
 
         return fd;

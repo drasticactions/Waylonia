@@ -11,7 +11,7 @@ internal sealed class NullHostCapture : IHostCapture
 
     public IDisposable? TryGrab(TopLevel anchor, BasinOutputView view, BasinCompositorHost host, CaptureHooks hooks)
     {
-        Log.Warn($"this host cannot be grabbed, its own chords stay with it while the desktop is captured");
+        Log.Warn($"capture: this host cannot be grabbed, its own shortcuts stay with it while the desktop has the keyboard");
         return null;
     }
 }

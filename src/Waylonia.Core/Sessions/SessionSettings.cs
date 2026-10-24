@@ -31,7 +31,7 @@ internal sealed record SessionSettings(
 
     public DestinationKind Kind => DestinationKinds.For(Ssh);
 
-    public const string NoDecoder = "the host registered no video decoder";
+    public const string NoDecoder = "This host has no video decoder.";
 
     public static Func<bool, (IVideoDecoder? Decoder, string WhyNot)> CreateDecoder { get; set; } = static _ => (null, NoDecoder);
 
@@ -49,7 +49,7 @@ internal sealed record SessionSettings(
 
         if (profile.User is not null && !kind.TakesUser)
         {
-            return new(null, $"user names the account inside an Incus instance; {kind.UserNote}");
+            return new(null, SessionStore.UserKeyProblem(kind));
         }
 
         DesktopRecipe? recipe = null;
@@ -59,13 +59,13 @@ internal sealed record SessionSettings(
             var found = DesktopRecipes.Find(desktopName);
             if (found is null && desktopName != "custom")
             {
-                return new(null, $"desktop {desktopName} names no recipe; the built-in ones are {DesktopRecipes.Names}");
+                return new(null, DesktopRecipes.UnknownProblem(desktopName));
             }
 
             var desktopCommand = overrides.Command ?? profile.Command ?? found?.Command;
             if (desktopCommand is null)
             {
-                return new(null, $"session {profile.Name} has desktop = \"custom\" and no command");
+                return new(null, $"Session {profile.Name} uses a custom desktop without a command. Add the command that starts the desktop.");
             }
 
             if (kind.DesktopProblem is { } kindProblem)
@@ -86,7 +86,7 @@ internal sealed record SessionSettings(
             desktopSize = RunRules.ParseSize(sizeText);
             if (desktopSize is null)
             {
-                return new(null, $"desktop-size takes WxH, not '{sizeText}'");
+                return new(null, $"'{sizeText}' isn't a desktop size. Use WIDTHxHEIGHT, such as 1920x1080.");
             }
         }
 
@@ -96,7 +96,7 @@ internal sealed record SessionSettings(
         var video = overrides.Video ?? profile.Video ?? recipe?.Video ?? config.Video ?? "none";
         if (!VideoChoice.IsValid(video))
         {
-            return new(null, $"video '{video}' is not a codec choice such as h264,hw");
+            return new(null, VideoChoice.Problem(video));
         }
 
         var videoCodec = video.Split(',')[0];
@@ -108,7 +108,7 @@ internal sealed record SessionSettings(
             var (created, whyNot) = CreateDecoder(VideoChoice.DecodesOnGpu(video));
             if (created is null)
             {
-                return new(null, $"video {video} needs a decoder and none is available: {whyNot}");
+                return new(null, $"Video '{video}' needs a decoder, and none is available. {UiSentence.Of(whyNot)}");
             }
 
             var wanted = videoCodec switch
@@ -119,7 +119,7 @@ internal sealed record SessionSettings(
             };
             if (!created.Supports(wanted))
             {
-                return new(null, $"the system FFmpeg decodes no {videoCodec}");
+                return new(null, $"This host's video decoder can't decode {videoCodec}. Choose another codec or none.");
             }
 
             decoder = created;

@@ -35,6 +35,6 @@ internal static class AgentShell
     public static string Title(AgentProfile profile, string status)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        return $"Waylonia agent {profile.Name} — {status}";
+        return $"Waylonia agent {profile.Name} · {status}";
     }
 }

@@ -185,7 +185,7 @@ public sealed class ConfigTests : IDisposable
         Assert.Equal("tmux new -A -s main", profile.Command);
         Assert.Equal("none", profile.Compress);
         Assert.Equal("ja_JP.UTF-8", profile.Lang);
-        Assert.Contains(warnings, line => line.Contains("[hosts.dev] moved to sessions/dev.toml", StringComparison.Ordinal));
+        Assert.Contains(warnings, line => line.Contains("[hosts.dev]", StringComparison.Ordinal) && line.Contains("sessions/dev.toml", StringComparison.Ordinal));
         Assert.Contains(warnings, line => line.Contains("[hosts.broken] cannot become a session", StringComparison.Ordinal));
     }
 

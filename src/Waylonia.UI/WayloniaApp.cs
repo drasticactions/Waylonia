@@ -179,7 +179,16 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
 
     public static long Rendered => Interlocked.Read(ref _rendered);
 
-    public override void Initialize() => Styles.Add(new global::AvaUnion.UnionTheme());
+    public override void Initialize() => AddTheme(Styles, new global::AvaUnion.UnionTheme());
+
+    internal static void AddTheme(global::Avalonia.Styling.Styles styles, global::AvaUnion.UnionTheme theme)
+    {
+        ArgumentNullException.ThrowIfNull(styles);
+        global::AvaUnion.BreezeIcons.BreezeIconSet.Register();
+        styles.Add(theme);
+        styles.Add(new global::AvaUnion.Controls.UnionControlsTheme());
+        styles.Add(new FormStyles());
+    }
 
     public static void Prepare(WayloniaRun run, HostPlatform platform)
     {
@@ -288,7 +297,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
         _view.HostReady += OnHostReady;
         _view.HostFailed += error =>
         {
-            Log.Error($"the compositor host could not start: {error.Message}");
+            Log.Error(error, $"host: the compositor could not start");
             _ = ShutdownAsync(1);
         };
         _channelClients.Removed += _ => Dispatcher.UIThread.Post(() =>
@@ -363,7 +372,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
             _resumePlan.AddRange(ResumePolicy.Plan(registry.Live.Select(static session => session.Name), _catalog));
         }
 
-        Log.Debug($"the host went to the background, {_resumePlan.Count} session(s) will reconnect on return");
+        Log.Debug($"host: in the background, {_resumePlan.Count} session(s) reconnect on return");
     }
 
     private void Resume()
@@ -426,7 +435,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
     }
 
     protected virtual BasinCompositorHost CreateWindowsHost(BasinCompositorHost host, WayloniaRun run) =>
-        throw new InvalidOperationException("windows mode needs a desktop host; this host runs the nested shell only");
+        throw new InvalidOperationException("Windows mode needs a desktop host. This host runs only the nested shell.");
 
     protected void WireTransport(BasinCompositorHost host, WayloniaRun run)
     {
@@ -464,7 +473,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
         if (run.Host.Drag && !_dragUnsupportedReported)
         {
             _dragUnsupportedReported = true;
-            Log.Info($"host drag and drop is not yet supported in the nested shell");
+            Log.Warn($"shell: host drag and drop is not supported in the nested shell yet");
         }
 
         if (run.Host.Clipboard)
@@ -569,7 +578,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
     {
         if (_shellView is not { } view)
         {
-            throw new InvalidOperationException("the nested shell needs a single view or a host window to live in");
+            throw new InvalidOperationException("The nested shell has nowhere to live. Give it a single view or a host window.");
         }
 
         view.AttachHost(host, createView);
@@ -613,7 +622,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
         }
         catch (Exception error) when (error is InvalidOperationException or NotSupportedException)
         {
-            Log.Error($"the shell panels could not be created: {error.Message}");
+            Log.Error(error, $"shell: the panels could not be created");
         }
 
         shellHost.View.ActualThemeVariantChanged += (_, _) => _chrome?.ApplyThemeVariant();
@@ -670,7 +679,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
 
     protected virtual Task<string?> AskOutsideShellAsync(string prompt, AskPassKind kind, CancellationToken cancellation)
     {
-        Log.Warn($"an ssh prompt arrived before the shell was up, canceling the login");
+        Log.Warn($"ssh: a prompt arrived before the shell was up, login canceled");
         return Task.FromResult<string?>(null);
     }
 
@@ -765,7 +774,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
     protected virtual string ShellTitle(SessionRegistry registry)
     {
         var live = registry.Live.ToList();
-        return live.Count == 1 ? $"Waylonia — {live[0].Name}" : "Waylonia";
+        return live.Count == 1 ? $"Waylonia · {live[0].Name}" : "Waylonia";
     }
 
     protected void RefreshShellTitle() => UpdateShellTitle();
@@ -783,7 +792,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
     private void OnHostReady(BasinCompositorHost host)
     {
         BasinReport.Line(ReportLines.Socket(host.Socket));
-        UpdateStatus(_run!.ManagedTransport ? "ready" : $"waiting for clients on {host.Socket}");
+        UpdateStatus(_run!.ManagedTransport ? "Ready" : $"Waiting for clients on {host.Socket}");
         OnHostReadyCore(host);
     }
 
@@ -801,20 +810,20 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
     {
         if (_shuttingDown || _registry is not { } registry)
         {
-            return "waylonia is shutting down";
+            return "Waylonia is shutting down.";
         }
 
         if (!_run!.ManagedTransport)
         {
-            const string why = "this run binds the system libwayland socket for a local client, which carries no " +
-                "waypipe channel; start waylonia without a command to connect sessions";
-            Log.Error($"{why}");
+            const string why = "This run serves a local app over the system Wayland socket, which can't carry a session. " +
+                "Start Waylonia without a command to connect sessions.";
+            Log.Error($"session {settings.Name}: {CliMessage.Text(why)}");
             return why;
         }
 
         if (registry.WhyRefused(settings) is { } refused)
         {
-            Log.Error($"{refused}");
+            Log.Error($"session {settings.Name}: {CliMessage.Text(refused)}");
             UpdateStatus(refused);
             return refused;
         }
@@ -825,7 +834,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
         }
 
         var session = registry.Add(settings);
-        return await session.ConnectAsync() ? null : session.LastError ?? $"{settings.Name} could not connect";
+        return await session.ConnectAsync() ? null : session.LastError ?? $"Couldn't connect to {settings.Name}.";
     }
 
     protected virtual void PrepareDesktopSession(SessionSettings settings)
@@ -838,7 +847,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
             profile, new SessionOverrides(AudioFormat: _run!.AudioFormat), _run.Config, Log);
         if (resolved.Settings is not { } settings)
         {
-            Log.Error($"{resolved.Error}");
+            Log.Error($"session {profile.Name}: {CliMessage.Text(resolved.Error ?? string.Empty)}");
             return Task.FromResult<string?>(resolved.Error);
         }
 
@@ -880,14 +889,14 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
         {
             if (_suspended)
             {
-                Log.Debug($"{session.Name} ended while the host was in the background; it reconnects on return");
+                Log.Debug($"session {session.Name}: ended in the background, reconnects on return");
                 return;
             }
 
             _resumePlan.Remove(session.Name);
             if (_catalog.Find(session.Name) is { } profile)
             {
-                Log.Info($"reconnecting {session.Name} after the host came back");
+                Log.Info($"session {session.Name}: reconnecting after the host came back");
                 _ = ConnectProfileAsync(profile);
                 return;
             }
@@ -948,7 +957,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
     private Task<IReadOnlyList<PickedKey>> PickKeysAsync() => _platform!.Keys.PickAsync(_shellHost?.TopLevel);
 
     protected virtual void OpenManagerOutsideShell(ManagerViewModel model) =>
-        Log.Warn($"the session manager needs the nested shell on this host");
+        Log.Warn($"manager: needs the nested shell on this host");
 
     protected void OpenSettings()
     {
@@ -976,7 +985,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
     }
 
     protected virtual void OpenSettingsOutsideShell(SettingsViewModel model) =>
-        Log.Warn($"the settings window needs the nested shell on this host");
+        Log.Warn($"settings: the window needs the nested shell on this host");
 
     private void ApplyConfig(Config config)
     {
@@ -1049,7 +1058,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
         }
         else
         {
-            Log.Warn($"{label}: no session is named {name}");
+            Log.Warn($"launch {label}: no session is named {name}");
         }
     }
 
@@ -1062,7 +1071,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
     }
 
     protected virtual void LaunchLocal(string command, string label) =>
-        Log.Warn($"{label}: '{command}' runs a local client, which this host cannot start");
+        Log.Warn($"launch {label}: '{command}' is local, and this host cannot start local clients");
 
     protected void ConnectByName(string name)
     {
@@ -1174,7 +1183,7 @@ internal class WayloniaApp : Application, ISessionHost, ISshPrompter
         if (BasinCounters.Enabled && (BasinCounters.LiveObjects != 0 || BasinCounters.PendingFrees != 0))
         {
             Log.Error(
-                $"teardown not clean (live={BasinCounters.LiveObjects} pendingFrees={BasinCounters.PendingFrees})");
+                $"shutdown: teardown not clean, live={BasinCounters.LiveObjects} pendingFrees={BasinCounters.PendingFrees}");
             Log.Error($"{BasinCounters.CensusReport()}");
             _exitStatus = 1;
         }

@@ -311,7 +311,7 @@ internal sealed partial class SettingsFormViewModel : FormViewModel
         var video = Blank(Video);
         if (video is not null && !VideoChoice.IsValid(video))
         {
-            Complain(VideoField, "Use none, h264, vp9 or av1. Add ,hw to decode on this host's GPU.");
+            Complain(VideoField, "Use none, h264, vp9 or av1, then any options such as ,hw.");
         }
 
         var langText = Lang.Trim();
@@ -408,8 +408,8 @@ internal sealed partial class SettingsFormViewModel : FormViewModel
         {
             var installed = ThemeChoices.Where(static name => name != ShellSettings.DefaultTheme).ToList();
             Complain(ThemeField, installed.Count == 0
-                ? $"Use a theme name; the bundled theme is {ShellSettings.DefaultTheme} and no other theme is installed."
-                : $"Use a theme name; the bundled theme is {ShellSettings.DefaultTheme} and the installed ones are {string.Join(", ", installed)}.");
+                ? $"Use {ShellSettings.DefaultTheme}, the bundled theme. No other theme is installed."
+                : $"Use {ShellSettings.DefaultTheme}, the bundled theme, or an installed one: {string.Join(", ", installed)}.");
         }
 
         var buttonLayout = Blank(ButtonLayout) ?? defaults.ButtonLayout;
@@ -443,7 +443,7 @@ internal sealed partial class SettingsFormViewModel : FormViewModel
 
         var workspaces = Whole(Workspaces, defaults.Workspaces, 1, ShellConfig.MaxWorkspaces, WorkspacesField, $"Use 1 to {ShellConfig.MaxWorkspaces}.");
         var workspaceRows = Whole(WorkspaceRows, Math.Min(defaults.WorkspaceRows, workspaces), 1, workspaces, WorkspaceRowsField,
-            workspaces == 1 ? "Use 1; there is one workspace." : $"Use 1 to {workspaces}, the number of workspaces.");
+            workspaces == 1 ? "Use 1. There is only one workspace." : $"Use 1 to {workspaces}, the number of workspaces.");
         var autoRaiseDelay = Whole(AutoRaiseDelay, defaults.AutoRaiseDelay, 0, int.MaxValue, AutoRaiseDelayField,
             "Use a whole number of milliseconds, 0 or more.");
         var keys = ShellKeyLines.Parse(ShellKeys, out var keysProblem);

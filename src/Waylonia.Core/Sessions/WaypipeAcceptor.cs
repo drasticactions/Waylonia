@@ -81,7 +81,7 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
             var parsed = IPEndPoint.Parse(text);
             if (parsed.Address.Equals(IPAddress.Any) || parsed.Address.Equals(IPAddress.IPv6Any))
             {
-                error = "a waypipe channel binds an explicit address, never a wildcard";
+                error = "A waypipe listener needs an explicit address, not a wildcard such as 0.0.0.0.";
                 return null;
             }
 
@@ -151,8 +151,9 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
                 Adopt(new NetworkStream(accepted, ownsSocket: true));
             }
         }
-        catch (ObjectDisposedException)
+        catch (ObjectDisposedException error)
         {
+            Log.Debug(error, $"session {Name}: the channel listener closed");
         }
         catch (Exception error)
         {
@@ -165,7 +166,7 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
         ArgumentNullException.ThrowIfNull(error);
         if (!_disposed && !_host.ShuttingDown)
         {
-            Log.Error($"{Name}: the channel listener failed: {error.Message}");
+            Log.Error(error, $"session {Name}: the channel listener failed");
             Failed?.Invoke(error);
         }
     }
@@ -207,13 +208,13 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
 
             if (failure is null)
             {
-                Log.Debug($"{Name}: channel {index} ended");
-                _host.Status($"{Name}: channel {index} ended");
+                Log.Debug($"session {Name}: channel {index} ended");
+                _host.Status($"{Name}: Channel {index} ended");
             }
             else
             {
-                Log.Warn($"{Name}: channel {index} ended: {failure.Message}");
-                _host.Status($"{Name}: channel {index} ended: {failure.Message}");
+                Log.Warn(failure, $"session {Name}: channel {index} ended with an error");
+                _host.Status($"{Name}: Channel {index} ended with an error");
             }
 
             Changed?.Invoke();
@@ -240,7 +241,7 @@ internal sealed class WaypipeAcceptor : IChannelOwner, IDisposable
             var client = compositor.Display.CreateClient(channel.Transport);
             _host.Attach(this, client);
         });
-        _host.Status($"{Name}: {index} channel client(s) attached");
+        _host.Status($"{Name}: Channel {index} attached");
         Changed?.Invoke();
     }
 

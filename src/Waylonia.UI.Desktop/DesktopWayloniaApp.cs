@@ -48,7 +48,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
     private string _screenTitle = string.Empty;
     private ShellWindow? _shellWindow;
     private AgentRuntime? _agent;
-    private string _agentStatus = "Agent: driving";
+    private string _agentStatus = "Agent working";
 
     private static DesktopPlatform Desktop => _desktopPlatform!;
 
@@ -95,7 +95,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
             _tray = new TrayIcon
             {
                 Icon = new WindowIcon(typeof(WayloniaApp).Assembly.GetManifestResourceStream("Waylonia.Waylonia_Logo.png")!),
-                ToolTipText = "Waylonia — starting…",
+                ToolTipText = "Waylonia\nStarting…",
                 Menu = _trayMenu.Menu,
             };
             TrayIcon.SetIcons(this, [_tray]);
@@ -254,7 +254,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         _windows.Policy = _desktop;
         _windows.ScreenWindowChanged += OnScreenWindowChanged;
         _windows.WindowOpened += OnWindowOpened;
-        _windows.CountChanged += count => UpdateStatus($"{count} client window(s) on {host.Socket}");
+        _windows.CountChanged += count => UpdateStatus($"{count} window(s) open on {host.Socket}");
         if (run.Host.Drag)
         {
             _hostDrag = new HostDrag(host);
@@ -485,7 +485,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
             _localClient = LocalClient.Start(command, host.Socket);
             if (_localClient is null)
             {
-                Log.Error($"failed to start '{command}'");
+                Log.Error($"local: '{command}' failed to start");
                 _ = ShutdownAsync(1);
             }
         }
@@ -513,7 +513,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
             listen.Endpoint, this, listen.Compression, listen.Gpu, listen.Video, listen.VideoDecoder, session: null);
         acceptor.Failed += failure => Dispatcher.UIThread.Post(() => _ = ShutdownAsync(1));
         _listen = acceptor;
-        UpdateStatus($"waiting for a waypipe channel on {listen.Endpoint}");
+        UpdateStatus($"Waiting for a waypipe channel on {listen.Endpoint}");
         if (OperatingSystem.IsWindows() && !ListenHint.IsVsock(listen.Endpoint))
         {
             ListenOnSocket(acceptor, listen);
@@ -541,7 +541,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         {
             Dispatcher.UIThread.Post(() =>
             {
-                Log.Error($"the channel listener failed: {error.Message}");
+                Log.Error(error, $"listen: binding {listen.Endpoint} failed");
                 _ = ShutdownAsync(1);
             });
             return;
@@ -555,16 +555,16 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
             wsl = hyperV.Vm.Kind == HyperVVmKind.Wsl;
             bound = $"{bound} ({(wsl ? "WSL VM" : "VM")} {hyperV.LocalEndPoint.VmId})";
             hyperV.Rebound += local => Dispatcher.UIThread.Post(() =>
-                UpdateStatus($"waiting for a waypipe channel on {local} (rebound on {(wsl ? "WSL VM" : "VM")} {local.VmId})"));
+                UpdateStatus($"Waiting for a waypipe channel on {local} (rebound on {(wsl ? "WSL VM" : "VM")} {local.VmId})"));
         }
 
         var hint = ListenHint.GuestCommand(listen.Endpoint, wsl, listen.Compression, listen.Gpu, listen.Video);
         Dispatcher.UIThread.Post(() =>
         {
-            UpdateStatus($"waiting for a waypipe channel on {bound}");
+            UpdateStatus($"Waiting for a waypipe channel on {bound}");
             if (hint is not null)
             {
-                Log.Info($"listening on {bound}; start a client with: {hint}");
+                Log.Info($"listen: on {bound}, start a client with {hint}");
             }
         });
     }
@@ -576,7 +576,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
             var endpoint = WaypipeAcceptor.ParseEndpoint(listen.Endpoint, out var error);
             if (endpoint is null)
             {
-                Log.Error($"{error}");
+                Log.Error($"listen: {CliMessage.Text(error ?? listen.Endpoint)}");
                 _ = ShutdownAsync(1);
                 return;
             }
@@ -585,7 +585,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         }
         catch (Exception error) when (error is System.Net.Sockets.SocketException or IOException or FormatException or UnauthorizedAccessException)
         {
-            Log.Error($"the channel listener failed: {error.Message}");
+            Log.Error(error, $"listen: binding {listen.Endpoint} failed");
             _ = ShutdownAsync(1);
         }
     }
@@ -595,11 +595,11 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         var recipe = local.Recipe;
         var environment = DesktopSession.Environment(recipe, local.Env, local.Gpu);
         var wrapper = DesktopSession.Wrapper(recipe, host.Socket, recipe.Command, environment);
-        Log.Debug($"starting the {recipe.Name} session on this machine");
+        Log.Debug($"desktop {recipe.Name}: starting on this machine");
         _localClient = LocalClient.Start(wrapper, host.Socket, [("DISPLAY", null)]);
         if (_localClient is null)
         {
-            Log.Error($"the {recipe.Name} session failed to start");
+            Log.Error($"desktop {recipe.Name}: the session failed to start");
             _ = ShutdownAsync(1);
             return;
         }
@@ -609,7 +609,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
             _desktop.DeclaredPid = _localClient.Id;
         }
 
-        UpdateStatus($"starting {recipe.Name}");
+        UpdateStatus($"Starting {recipe.Name}");
     }
 
     protected override void PrepareDesktopSession(SessionSettings settings)
@@ -664,7 +664,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
     {
         foreach (var (window, name) in _sessionWindows)
         {
-            window.DecorateTitle(config.Host.SessionTitles ? title => $"{title} — {name}" : null);
+            window.DecorateTitle(config.Host.SessionTitles ? title => $"{title} · {name}" : null);
         }
 
         RestartGlobalHotkeys();
@@ -745,7 +745,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
 
         if (host.Socket.Length == 0)
         {
-            Log.Warn($"{label}: '{command}' has no local socket to start on");
+            Log.Warn($"launch {label}: no local socket to start '{command}' on");
             return;
         }
 
@@ -758,11 +758,11 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         }
         catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
-            Log.Warn($"{label}: '{command}' failed to start: {error.Message}");
+            Log.Warn(error, $"launch {label}: '{command}' failed to start");
             return;
         }
 
-        UpdateStatus($"started '{command}'");
+        UpdateStatus($"Started {command}");
     }
 
     private void LoadLocalApplications()
@@ -789,10 +789,10 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         }
         catch (Exception error) when (error is IOException or System.ComponentModel.Win32Exception or InvalidOperationException)
         {
-            Log.Warn($"the application list could not be read: {error.Message}");
+            Log.Warn(error, $"apps: the local application list could not be read");
             Dispatcher.UIThread.Post(() =>
             {
-                LocalNotice = "The applications could not be read";
+                LocalNotice = "Couldn't load the applications";
                 RebuildTray();
             });
             return;
@@ -805,10 +805,10 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
             Nested ? category => Bluecurve.Path(BluecurveIconSource.CategoryIcon(category)) : null);
         if (terminal is null && listable.Any(static entry => entry.Terminal))
         {
-            Log.Info($"set terminal in the config to list terminal applications");
+            Log.Info($"apps: terminal applications hidden, set terminal in the config to list them");
         }
 
-        Log.Debug($"{listable.Count} application(s) in {items.Count} categor(ies) for the tray menu");
+        Log.Debug($"apps: {listable.Count} application(s) in {items.Count} categor(ies) for the tray menu");
         Dispatcher.UIThread.Post(() =>
         {
             LocalApplications = items;
@@ -886,7 +886,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         window.Closed += (_, _) => _sessionWindows.Remove(window);
         if (RunSettings.Host.SessionTitles)
         {
-            window.DecorateTitle(title => $"{title} — {name}");
+            window.DecorateTitle(title => $"{title} · {name}");
         }
     }
 
@@ -896,7 +896,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         {
             _screenWindow = null;
             _capture?.Detach();
-            UpdateStatus("the desktop window is gone");
+            UpdateStatus("The desktop window is closed");
             return;
         }
 
@@ -915,7 +915,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         _screenWindow = window;
         _screenTitle = title;
         _capture?.Attach(window, title);
-        UpdateStatus($"the desktop window is up");
+        UpdateStatus($"The desktop window is open");
     }
 
     private void StartGlobalHotkeys()
@@ -935,7 +935,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
 
         if (host.Socket.Length == 0 && !registry.AnyLive)
         {
-            Log.Warn($"this session has no local socket and no connected session, global hotkeys wait");
+            Log.Warn($"hotkeys: no local socket and no connected session, global hotkeys wait");
             return;
         }
 
@@ -969,7 +969,7 @@ internal sealed class DesktopWayloniaApp : WayloniaApp
         {
             if (_tray is not null)
             {
-                _tray.ToolTipText = $"Waylonia — {text}";
+                _tray.ToolTipText = $"Waylonia\n{text}";
             }
         });
     }

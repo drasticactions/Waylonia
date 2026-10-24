@@ -64,7 +64,7 @@ internal static class ShellStateFile
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            log.Warn($"cannot write the shell window state to {path}: {error.Message}");
+            log.Warn(error, $"shell: saving the window state to {path} failed");
         }
     }
 

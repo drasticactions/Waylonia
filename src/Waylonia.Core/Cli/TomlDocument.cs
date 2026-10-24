@@ -24,7 +24,7 @@ internal sealed class TomlDocument
         if (document.HasErrors)
         {
             error = string.Join(
-                "; ",
+                ' ',
                 document.Diagnostics
                     .Where(static message => message.Kind == DiagnosticMessageKind.Error)
                     .Select(static message => message.ToString()));

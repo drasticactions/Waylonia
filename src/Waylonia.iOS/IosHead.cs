@@ -75,7 +75,7 @@ internal static class IosHead
         var sink = AVAudioSink.TryCreate(fill, rate, channels, out var whyNot);
         if (sink is null)
         {
-            Log.Warn($"this device has no playback route, so no session has sound: {whyNot}");
+            Log.Warn($"audio: no playback route, so no session has sound, {CliMessage.Text(whyNot)}");
         }
 
         return sink;

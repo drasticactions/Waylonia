@@ -59,7 +59,7 @@ internal sealed class IncusVsockListener(int fd, uint port, uint cid, string des
                 return new VsockStream(accepted);
             }
 
-            Log.Warn($"{destination}: closed a vsock connection from CID {peer}, which is not this instance (CID {cid})");
+            Log.Warn($"{destination}: closed a vsock connection from CID {peer}, the instance is CID {cid}");
             VsockSockets.Close(accepted);
         }
 
