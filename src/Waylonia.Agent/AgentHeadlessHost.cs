@@ -13,6 +13,7 @@ namespace Waylonia.Agent;
 [SupportedOSPlatform("linux")]
 internal sealed class AgentHeadlessHost : IAgentCompositor, IDisposable
 {
+    private const string RenderNode = "/dev/dri/renderD128";
     private readonly AgentRuntime _runtime;
     private readonly ShellSettings _settings;
     private readonly string? _socketName;
@@ -57,7 +58,6 @@ internal sealed class AgentHeadlessHost : IAgentCompositor, IDisposable
                 ManagedTransport = false,
                 ExtraModules = _xwaylandModule is { } module ? [module] : null,
                 ConfigureServices = _runtime.ConfigureServices,
-                Dmabuf = false,
             });
             host.Seat.Keyboard.SetKeymap(new KeymapNames(Layout: profile.Keymap ?? "us"));
             var width = (int)Math.Round(profile.Width * profile.Scale);
@@ -75,7 +75,10 @@ internal sealed class AgentHeadlessHost : IAgentCompositor, IDisposable
             _runtime.Attach(host, _view, _shell, this, RequestQuit);
             BasinReport.Line(Cli.ReportLines.Socket(host.Socket));
             return host;
-        });
+        })
+        {
+            RenderNode = File.Exists(RenderNode) ? RenderNode : null,
+        };
         _driver.FrameCompleted += OnFrame;
         _driver.Start();
     }

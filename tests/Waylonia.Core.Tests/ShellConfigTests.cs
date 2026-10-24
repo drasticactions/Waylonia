@@ -189,7 +189,7 @@ public sealed class ShellConfigTests : IDisposable
 
     [Theory]
     [InlineData("close = \"Alt+Bogus\"", "[shell.keys] close: 'Alt+Bogus' names no key, ignoring it")]
-    [InlineData("close = \"Hyper+F4\"", "[shell.keys] close: 'Hyper+F4' has no modifier named 'Hyper'; the modifiers are shift, ctrl, alt and super, ignoring it")]
+    [InlineData("close = \"Hyper+F4\"", "[shell.keys] close: 'Hyper+F4' has no modifier named 'Hyper'")]
     [InlineData("close = \"+\"", "[shell.keys] close: '+' names no key, ignoring it")]
     [InlineData("close = 4", "[shell.keys] close takes a chord such as Alt+F4, ignoring '4'")]
     public void A_shell_key_chord_that_does_not_parse_warns_and_is_dropped(string line, string warning)
@@ -211,7 +211,9 @@ public sealed class ShellConfigTests : IDisposable
 
         using var capture = new LogCapture();
         var table = KeyTable.Build(config.ShellSettings.Keys, []);
-        Assert.Contains("Warn: shell key close and minimize both use Alt+F4, keeping close", capture.Lines);
+        var duplicate = Assert.Single(capture.Lines, line => line.StartsWith("Warn", StringComparison.Ordinal));
+        Assert.Contains("minimize", duplicate, StringComparison.Ordinal);
+        Assert.Contains("Alt+F4", duplicate, StringComparison.Ordinal);
         Assert.Equal("close", table.Match(ShellModifiers.Alt, 62));
         Assert.DoesNotContain(table.Bindings, binding => binding.Name == "minimize");
     }

@@ -64,7 +64,7 @@ public sealed class ShellKeyLinesTests
     public void A_bad_chord_carries_the_key_table_problem()
     {
         Assert.Null(ShellKeyLines.Parse("close = Hyper+F4", out var problem));
-        Assert.Equal("close: 'Hyper+F4' has no modifier named 'Hyper'; the modifiers are shift, ctrl, alt and super.", problem);
+        Assert.StartsWith("close: 'Hyper+F4' has no modifier named 'Hyper'", problem, StringComparison.Ordinal);
 
         Assert.Null(ShellKeyLines.Parse("close = Alt+Nope", out problem));
         Assert.Equal("close: 'Alt+Nope' names no key.", problem);

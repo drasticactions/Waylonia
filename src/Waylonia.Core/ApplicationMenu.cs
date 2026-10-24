@@ -78,7 +78,7 @@ internal static class ApplicationMenu
         var items = new List<ApplicationMenuItem>();
         foreach (var action in entry.Actions)
         {
-            var argv = action.Argv;
+            string[] argv = [.. action.Argv];
             if (argv.Length == 0)
             {
                 continue;

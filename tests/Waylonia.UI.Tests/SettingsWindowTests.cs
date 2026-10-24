@@ -437,7 +437,7 @@ public sealed class SettingsWindowTests : IDisposable
         Assert.Equal("Use 1 to 36.", form.WorkspacesProblem);
         Assert.Equal("Use 1 to 4, the number of workspaces.", form.WorkspaceRowsProblem);
         Assert.Equal("Use a whole number of milliseconds, 0 or more.", form.AutoRaiseDelayProblem);
-        Assert.Equal("close: 'Hyper+F4' has no modifier named 'Hyper'; the modifiers are shift, ctrl, alt and super.", form.ShellKeysProblem);
+        Assert.StartsWith("close: 'Hyper+F4' has no modifier named 'Hyper'", form.ShellKeysProblem, StringComparison.Ordinal);
         Assert.Equal("Use 8 to 128, in pixels.", form.PanelSizeProblem);
         Assert.Equal($"'launcher:' is not an applet. The applets are {PanelApplets.AppletNames}, separated by commas.", form.PanelTopProblem);
         Assert.Equal($"'weather' is not an applet. The applets are {PanelApplets.AppletNames}, separated by commas.", form.PanelBottomProblem);

@@ -201,7 +201,7 @@ public sealed class NestedShellChromeTests
             Assert.False(combo.IsDropDownOpen);
             Assert.False(shell.HasOpenPopups);
 
-            var panel = shell.UISurfaces.Count > 0 ? shell.Layers.Panel.Children.OfType<global::Basin.Scene.SceneBuffer>().Select(node => shell.UISurfaces.SurfaceOf(node)).OfType<AvaloniaUISurface>().FirstOrDefault() : null;
+            var panel = shell.UISurfaces.Count > 0 ? shell.Layers.Panel.Children.ToArray().OfType<global::Basin.Scene.SceneBuffer>().Select(node => shell.UISurfaces.SurfaceOf(node)).OfType<AvaloniaUISurface>().FirstOrDefault() : null;
             Assert.NotNull(panel);
             var panelMenu = ((Control)panel!.Content!).GetVisualDescendants().OfType<Menu>().First();
             var applications = panelMenu.GetVisualDescendants().OfType<MenuItem>().First();

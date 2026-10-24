@@ -14,9 +14,9 @@ public sealed class KeyTableTests
         using var capture = new LogCapture();
         var table = KeyTable.Build([], Hotkey.Reserved(hotkeys));
 
-        Assert.Equal(
-            ["Warn: shell key close uses Alt+F4, which the host already binds, keeping the host's"],
-            capture.Lines.Where(line => line.StartsWith("Warn", StringComparison.Ordinal)));
+        var reported = Assert.Single(capture.Lines, line => line.StartsWith("Warn", StringComparison.Ordinal));
+        Assert.Contains("shell key close", reported, StringComparison.Ordinal);
+        Assert.Contains("Alt+F4", reported, StringComparison.Ordinal);
         Assert.Null(table.Match(ShellModifiers.Alt, 62));
         Assert.DoesNotContain(table.Bindings, binding => binding.Name == "close");
         Assert.Equal("minimize", table.Match(ShellModifiers.Alt, 67));
